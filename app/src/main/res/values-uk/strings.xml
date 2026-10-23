@@ -793,7 +793,7 @@
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">Використовувати SDCC (шифрування TLS)</string>
-    <string name="setting_dcc_secure_desc">Вихідні передавання файлів використовують DCC SSEND (обгорнутий у TLS). Клієнт співрозмовника також має підтримувати SDCC.</string>
+    <string name="setting_dcc_secure_desc">Вихідні передавання файлів і чати використовують DCC SSEND і SCHAT (обгорнуті у TLS). Клієнт співрозмовника також має підтримувати SDCC.</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">Користувачі:</string>
@@ -1057,7 +1057,7 @@
     <string name="vm_quietlist_usage">Використання: /quietlist #channel</string>
     <string name="vm_exceptlist_usage">Використання: /exceptlist #channel</string>
     <string name="vm_invexlist_usage">Використання: /invexlist #channel</string>
-    <string name="vm_dcc_chat_usage">Використання: /dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">Використання: /dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">Не вдалося надіслати через +AGE; повідомлення не надіслано.</string>
     <string name="vm_ignoring">%1$s ігнорується</string>
     <string name="vm_unignored">%1$s більше не ігнорується</string>
@@ -1127,6 +1127,12 @@
     <string name="vm_dcc_chat_offering">Пропонування DCC%1$s CHAT для %2$s…</string>
     <string name="vm_dcc_chat_sent">Пропозицію DCC%1$s CHAT надіслано %2$s (порт %3$s)</string>
     <string name="vm_dcc_chat_offer_failed">Не вдалося запропонувати DCC CHAT: %1$s</string>
+    <string name="vm_dcc_chat_tls_peer">Захищений DCC CHAT через %1$s. Сертифікат співрозмовника (SHA-256): %2$s. Звірте його зі співрозмовником, щоб виключити перехоплення.</string>
+    <string name="vm_dcc_chat_tls_local">Захищений DCC CHAT через %1$s. Ваш сертифікат (SHA-256): %2$s. Співрозмовник має бачити такий самий відбиток.</string>
+    <string name="vm_dcc_no_chat_offer">Немає очікуваної пропозиції DCC CHAT від %1$s.</string>
+    <string name="dcc_send_pick_title">Надіслати файл %1$s?</string>
+    <string name="dcc_send_pick_body">Виберіть файл, який запропонувати %1$s у %2$s через DCC.</string>
+    <string name="vm_dcc_no_file_picker">На цьому пристрої немає засобу вибору файлів.</string>
     <string name="vm_dcc_offering_active">Пропонування %1$s для %2$s через DCC%3$s (активний, порт %4$s)…</string>
     <string name="vm_dcc_offering_passive">Пропонування %1$s для %2$s через DCC%3$s (пасивний)…</string>
     <string name="vm_dcc_accepted_resume">%1$s прийняв; продовження з %2$s байтів…</string>

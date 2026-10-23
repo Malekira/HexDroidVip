@@ -793,7 +793,7 @@
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">Usar SDCC (cifrado TLS)</string>
-    <string name="setting_dcc_secure_desc">Las transferencias de archivos salientes usan DCC SSEND (cifrado TLS). El cliente remoto también debe admitir SDCC.</string>
+    <string name="setting_dcc_secure_desc">Las transferencias de archivos y los chats salientes usan DCC SSEND y SCHAT (cifrado TLS). El cliente remoto también debe admitir SDCC.</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">Usuarios:</string>
@@ -1057,7 +1057,7 @@
     <string name="vm_quietlist_usage">Uso: /quietlist #canal</string>
     <string name="vm_exceptlist_usage">Uso: /exceptlist #canal</string>
     <string name="vm_invexlist_usage">Uso: /invexlist #canal</string>
-    <string name="vm_dcc_chat_usage">Uso: /dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">Uso: /dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">Falló el envío +AGE; el mensaje no se envió.</string>
     <string name="vm_ignoring">Ignorando a %1$s</string>
     <string name="vm_unignored">%1$s ya no está ignorado</string>
@@ -1127,6 +1127,12 @@
     <string name="vm_dcc_chat_offering">Ofreciendo DCC%1$s CHAT a %2$s…</string>
     <string name="vm_dcc_chat_sent">Oferta de DCC%1$s CHAT enviada a %2$s (puerto %3$s)</string>
     <string name="vm_dcc_chat_offer_failed">Falló la oferta de DCC CHAT: %1$s</string>
+    <string name="vm_dcc_chat_tls_peer">DCC CHAT seguro mediante %1$s. Certificado del otro usuario (SHA-256): %2$s. Compáralo con esa persona para descartar una interceptación.</string>
+    <string name="vm_dcc_chat_tls_local">DCC CHAT seguro mediante %1$s. Tu certificado (SHA-256): %2$s. La otra persona debería ver la misma huella.</string>
+    <string name="vm_dcc_no_chat_offer">No hay ninguna oferta de DCC CHAT pendiente de %1$s.</string>
+    <string name="dcc_send_pick_title">¿Enviar un archivo a %1$s?</string>
+    <string name="dcc_send_pick_body">Elige un archivo para ofrecer a %1$s en %2$s por DCC.</string>
+    <string name="vm_dcc_no_file_picker">No hay ningún selector de archivos disponible en este dispositivo.</string>
     <string name="vm_dcc_offering_active">Ofreciendo %1$s a %2$s por DCC%3$s (activo, puerto %4$s)…</string>
     <string name="vm_dcc_offering_passive">Ofreciendo %1$s a %2$s por DCC%3$s (pasivo)…</string>
     <string name="vm_dcc_accepted_resume">%1$s aceptado; reanudando desde el byte %2$s…</string>

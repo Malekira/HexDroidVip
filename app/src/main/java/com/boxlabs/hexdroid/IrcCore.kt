@@ -6400,9 +6400,10 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 		if (!inner.startsWith("DCC ", ignoreCase = true)) return null
 
 		val afterDcc = inner.drop(3).trimStart() // remove "DCC"
-		val verb = afterDcc.substringBefore(' ').uppercase()
+		val verbRaw = afterDcc.substringBefore(' ')
+		val verb = verbRaw.uppercase(Locale.ROOT)
 		if (verb != "SEND" && verb != "TSEND" && verb != "SSEND") return null
-		var rest = afterDcc.substringAfter(verb, "").trimStart()
+		val rest = afterDcc.substring(verbRaw.length).trimStart()
 		if (rest.isBlank()) return null
 
 		// Filename
@@ -6420,8 +6421,8 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 		if (parts.size < 3) return null
 
 		val ipField = parts[0]
-		val port = parts[1].toIntOrNull() ?: return null
-		val size = parts[2].toLongOrNull() ?: 0L
+		val port = parts[1].toIntOrNull()?.takeIf { it in 0..65535 } ?: return null
+		val size = parts[2].toLongOrNull()?.takeIf { it >= 0L } ?: 0L
 
 		// SSEND: TLS-wrapped transfer.
 		val secure = verb == "SSEND"
@@ -6473,10 +6474,10 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 		if (!inner.startsWith("DCC ", ignoreCase = true)) return null
 
 		val afterDcc = inner.drop(3).trimStart() // remove "DCC"
-		val verb = afterDcc.substringBefore(' ').uppercase()
-		if (verb != expectedVerb) return null
+		val verbRaw = afterDcc.substringBefore(' ')
+		if (!verbRaw.equals(expectedVerb, ignoreCase = true)) return null
 
-		val rest = afterDcc.substringAfter(verb, "").trimStart()
+		val rest = afterDcc.substring(verbRaw.length).trimStart()
 		if (rest.isBlank()) return null
 
 		// Filename (quoted or unquoted) — same logic as parseDccSend.
@@ -6507,26 +6508,29 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 	}
 
 	private fun parseDccChat(textRaw: String): DccChatOffer? {
-		// CTCP wrapper: \u0001DCC CHAT <proto> <ip> <port>\u0001
+		// CTCP wrapper: \u0001DCC CHAT|SCHAT <proto> <ip> <port>\u0001
 		if (!textRaw.startsWith("\u0001DCC ") || !textRaw.endsWith("\u0001")) return null
 
 		val inner = textRaw.removePrefix("\u0001").removeSuffix("\u0001").trim()
 		if (!inner.startsWith("DCC ", ignoreCase = true)) return null
 
 		val afterDcc = inner.drop(3).trimStart() // remove "DCC"
-		val verb = afterDcc.substringBefore(' ').uppercase(Locale.ROOT)
+		val verbRaw = afterDcc.substringBefore(' ')
+		val verb = verbRaw.uppercase(Locale.ROOT)
 		if (verb != "CHAT" && verb != "SCHAT") return null
 
 		// SCHAT: TLS-wrapped chat session.
 		val secure = verb == "SCHAT"
 
-		val rest = afterDcc.substringAfter(verb, "").trimStart()
+		val rest = afterDcc.substring(verbRaw.length).trimStart()
 		val parts = rest.split(Regex("\\s+")).filter { it.isNotBlank() }
 		if (parts.size < 3) return null
 
 		val proto = parts[0]
 		val ipField = parts[1]
 		val port = parts[2].toIntOrNull() ?: return null
+		// Passive (port 0) chat is not supported.
+		if (port !in 1..65535) return null
 		val ip = parseDccAddress(ipField) ?: return null
 
 		return DccChatOffer(from = "?", protocol = proto, ip = ip, port = port, secure = secure)

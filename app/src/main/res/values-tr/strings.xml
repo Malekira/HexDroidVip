@@ -793,7 +793,7 @@
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">SDCC kullan (TLS şifrelemesi)</string>
-    <string name="setting_dcc_secure_desc">Giden dosya aktarımları DCC SSEND (TLS şifreli) kullanır. Uzak istemci de SDCC\'yi desteklemelidir.</string>
+    <string name="setting_dcc_secure_desc">Giden dosya aktarımları ve sohbetler DCC SSEND ve SCHAT (TLS şifreli) kullanır. Uzak istemci de SDCC\'yi desteklemelidir.</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">Kullanıcılar:</string>
@@ -1057,7 +1057,7 @@
     <string name="vm_quietlist_usage">Kullanım: /quietlist #channel</string>
     <string name="vm_exceptlist_usage">Kullanım: /exceptlist #channel</string>
     <string name="vm_invexlist_usage">Kullanım: /invexlist #channel</string>
-    <string name="vm_dcc_chat_usage">Kullanım: /dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">Kullanım: /dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">+AGE gönderimi başarısız; mesaj gönderilmedi.</string>
     <string name="vm_ignoring">%1$s yok sayılıyor</string>
     <string name="vm_unignored">%1$s artık yok sayılmıyor</string>
@@ -1127,6 +1127,12 @@
     <string name="vm_dcc_chat_offering">DCC%1$s CHAT teklif ediliyor: %2$s…</string>
     <string name="vm_dcc_chat_sent">DCC%1$s CHAT teklifi gönderildi: %2$s (bağlantı noktası %3$s)</string>
     <string name="vm_dcc_chat_offer_failed">DCC CHAT teklifi başarısız: %1$s</string>
+    <string name="vm_dcc_chat_tls_peer">%1$s üzerinden güvenli DCC CHAT. Karşı tarafın sertifikası (SHA-256): %2$s. Araya girilmediğinden emin olmak için karşı tarafla karşılaştırın.</string>
+    <string name="vm_dcc_chat_tls_local">%1$s üzerinden güvenli DCC CHAT. Sertifikanız (SHA-256): %2$s. Karşı taraf da aynı parmak izini görmelidir.</string>
+    <string name="vm_dcc_no_chat_offer">%1$s kullanıcısından bekleyen DCC CHAT teklifi yok.</string>
+    <string name="dcc_send_pick_title">%1$s kullanıcısına dosya gönderilsin mi?</string>
+    <string name="dcc_send_pick_body">%2$s ağında %1$s kullanıcısına DCC ile sunulacak bir dosya seçin.</string>
+    <string name="vm_dcc_no_file_picker">Bu cihazda kullanılabilir bir dosya seçici yok.</string>
     <string name="vm_dcc_offering_active">%1$s teklif ediliyor, alıcı %2$s, DCC%3$s üzerinden (etkin, bağlantı noktası %4$s)…</string>
     <string name="vm_dcc_offering_passive">%1$s teklif ediliyor, alıcı %2$s, DCC%3$s üzerinden (pasif)…</string>
     <string name="vm_dcc_accepted_resume">%1$s kabul etti; %2$s bayttan sürdürülüyor…</string>

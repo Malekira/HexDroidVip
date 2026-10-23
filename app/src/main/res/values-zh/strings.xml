@@ -793,7 +793,7 @@
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">使用 SDCC（TLS 加密）</string>
-    <string name="setting_dcc_secure_desc">传出文件传输使用 DCC SSEND（TLS 加密）。远程客户端也必须支持 SDCC。</string>
+    <string name="setting_dcc_secure_desc">传出文件传输和聊天使用 DCC SSEND 和 SCHAT（TLS 加密）。远程客户端也必须支持 SDCC。</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">用户：</string>
@@ -1057,7 +1057,7 @@
     <string name="vm_quietlist_usage">用法：/quietlist #channel</string>
     <string name="vm_exceptlist_usage">用法：/exceptlist #channel</string>
     <string name="vm_invexlist_usage">用法：/invexlist #channel</string>
-    <string name="vm_dcc_chat_usage">用法：/dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">用法：/dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">+AGE 发送失败；消息未发出。</string>
     <string name="vm_ignoring">正在忽略 %1$s</string>
     <string name="vm_unignored">已取消忽略 %1$s</string>
@@ -1127,6 +1127,12 @@
     <string name="vm_dcc_chat_offering">正在向 %2$s 发出 DCC%1$s CHAT 请求…</string>
     <string name="vm_dcc_chat_sent">已向 %2$s 发送 DCC%1$s CHAT 请求（端口 %3$s）</string>
     <string name="vm_dcc_chat_offer_failed">DCC CHAT 请求失败：%1$s</string>
+    <string name="vm_dcc_chat_tls_peer">通过 %1$s 的安全 DCC CHAT。对方证书 (SHA-256)：%2$s。请与对方核对，以排除被截获的可能。</string>
+    <string name="vm_dcc_chat_tls_local">通过 %1$s 的安全 DCC CHAT。你的证书 (SHA-256)：%2$s。对方应看到相同的指纹。</string>
+    <string name="vm_dcc_no_chat_offer">没有来自 %1$s 的待处理 DCC CHAT 邀请。</string>
+    <string name="dcc_send_pick_title">向 %1$s 发送文件？</string>
+    <string name="dcc_send_pick_body">选择要通过 DCC 在 %2$s 上发送给 %1$s 的文件。</string>
+    <string name="vm_dcc_no_file_picker">此设备上没有可用的文件选择器。</string>
     <string name="vm_dcc_offering_active">正在通过 DCC%3$s 向 %2$s 发送 %1$s（主动，端口 %4$s）…</string>
     <string name="vm_dcc_offering_passive">正在通过 DCC%3$s 向 %2$s 发送 %1$s（被动）…</string>
     <string name="vm_dcc_accepted_resume">%1$s 已接受；正在从第 %2$s 字节继续…</string>

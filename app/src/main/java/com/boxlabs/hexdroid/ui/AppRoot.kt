@@ -85,6 +85,20 @@ fun AppRoot(
     val scriptFilePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri -> vm.scriptFilePickResult(uri) }
+    // DCC send file choice. The target is held in the view model, so it survives the activity
+    // being recreated while the picker is open.
+    val dccSendPick by vm.dccSendPick.collectAsState()
+    val dccSendPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> vm.dccSendPickResult(uri) }
+    val launchDccSendPicker: (IrcViewModel.DccSendPick) -> Unit = { pick ->
+        vm.dccSendPickLaunched(pick.id)
+        try {
+            dccSendPicker.launch(arrayOf(pick.mimeFilter))
+        } catch (_: android.content.ActivityNotFoundException) {
+            vm.dccSendPickUnavailable()
+        }
+    }
 
 	val tourRegistry = remember { TourRegistry() }
 	var tourActive by rememberSaveable { mutableStateOf(false) }
@@ -254,20 +268,6 @@ fun AppRoot(
             }
 
 
-            // ── DCC "Send file from nick actions" flow ───────────────────────────────
-            // Hoisted here (above the `when`) so that rememberLauncherForActivityResult
-            // is called unconditionally in composable scope. Placing it inside a `when`
-            // branch would violate the rules of hooks and cause a crash.
-            var dccPendingNick by remember { mutableStateOf("") }
-            val dccFilePicker = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.OpenDocument()
-            ) { uri ->
-                if (uri != null && dccPendingNick.isNotBlank()) {
-                    vm.sendDccFileFlow(uri, dccPendingNick)
-                    dccPendingNick = ""
-                }
-            }
-
             Box(modifier = Modifier.fillMaxSize()) {
 
             // Preserve each screen's rememberSaveable state across navigation.
@@ -296,10 +296,7 @@ fun AppRoot(
                     onUnignoreNotifications = vm::unignoreNotifications,
 					onRefreshNicklist = vm::refreshNicklistForSelectedBuffer,
 					onRefreshChannelModes = vm::refreshChannelModesForSelectedBuffer,
-                    onDccSendFile = { nick ->
-                        dccPendingNick = nick
-                        dccFilePicker.launch(arrayOf("*/*"))
-                    },
+                    onDccSendFile = { nick -> vm.requestDccSendPick(nick) },
                     onDccChat = vm::startDccChat,
                     onOpenList = { vm.goTo(AppScreen.LIST) },
                     onOpenSettings = { vm.goTo(AppScreen.SETTINGS) },
@@ -532,6 +529,30 @@ fun AppRoot(
                 }
             },
         )
+    }
+
+    // A DCC send waiting for its file. From the nick menu the picker opens straight away; from
+    // /dcc send a prompt names the recipient first.
+    dccSendPick?.takeIf { !it.launched }?.let { pick ->
+        if (pick.confirm) {
+            AlertDialog(
+                onDismissRequest = { vm.dccSendPickResult(null) },
+                title = { Text(stringResource(R.string.dcc_send_pick_title, pick.nick)) },
+                text = { Text(stringResource(R.string.dcc_send_pick_body, pick.nick, pick.networkName)) },
+                confirmButton = {
+                    TextButton(onClick = { launchDccSendPicker(pick) }) {
+                        Text(stringResource(R.string.script_pick_file_choose))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { vm.dccSendPickResult(null) }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
+        } else {
+            LaunchedEffect(pick.id) { launchDccSendPicker(pick) }
+        }
     }
 
     mountedScriptView?.let { mv ->

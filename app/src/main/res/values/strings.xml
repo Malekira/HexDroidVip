@@ -797,7 +797,7 @@
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">Use SDCC (TLS encryption)</string>
-    <string name="setting_dcc_secure_desc">Outgoing file transfers use DCC SSEND (TLS-wrapped). The remote client must also support SDCC.</string>
+    <string name="setting_dcc_secure_desc">Outgoing file transfers and chats use DCC SSEND and SCHAT (TLS-wrapped). The remote client must also support SDCC.</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">Users:</string>
@@ -1064,7 +1064,7 @@
     <string name="vm_quietlist_usage">Usage: /quietlist #channel</string>
     <string name="vm_exceptlist_usage">Usage: /exceptlist #channel</string>
     <string name="vm_invexlist_usage">Usage: /invexlist #channel</string>
-    <string name="vm_dcc_chat_usage">Usage: /dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">Usage: /dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">+AGE send failed; message not sent.</string>
     <string name="vm_ignoring">Ignoring %1$s</string>
     <string name="vm_unignored">Unignored %1$s</string>
@@ -1134,6 +1134,12 @@
     <string name="vm_dcc_chat_offering">Offering DCC%1$s CHAT to %2$s…</string>
     <string name="vm_dcc_chat_sent">Sent DCC%1$s CHAT offer to %2$s (port %3$s)</string>
     <string name="vm_dcc_chat_offer_failed">DCC CHAT offer failed: %1$s</string>
+    <string name="vm_dcc_chat_tls_peer">Secure DCC CHAT over %1$s. Peer certificate SHA-256: %2$s. Compare it with them to rule out interception.</string>
+    <string name="vm_dcc_chat_tls_local">Secure DCC CHAT over %1$s. Your certificate SHA-256: %2$s. They should see the same fingerprint.</string>
+    <string name="vm_dcc_no_chat_offer">No pending DCC CHAT offer from %1$s.</string>
+    <string name="dcc_send_pick_title">Send a file to %1$s?</string>
+    <string name="dcc_send_pick_body">Choose a file to offer %1$s on %2$s over DCC.</string>
+    <string name="vm_dcc_no_file_picker">No file picker is available on this device.</string>
     <string name="vm_dcc_offering_active">Offering %1$s to %2$s via DCC%3$s (active, port %4$s)…</string>
     <string name="vm_dcc_offering_passive">Offering %1$s to %2$s via DCC%3$s (passive)…</string>
     <string name="vm_dcc_accepted_resume">%1$s accepted; resuming from %2$s bytes…</string>

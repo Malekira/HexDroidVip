@@ -30,6 +30,8 @@ import android.provider.MediaStore
 import androidx.documentfile.provider.DocumentFile
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.BufferedOutputStream
 import java.io.File
@@ -39,9 +41,11 @@ import java.io.OutputStream
 import java.nio.ByteOrder
 import java.net.Inet4Address
 import java.net.Inet6Address
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 import com.boxlabs.hexdroid.connection.ProxyConfig
 import com.boxlabs.hexdroid.connection.SocksProxy
 import java.nio.ByteBuffer
@@ -172,6 +176,7 @@ class DccManager(ctx: Context) {
      * is passed per call so concurrent transfers on different networks can't race over it.
      */
     private fun openOutbound(host: String, port: Int, proxy: ProxyConfig): Socket {
+        require(port in 1..65535) { "DCC: invalid port $port" }
         return if (proxy.enabled) {
             // The proxy resolves [host] remotely, so a literal IP or a hostname both work and
             // no on-device DNS lookup leaks. Reuse the IRC socket timeouts for parity.
@@ -185,7 +190,17 @@ class DccManager(ctx: Context) {
                 keepAlive = true,
             )
         } else {
-            Socket(resolveConnectTarget(host), port)
+            val sock = Socket()
+            try {
+                sock.connect(
+                    InetSocketAddress(resolveConnectTarget(host), port),
+                    com.boxlabs.hexdroid.connection.ConnectionConstants.SOCKET_CONNECT_TIMEOUT_MS,
+                )
+            } catch (t: Throwable) {
+                runCatching { sock.close() }
+                throw t
+            }
+            sock
         }
     }
 
@@ -233,22 +248,6 @@ class DccManager(ctx: Context) {
             val name = if (cm != null && net != null) cm.getLinkProperties(net)?.interfaceName else null
             if (!name.isNullOrEmpty()) NetworkInterface.getByName(name) else null
         } catch (_: Throwable) { null }
-    }
-
-    /**
-     * Wraps a plain socket with TLS for SDCC (Secure DCC).
-     * Uses the default SSLSocketFactory which trusts system CAs.
-     * SDCC peers are often self-signed; we intentionally skip hostname verification
-     * since DCC is IP-addressed, not hostname-addressed. The encryption still provides
-     * confidentiality against passive eavesdroppers.
-     */
-    private fun wrapTls(sock: Socket, host: String): Socket {
-        val sf = javax.net.ssl.SSLSocketFactory.getDefault() as javax.net.ssl.SSLSocketFactory
-        val ssl = sf.createSocket(sock, host, sock.port, true) as javax.net.ssl.SSLSocket
-        // Disable hostname verification; DCC uses raw IPs.
-        ssl.sslParameters = ssl.sslParameters.also { it.endpointIdentificationAlgorithm = null }
-        ssl.startHandshake()
-        return ssl
     }
 
     /**
@@ -613,7 +612,7 @@ class DccManager(ctx: Context) {
         // reason — if the connect fails, no file gets created.
         validateRemoteIp(offer.ip)
         val rawSock = openOutbound(offer.ip, offer.port, proxy)
-        val sock = if (offer.secure) wrapTls(rawSock, offer.ip) else rawSock
+        val sock = if (offer.secure) DccTls.wrap(rawSock, server = false) else rawSock
 
         val (outputStream, savedPath) = try {
             if (resumeOffset > 0L) openDccOutputStreamForResume(resumeSavedPath!!)
@@ -729,7 +728,7 @@ class DccManager(ctx: Context) {
                 else t
             }
             val sock = try {
-                if (offer.secure) wrapTls(rawSock, rawSock.inetAddress?.hostAddress ?: "0.0.0.0") else rawSock
+                if (offer.secure) DccTls.wrap(rawSock, server = true) else rawSock
             } catch (t: Throwable) {
                 runCatching { rawSock.close() }
                 runCatching { outputStream.close() }
@@ -849,7 +848,7 @@ class DccManager(ctx: Context) {
             } catch (_: java.net.SocketTimeoutException) {
                 throw RuntimeException("DCC SEND timed out waiting for peer to connect")
             }
-            val sock = if (secure) wrapTls(rawSock, rawSock.inetAddress.hostAddress ?: "") else rawSock
+            val sock = if (secure) DccTls.wrap(rawSock, server = true) else rawSock
 
             sock.use { s ->
                 val sockHandle = coroutineContext[kotlinx.coroutines.Job]?.invokeOnCompletion(onCancelling = true) { runCatching { s.close() } }
@@ -888,7 +887,7 @@ class DccManager(ctx: Context) {
         require(startOffset in 0L..size) { "DCC SEND: startOffset ($startOffset) out of range for $size-byte file" }
         validateRemoteIp(host)
         val rawSock = openOutbound(host, port, proxy)
-        val sock = if (secure) wrapTls(rawSock, host) else rawSock
+        val sock = if (secure) DccTls.wrap(rawSock, server = false) else rawSock
         val cancelHandle = coroutineContext[kotlinx.coroutines.Job]?.invokeOnCompletion(onCancelling = true) { runCatching { sock.close() } }
         try {
             sock.use { s ->
@@ -900,41 +899,78 @@ class DccManager(ctx: Context) {
     }
 
     /**
-     * Standard (active) DCC CHAT: we listen on a port in portMin..portMax and accept when peer connects.
-     * Returns the connected socket.
+     * Active DCC CHAT: listen on a port in portMin..portMax and return the socket of the peer that
+     * connects, TLS-wrapped as the server when [secure] (SCHAT). Cancellation stops the listen.
      */
     suspend fun startChat(
         portMin: Int,
         portMax: Int,
+        secure: Boolean = false,
         onClient: suspend (addrField: String, port: Int) -> Unit
     ): Socket = withContext(Dispatchers.IO) {
         val ss = bindFirstAvailable(portMin, portMax)
-        try {
-            val addrField = dccAddressField()
-            onClient(addrField, ss.localPort)
+        val cancelHandle = coroutineContext[Job]?.invokeOnCompletion(onCancelling = true) { runCatching { ss.close() } }
+        val rawSock = try {
+            onClient(dccAddressField(), ss.localPort)
             ss.soTimeout = 45_000
-            val sock = try {
+            try {
                 ss.accept()
-            } catch (_: java.net.SocketTimeoutException) {
-                throw RuntimeException("DCC CHAT timed out waiting for peer to connect")
+            } catch (_: SocketTimeoutException) {
+                throw IOException("DCC CHAT timed out waiting for peer to connect")
             }
-            sock.tcpNoDelay = true
-            sock.keepAlive = true
-            sock
         } finally {
+            cancelHandle?.dispose()
             runCatching { ss.close() }
         }
+        try {
+            ensureActive()
+            rawSock.tcpNoDelay = true
+            rawSock.keepAlive = true
+        } catch (t: Throwable) {
+            runCatching { rawSock.close() }
+            throw t
+        }
+        if (secure) DccTls.wrap(rawSock, server = true) else rawSock
     }
 
-    /** Standard (active) DCC CHAT: connect to the offered ip:port and return the connected socket. */
+    /** Active DCC CHAT: connect to the offered ip:port, TLS-wrapped as the client for SCHAT. */
     suspend fun connectChat(offer: DccChatOffer, proxy: ProxyConfig = ProxyConfig()): Socket = withContext(Dispatchers.IO) {
         validateRemoteIp(offer.ip)
         val rawSock = openOutbound(offer.ip, offer.port, proxy)
-        val sock = if (offer.secure) wrapTls(rawSock, offer.ip) else rawSock
-        sock.tcpNoDelay = true
-        sock.keepAlive = true
-        sock
+        try {
+            rawSock.tcpNoDelay = true
+            rawSock.keepAlive = true
+        } catch (t: Throwable) {
+            runCatching { rawSock.close() }
+            throw t
+        }
+        if (offer.secure) DccTls.wrap(rawSock, server = false) else rawSock
     }
+
+    /**
+     * Size in bytes of the file at [savedPath] (a path or content:// URI): -1 when its store can't
+     * tell, null when it is gone or unreadable.
+     */
+    fun storedSize(savedPath: String): Long? = runCatching {
+        if (savedPath.startsWith("content://")) {
+            ctx.contentResolver.openFileDescriptor(Uri.parse(savedPath), "r")?.use { it.statSize.coerceAtLeast(-1L) }
+        } else {
+            File(savedPath).takeIf { it.isFile }?.length()
+        }
+    }.getOrNull()
+
+    /** Shorten the file at [savedPath] to [size] bytes; false when that isn't possible. */
+    fun truncateStored(savedPath: String, size: Long): Boolean = runCatching {
+        if (savedPath.startsWith("content://")) {
+            ctx.contentResolver.openFileDescriptor(Uri.parse(savedPath), "rw")?.use { pfd ->
+                android.system.Os.ftruncate(pfd.fileDescriptor, size)
+                true
+            } ?: false
+        } else {
+            java.io.RandomAccessFile(savedPath, "rw").use { it.setLength(size) }
+            true
+        }
+    }.getOrDefault(false)
 
     /**
      * Receive from [sock] into [outputStream], ACKing as bytes arrive. Reading and writing run on

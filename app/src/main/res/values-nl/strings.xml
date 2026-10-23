@@ -793,7 +793,7 @@
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">SDCC gebruiken (TLS-versleuteling)</string>
-    <string name="setting_dcc_secure_desc">Uitgaande bestandsoverdrachten gebruiken DCC SSEND (TLS-versleuteld). De externe client moet ook SDCC ondersteunen.</string>
+    <string name="setting_dcc_secure_desc">Uitgaande bestandsoverdrachten en chats gebruiken DCC SSEND en SCHAT (TLS-versleuteld). De externe client moet ook SDCC ondersteunen.</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">Gebruikers:</string>
@@ -1057,7 +1057,7 @@
     <string name="vm_quietlist_usage">Gebruik: /quietlist #channel</string>
     <string name="vm_exceptlist_usage">Gebruik: /exceptlist #channel</string>
     <string name="vm_invexlist_usage">Gebruik: /invexlist #channel</string>
-    <string name="vm_dcc_chat_usage">Gebruik: /dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">Gebruik: /dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">+AGE-verzending mislukt; bericht niet verstuurd.</string>
     <string name="vm_ignoring">%1$s wordt genegeerd</string>
     <string name="vm_unignored">%1$s wordt niet meer genegeerd</string>
@@ -1127,6 +1127,12 @@
     <string name="vm_dcc_chat_offering">DCC%1$s CHAT aanbieden aan %2$s…</string>
     <string name="vm_dcc_chat_sent">DCC%1$s CHAT-aanbod verstuurd naar %2$s (poort %3$s)</string>
     <string name="vm_dcc_chat_offer_failed">DCC CHAT-aanbod mislukt: %1$s</string>
+    <string name="vm_dcc_chat_tls_peer">Beveiligde DCC CHAT via %1$s. Certificaat van de ander (SHA-256): %2$s. Vergelijk het met diegene om onderschepping uit te sluiten.</string>
+    <string name="vm_dcc_chat_tls_local">Beveiligde DCC CHAT via %1$s. Jouw certificaat (SHA-256): %2$s. De ander zou dezelfde vingerafdruk moeten zien.</string>
+    <string name="vm_dcc_no_chat_offer">Geen openstaand DCC CHAT-aanbod van %1$s.</string>
+    <string name="dcc_send_pick_title">Een bestand naar %1$s sturen?</string>
+    <string name="dcc_send_pick_body">Kies een bestand om %1$s op %2$s via DCC aan te bieden.</string>
+    <string name="vm_dcc_no_file_picker">Er is geen bestandskiezer beschikbaar op dit apparaat.</string>
     <string name="vm_dcc_offering_active">%1$s aanbieden aan %2$s via DCC%3$s (actief, poort %4$s)…</string>
     <string name="vm_dcc_offering_passive">%1$s aanbieden aan %2$s via DCC%3$s (passief)…</string>
     <string name="vm_dcc_accepted_resume">%1$s accepteerde; hervatten vanaf %2$s bytes…</string>

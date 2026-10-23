@@ -1,7 +1,26 @@
 # Changelog
 All notable changes to HexDroid are documented here.
 
-## [1.7.7] 2026-10-06
+## [Unreleased]
+### Added
+- Secure DCC chat (SCHAT) `/dcc schat <nick>` always offers a secure chat and `/dcc chat` follows the SDCC setting. The chat shows the certificate fingerprint.
+- Added `/dcc accept`, `/dcc reject` and `/dcc close`
+- `/dcc send <nick>` asks you to pick a file and offers it to them over DCC. Add a type such as `image/*` to narrow file selection.
+  In a private message or DCC chat the nick can be left out, for every `/dcc` command.
+
+### Fixed
+- SDCC file transfers (SSEND) failing whenever HexDroid was the side waiting for the connection, and against peers with self-signed certificates.
+- Resumed DCC downloads could be corrupted by repeating part of the file.
+- DCC chat messages now notify like private messages, and replying from the notification goes over the chat instead of to the IRC server.
+- Accepting a DCC chat from Transfers now opens the chat.
+- Closing a DCC chat while waiting for the other person to connect now stops waiting.
+- DCC offers with a lowercase verb (such as `DCC send`) being ignored.
+- A DCC connection to an unreachable address now gives up after 30 seconds.
+- Starting a DCC send could drop messages that arrived at the same moment.
+- Copies of files sent over DCC piling up in the app's cache.
+- A DCC chat peer sending an endless line could exhaust memory. DCC chat also reads non-UTF-8 text the way the IRC connection does.
+
+## [1.7.7] 2026-09-06
 ### Added
 - Delete logs option when no folder is selected, Export logs as .zip
 - Expanded .hex engine (docs at https://hexdroid.org/scripting)

@@ -874,6 +874,9 @@ class IrcViewModel(
          * Matches the substitution tokens in a command-alias template: $channel, $chan,
          * $network, $net, $server, $nick, $me, $*, $1..$9, and $$ (a literal dollar).
          */
+        /** A picker MIME filter given to /dcc send: type/subtype, either part may be *. */
+        val DCC_MIME_FILTER = Regex("^(\\*|[A-Za-z0-9][A-Za-z0-9.+-]*)/(\\*|[A-Za-z0-9][A-Za-z0-9.+-]*)$")
+
         val ALIAS_VAR = Regex(
             "\\$\\$|\\$(channel|chan|network|net|server|nick|me|\\*|[1-9])(?![A-Za-z0-9])",
             RegexOption.IGNORE_CASE,
@@ -1730,6 +1733,9 @@ class IrcViewModel(
 
     private val dccChatSessions: MutableMap<String, DccChatSession> =
         java.util.concurrent.ConcurrentHashMap()
+
+    /** DCC chats still listening for, or dialling, the peer, by buffer key. */
+    private val dccChatPending = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
     private data class PendingPassiveDccSend(
         val target: String,
@@ -3083,6 +3089,10 @@ class IrcViewModel(
         msgId: String? = null,
     ) {
         viewModelScope.launch {
+            if (isDccChatBufferName(buffer)) {
+                sendDccChatLine(findDccChatKey(networkId, buffer.removePrefix("DCCCHAT:")), text, isAction = false)
+                return@launch
+            }
             val rt = runtimes[networkId] ?: return@launch
             val client = rt.client
             val myNick = _state.value.connections[networkId]?.myNick ?: _state.value.myNick
@@ -6812,18 +6822,64 @@ fun startAddNetwork() {
                     }
 
                     "dcc" -> {
+                        // /dcc chat|schat <nick>, /dcc send <nick> [type], /dcc accept|reject [nick],
+                        // /dcc close [nick]. The nick defaults to the peer of the DCC chat or query typed in.
                         val rest = cmdLine.substringAfter(' ', "").trim()
                         val sub = rest.substringBefore(' ').lowercase(Locale.ROOT)
-                        val arg = rest.substringAfter(' ', "").trim()
+                        val args = rest.substringAfter(' ', "").trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+                        val defaultNick = when {
+                            isDccChatBufferName(bufferName) -> bufferName.removePrefix("DCCCHAT:")
+                            !bufferName.startsWith("*") && !isPseudoBuffer(bufferName) && !isChannelOnNet(netId, bufferName) -> bufferName
+                            else -> ""
+                        }
+                        val nick = args.firstOrNull() ?: defaultNick
+                        val say = { t: String -> append(currentKey, from = null, text = "*** $t", doNotify = false) }
                         when (sub) {
-                            "chat" -> {
-                                if (arg.isBlank()) {
-                                    append(currentKey, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_usage), doNotify = false)
-                                } else {
-                                    startDccChat(arg.substringBefore(' '))
+                            "send" -> {
+                                // Optional MIME filter for the picker, e.g. image/*. Nicks can't
+                                // contain '/', so on its own it means the default nick.
+                                val mimeArg = args.getOrNull(if (args.size == 1) 0 else 1)?.takeIf { DCC_MIME_FILTER.matches(it) }
+                                val target = if (args.size == 1 && mimeArg != null) defaultNick else nick
+                                val mime = mimeArg ?: "*/*"
+                                when {
+                                    target.isBlank() || isChannelOnNet(netId, target) -> say(appContext.getString(R.string.vm_dcc_chat_usage))
+                                    !_state.value.settings.dccEnabled -> say(appContext.getString(R.string.vm_dcc_disabled))
+                                    c?.isConnectedNow() != true && _state.value.connections[netId]?.connected != true ->
+                                        say(appContext.getString(R.string.vm_not_connected))
+                                    else -> requestDccSendPick(target, netIdArg = netId, mimeFilter = mime, confirm = true)
                                 }
                             }
-                            else -> append(currentKey, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_usage), doNotify = false)
+                            "chat", "schat" -> {
+                                if (nick.isBlank()) say(appContext.getString(R.string.vm_dcc_chat_usage))
+                                else startDccChatFlow(nick, secure = if (sub == "schat") true else null, netIdArg = netId)
+                            }
+                            "accept", "reject" -> {
+                                val offer = _state.value.dccChatOffers.lastOrNull {
+                                    it.netId == netId && (nick.isBlank() || it.from.equals(nick, ignoreCase = true))
+                                }
+                                when {
+                                    offer == null -> say(
+                                        if (nick.isBlank()) appContext.getString(R.string.vm_dcc_chat_usage)
+                                        else appContext.getString(R.string.vm_dcc_no_chat_offer, nick)
+                                    )
+                                    sub == "accept" -> acceptDccChat(offer)
+                                    else -> rejectDccChat(offer)
+                                }
+                            }
+                            "close" -> {
+                                if (nick.isBlank()) {
+                                    say(appContext.getString(R.string.vm_dcc_chat_usage))
+                                } else {
+                                    val key = findDccChatKey(netId, nick)
+                                    val pending = dccChatPending.remove(key)?.also { it.cancel() }
+                                    when {
+                                        dccChatSessions.containsKey(key) -> closeDccChatSession(key)
+                                        pending != null -> say(appContext.getString(R.string.vm_dcc_chat_closed))
+                                        else -> say(appContext.getString(R.string.vm_dcc_chat_not_connected))
+                                    }
+                                }
+                            }
+                            else -> say(appContext.getString(R.string.vm_dcc_chat_usage))
                         }
                         return@launch
                     }
@@ -8552,7 +8608,7 @@ if (code == "442") {
                     _state.value = st.copy(dccChatOffers = st.dccChatOffers + offer0)
                     // Create the DCC chat buffer immediately so the user can see and act on the
                     // offer without having to navigate to the Transfers screen.
-                    val chatKey = dccChatBufferKey(netId, offer0.from)
+                    val chatKey = findDccChatKey(netId, offer0.from)
                     ensureBuffer(chatKey)
                     append(
                         bufKey(netId, "*server*"),
@@ -8564,15 +8620,14 @@ if (code == "442") {
                     append(
                         chatKey,
                         from = null,
-                        text = "*** " + appContext.getString(R.string.vm_dcc_chat_offer, offer0.from, offer0.ip, offer0.port),
+                        text = "*** " + appContext.getString(R.string.vm_dcc_chat_offer, offer0.from, offer0.ip, dccChatPortLabel(offer0.port, offer0.secure)),
                         doNotify = false
                     )
                     if (st.settings.notificationsEnabled) {
                         // Pass the DCC chat buffer key so the notification deep-links directly
                         // into the buffer (where Accept/Reject inline actions live), rather than
                         // requiring the user to navigate to the generic Transfers screen first.
-                        val chatBufKey = dccChatBufferKey(netId, offer0.from)
-                        notifier.notifyDccIncomingChat(netId, offer0.from, dccBufferKey = chatBufKey)
+                        notifier.notifyDccIncomingChat(netId, offer0.from, dccBufferKey = chatKey)
                     }
                 }
             }
@@ -11189,6 +11244,7 @@ if (code == "442") {
         // If this is a DCC CHAT buffer, close the underlying session.
         val (_, name) = splitKey(key)
         if (isDccChatBufferName(name)) {
+            dccChatPending.remove(key)?.cancel()
             closeDccChatSession(key)
         }
 
@@ -12386,12 +12442,35 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
                 // runs on Main by default). Only the active (outbound) receive path uses it;
                 // the passive branch can't be reached while proxied (guarded above).
                 val proxy = withContext(Dispatchers.IO) { proxyForNetwork(netId) }
+                // Resume from the bytes actually stored, which can be more than the last
+                // progress report. A missing partial means a fresh download.
+                val partial = resumeFrom?.let { p ->
+                    when (val onDisk = withContext(Dispatchers.IO) { dcc.storedSize(p.savedPath) }) {
+                        null -> null
+                        -1L -> p
+                        else -> p.copy(receivedBytes = onDisk).takeIf { onDisk in 1 until p.size }
+                    }
+                }
+                if (resumeFrom != null && partial == null) dccPartials.remove(offer.from, baseName, offer.size)
                 // If resuming, run the CTCP RESUME / ACCEPT handshake first. If the sender
                 // doesn't ACCEPT within the timeout (it may not support RESUME), we silently
                 // fall back to a fresh download — better UX than failing the transfer.
-                val effectiveOffset: Long = if (resumeFrom != null) {
-                    negotiateResumeOrZero(netId, c, offer, resumeFrom)
+                val effectiveOffset: Long = if (partial != null) {
+                    negotiateResumeOrZero(netId, c, offer, partial)
                 } else 0L
+                // The sender continues from the agreed offset, so the file must end there.
+                if (partial != null && effectiveOffset in 1 until partial.receivedBytes &&
+                    !withContext(Dispatchers.IO) { dcc.truncateStored(partial.savedPath, effectiveOffset) }
+                ) {
+                    throw IOException("DCC RESUME: could not trim the partial file to $effectiveOffset bytes")
+                }
+                updateIncoming(offer) {
+                    it.copy(
+                        received = effectiveOffset,
+                        resumeOffset = effectiveOffset,
+                        savedPath = if (effectiveOffset > 0L) partial?.savedPath else null,
+                    )
+                }
 
                 val savedPath = if (offer.isPassive) {
                     // Passive/reverse DCC: we open a port and tell the sender to connect.
@@ -12401,7 +12480,7 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
                         portMax = maxP,
                         customFolderUri = customFolder,
                         resumeOffset = effectiveOffset,
-                        resumeSavedPath = if (effectiveOffset > 0L) resumeFrom?.savedPath else null,
+                        resumeSavedPath = if (effectiveOffset > 0L) partial?.savedPath else null,
                         onSavedPath = { path ->
                             // Stamp the path on the Incoming state as soon as the file is opened
                             // so a mid-transfer error can still leave a useful partial pointer.
@@ -12410,7 +12489,8 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
                         onListening = { addrField, port, size, token ->
                             val name = quoteDccFilenameIfNeeded(offer.filename)
                             val tokenStr = if (offer.turbo) "${token}T" else token.toString()
-                            val payload = "DCC SEND $name $addrField $port $size $tokenStr"
+                            val verb = if (offer.secure) "SSEND" else "SEND"
+                            val payload = "DCC $verb $name $addrField $port $size $tokenStr"
                             c.ctcp(offer.from, payload)
                             val resumeNote = if (effectiveOffset > 0L) " (resuming from ${effectiveOffset} bytes)" else ""
                             append(bufKey(netId, "*server*"), from = null, text = "*** " + appContext.getString(R.string.vm_dcc_accepted_passive, offer.filename, port, resumeNote), doNotify = false)
@@ -12423,7 +12503,7 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
                         offer = offer,
                         customFolderUri = customFolder,
                         resumeOffset = effectiveOffset,
-                        resumeSavedPath = if (effectiveOffset > 0L) resumeFrom?.savedPath else null,
+                        resumeSavedPath = if (effectiveOffset > 0L) partial?.savedPath else null,
                         proxy = proxy,
                         onSavedPath = { path -> updateIncoming(offer) { it.copy(savedPath = path) } },
                     ) { got, _ ->
@@ -12454,11 +12534,12 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
                     if (it.done || it.error != null) it
                     else it.copy(error = msg, endTimeMs = System.currentTimeMillis())
                 }
-                // Record the partial so a future offer can be RESUMEd. We need both a non-empty
-                // saved path and at least one byte on disk for the entry to be useful.
+                // Record the partial so a future offer can be RESUMEd, sized by what is on disk.
                 val partialPath = cur?.savedPath
-                val partialBytes = cur?.received ?: 0L
-                if (!partialPath.isNullOrBlank() && partialBytes > 0L && offer.size > 0L) {
+                val onDisk = if (partialPath.isNullOrBlank()) null
+                    else withContext(NonCancellable + Dispatchers.IO) { dcc.storedSize(partialPath) }
+                val partialBytes = if (onDisk == -1L) cur?.received ?: 0L else onDisk ?: 0L
+                if (!partialPath.isNullOrBlank() && offer.size > 0L && partialBytes in 1 until offer.size) {
                     dccPartials.put(
                         PartialTransfer(
                             from = offer.from,
@@ -12572,10 +12653,22 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
 
     private fun dccChatBufferKey(netId: String, peerNick: String): String = bufKey(netId, "DCCCHAT:$peerNick")
 
+    /** Key of [netId]'s DCC chat buffer for [nick], matching an open one case-insensitively. */
+    private fun findDccChatKey(netId: String, nick: String): String {
+        val exact = dccChatBufferKey(netId, nick)
+        return sequenceOf(dccChatSessions.keys, dccChatPending.keys, _state.value.buffers.keys)
+            .flatten()
+            .firstOrNull { it.equals(exact, ignoreCase = true) } ?: exact
+    }
+
+    /** Port text for DCC chat messages, marked when the chat is SDCC. */
+    private fun dccChatPortLabel(port: Int, secure: Boolean): String =
+        if (secure) "$port, SDCC/TLS" else port.toString()
+
     private fun closeDccChatSession(bufferKey: String, reason: String? = null) {
         val ses = dccChatSessions.remove(bufferKey) ?: return
         runCatching { ses.readJob.cancel() }
-        runCatching { ses.socket.close() }
+        viewModelScope.launch(Dispatchers.IO) { runCatching { ses.socket.close() } }
         val r = reason?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""
         append(bufferKey, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_disconnected, r), doNotify = false)
     }
@@ -12591,34 +12684,61 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
 
         val writer = BufferedWriter(OutputStreamWriter(socket.getOutputStream(), Charsets.UTF_8))
 
-        val job = viewModelScope.launch(Dispatchers.IO) {
-            val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
+        val job = viewModelScope.launch(Dispatchers.IO, start = kotlinx.coroutines.CoroutineStart.LAZY) {
             try {
+                val reader = EncodingLineReader(java.io.BufferedInputStream(socket.getInputStream()), "auto")
                 while (true) {
                     val line = reader.readLine() ?: break
-                    val isAction = line.startsWith("\u0001ACTION ") && line.endsWith("\u0001")
+                    if (line.isEmpty()) continue
+                    val isAction = line.length > 9 && line.startsWith("\u0001ACTION ") && line.endsWith("\u0001")
                     val text = if (isAction) {
                         line.removePrefix("\u0001ACTION ").removeSuffix("\u0001")
                     } else line
                     withContext(Dispatchers.Main) {
-                        append(bufferKey, from = peer, text = text, isAction = isAction)
+                        append(bufferKey, from = peer, text = text, isAction = isAction, isPrivate = true)
                     }
                 }
             } catch (t: Throwable) {
-                withContext(Dispatchers.Main) {
-                    append(bufferKey, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_failed, t.message ?: t::class.java.simpleName), isHighlight = true)
+                if (isActive) {
+                    withContext(Dispatchers.Main) {
+                        append(bufferKey, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_failed, t.message ?: t::class.java.simpleName), isHighlight = true)
+                    }
                 }
             } finally {
-                withContext(Dispatchers.Main) {
-                    dccChatSessions.remove(bufferKey)
-                    runCatching { socket.close() }
-                    append(bufferKey, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_closed), doNotify = false)
+                runCatching { socket.close() }
+                withContext(NonCancellable + Dispatchers.Main) {
+                    if (dccChatSessions[bufferKey]?.socket === socket) {
+                        dccChatSessions.remove(bufferKey)
+                        append(bufferKey, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_closed), doNotify = false)
+                    }
                 }
             }
         }
 
         dccChatSessions[bufferKey] = DccChatSession(netId, peer, bufferKey, socket, writer, job)
         append(bufferKey, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_connected, peer), doNotify = false)
+        job.start()
+    }
+
+    /** Show the protocol and certificate fingerprint of an SDCC chat; no-op for plain sockets. */
+    private fun appendDccTlsInfo(bufferKey: String, socket: Socket, server: Boolean) {
+        val ssl = socket as? javax.net.ssl.SSLSocket ?: return
+        val info = runCatching { DccTls.describe(ssl, server) }.getOrNull() ?: return
+        val res = if (server) R.string.vm_dcc_chat_tls_local else R.string.vm_dcc_chat_tls_peer
+        append(bufferKey, from = null, text = "*** " + appContext.getString(res, info.protocol, info.serverFingerprint ?: "?"), doNotify = false)
+    }
+
+    /** Run [block] as [bufferKey]'s pending DCC chat connect, replacing any earlier one. */
+    private fun launchDccChatConnect(bufferKey: String, block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {
+        val job = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            try {
+                block()
+            } finally {
+                coroutineContext[Job]?.let { dccChatPending.remove(bufferKey, it) }
+            }
+        }
+        dccChatPending.put(bufferKey, job)?.cancel()
+        job.start()
     }
 
     private fun sendDccChatLine(bufferKey: String, line: String, isAction: Boolean) {
@@ -12628,7 +12748,8 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
             return
         }
 
-        val payload = if (isAction) "\u0001ACTION $line\u0001" else line
+        val text = line.replace("\r", "").replace('\n', ' ')
+        val payload = if (isAction) "\u0001ACTION $text\u0001" else text
 
         // Writing to a socket on the main thread can throw (StrictMode / NetworkOnMainThreadException)
         // and will also make typing feel laggy if the peer/network is slow. Always write on IO.
@@ -12647,27 +12768,31 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
                         text = "*** " + appContext.getString(R.string.vm_dcc_chat_send_failed, t.message ?: t::class.java.simpleName),
                         isHighlight = true
                     )
-                    closeDccChatSession(bufferKey, reason = t.message)
+                    if (dccChatSessions[bufferKey] === ses) closeDccChatSession(bufferKey, reason = t.message)
                 }
                 return@launch
             }
 
             withContext(Dispatchers.Main.immediate) {
                 val myNick = _state.value.connections[ses.netId]?.myNick ?: _state.value.myNick
-                append(bufferKey, from = myNick, text = line, isAction = isAction)
+                append(bufferKey, from = myNick, text = text, isAction = isAction)
             }
         }
     }
 
     fun acceptDccChat(offer: DccChatOffer) {
         val st = _state.value
-        _state.value = st.copy(dccChatOffers = st.dccChatOffers.filterNot { it == offer })
-
         val netId = offer.netId.takeIf { it.isNotBlank() } ?: st.activeNetworkId ?: return
         val peer = offer.from
-        val key = dccChatBufferKey(netId, peer)
-        ensureBuffer(key)
-        _state.value = _state.value.copy(selectedBuffer = key)
+        val key = findDccChatKey(netId, peer)
+
+        if (!st.settings.dccEnabled) {
+            append(key, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_disabled), isHighlight = true)
+            return
+        }
+
+        _state.value = st.copy(dccChatOffers = st.dccChatOffers.filterNot { it == offer })
+        openBuffer(key)
 
         // See acceptDcc: a private/LAN target can't be the real peer through a proxy tunnel,
         // and dialling it would make the proxy probe its own local network. Refuse.
@@ -12686,14 +12811,18 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
             return
         }
 
-        viewModelScope.launch {
+        launchDccChatConnect(key) {
             try {
-                append(key, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_connecting, offer.from, offer.ip, offer.port), doNotify = false)
+                append(key, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_connecting, offer.from, offer.ip, dccChatPortLabel(offer.port, offer.secure)), doNotify = false)
                 val chatProxy = withContext(Dispatchers.IO) { proxyForNetwork(netId) }
                 val socket = dcc.connectChat(offer, proxy = chatProxy)
                 startDccChatSession(netId, peer, key, socket)
+                appendDccTlsInfo(key, socket, server = false)
             } catch (t: Throwable) {
-                append(key, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_connect_failed, t.message ?: t::class.java.simpleName), isHighlight = true)
+                if (t is kotlinx.coroutines.CancellationException) throw t
+                if (isActive) {
+                    append(key, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_connect_failed, t.message ?: t::class.java.simpleName), isHighlight = true)
+                }
             }
         }
     }
@@ -12706,9 +12835,13 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
 
     fun startDccChat(targetNick: String) = startDccChatFlow(targetNick)
 
-    fun startDccChatFlow(targetNick: String) {
+    /**
+     * Offer a DCC chat to [targetNick] on [netIdArg] (default: the active network). [secure] forces
+     * SCHAT on or off; null follows the SDCC setting.
+     */
+    fun startDccChatFlow(targetNick: String, secure: Boolean? = null, netIdArg: String? = null) {
         val st = _state.value
-        val netId = st.activeNetworkId ?: return
+        val netId = netIdArg ?: st.activeNetworkId ?: return
         val rt = runtimes[netId] ?: return
         val c = rt.client
         val peer = targetNick.trim().trimStart('~', '&', '@', '%', '+')
@@ -12730,22 +12863,22 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
             return
         }
 
-        val key = dccChatBufferKey(netId, peer)
-        ensureBuffer(key)
-        _state.value = _state.value.copy(selectedBuffer = key)
+        val key = findDccChatKey(netId, peer)
+        openBuffer(key)
 
         val minP = st.settings.dccIncomingPortMin
         val maxP = st.settings.dccIncomingPortMax
+        val useTls = secure ?: st.settings.dccSecure
 
-        viewModelScope.launch {
+        launchDccChatConnect(key) {
             try {
-                val secure = st.settings.dccSecure
-                val chatVerb = if (secure) "SCHAT" else "CHAT"
-                val secureLabel = if (secure) " (SDCC/TLS)" else ""
+                val chatVerb = if (useTls) "SCHAT" else "CHAT"
+                val secureLabel = if (useTls) " (SDCC/TLS)" else ""
                 append(key, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_offering, secureLabel, peer), doNotify = false)
                 val socket = dcc.startChat(
                     portMin = minP,
                     portMax = maxP,
+                    secure = useTls,
                     onClient = { addrField, port ->
                         val payload = "DCC $chatVerb chat $addrField $port"
                         c.ctcp(peer, payload)
@@ -12753,8 +12886,12 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
                     }
                 )
                 startDccChatSession(netId, peer, key, socket)
+                appendDccTlsInfo(key, socket, server = true)
             } catch (t: Throwable) {
-                append(key, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_offer_failed, t.message ?: t::class.java.simpleName), isHighlight = true)
+                if (t is kotlinx.coroutines.CancellationException) throw t
+                if (isActive) {
+                    append(key, from = null, text = "*** " + appContext.getString(R.string.vm_dcc_chat_offer_failed, t.message ?: t::class.java.simpleName), isHighlight = true)
+                }
             }
         }
     }
@@ -12775,6 +12912,74 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
 
     fun sendDccFileFlow(uri: android.net.Uri, targetNick: String) {
         val netId = _state.value.activeNetworkId ?: return
+        sendDccFile(uri, targetNick, netId)
+    }
+
+    // ---- DCC send file picking -----------------------------------------------
+    /** A DCC send waiting for the user to choose its file. */
+    data class DccSendPick(
+        val id: String,
+        val netId: String,
+        val nick: String,
+        val networkName: String,
+        val mimeFilter: String,
+        /** Show a prompt naming the recipient before the picker opens. */
+        val confirm: Boolean,
+        /** The picker has been opened for this request. */
+        val launched: Boolean = false,
+    )
+
+    private val _dccSendPick = MutableStateFlow<DccSendPick?>(null)
+    val dccSendPick: StateFlow<DccSendPick?> = _dccSendPick
+
+    /**
+     * Ask the UI for a file to offer [targetNick] on [netIdArg] (default: the active network).
+     * [confirm] shows a prompt naming the recipient before the picker. Replaces any pending request.
+     */
+    fun requestDccSendPick(
+        targetNick: String,
+        netIdArg: String? = null,
+        mimeFilter: String = "*/*",
+        confirm: Boolean = false,
+    ) {
+        val st = _state.value
+        val netId = netIdArg ?: st.activeNetworkId ?: return
+        val nick = targetNick.trim().trimStart('~', '&', '@', '%', '+')
+        if (nick.isBlank()) return
+        if (!st.settings.dccEnabled) {
+            append(bufKey(netId, "*server*"), from = "DCC", text = appContext.getString(R.string.vm_dcc_disabled), isHighlight = true)
+            return
+        }
+        _dccSendPick.value = DccSendPick(
+            id = java.util.UUID.randomUUID().toString(),
+            netId = netId,
+            nick = nick,
+            networkName = st.networks.firstOrNull { it.id == netId }?.name ?: netId,
+            mimeFilter = mimeFilter,
+            confirm = confirm,
+        )
+    }
+
+    /** The UI has opened the picker for request [id]. */
+    fun dccSendPickLaunched(id: String) {
+        _dccSendPick.update { p -> if (p?.id == id) p.copy(launched = true) else p }
+    }
+
+    /** The file chosen for the pending DCC send, or null when the user declined. */
+    fun dccSendPickResult(uri: android.net.Uri?) {
+        val pick = _dccSendPick.value ?: return
+        _dccSendPick.value = null
+        if (uri != null) sendDccFile(uri, pick.nick, pick.netId)
+    }
+
+    /** No picker could be opened for the pending DCC send. */
+    fun dccSendPickUnavailable() {
+        val pick = _dccSendPick.value ?: return
+        _dccSendPick.value = null
+        append(bufKey(pick.netId, "*server*"), from = "DCC", text = appContext.getString(R.string.vm_dcc_no_file_picker), isHighlight = true)
+    }
+
+    private fun sendDccFile(uri: android.net.Uri, targetNick: String, netId: String) {
         val rt = runtimes[netId] ?: return
         val c = rt.client
         if (targetNick.isBlank()) return
@@ -12787,6 +12992,7 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
 
         val job = viewModelScope.launch {
             var offerNameForState: String? = null
+            var stagedFile: File? = null
             // Buffer to show DCC status messages in - the target's query buffer if open,
             // otherwise the server buffer.
             val statusKey = run {
@@ -12797,6 +13003,7 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
             try {
                 val prepared = prepareDccSendFile(uri)
                 val file = prepared.file
+                stagedFile = file
                 val offerName = prepared.offerName
                 offerNameForState = offerName
                 val jobKey = "$target/$offerName"
@@ -12818,7 +13025,7 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
                 val sendProxy = withContext(Dispatchers.IO) { proxyForNetwork(netId) }
 
                 val outgoing = DccTransferState.Outgoing(target = target, filename = offerName, fileSize = fileSize)
-                _state.value = st.copy(dccTransfers = st.dccTransfers + outgoing)
+                _state.update { it.copy(dccTransfers = it.dccTransfers + outgoing) }
 
                 fun updateOutgoing(sent: Long) {
                     _state.update { st2 ->
@@ -13015,6 +13222,9 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
                     if (!cancelled) append(statusKey, from = "DCC", text = "*** " + appContext.getString(R.string.vm_dcc_send_failed, msg), isHighlight = true)
                 }
                 if (t is kotlinx.coroutines.CancellationException) throw t   // re-throw so coroutine completes correctly
+            } finally {
+                // The staged copy is only needed while this send runs.
+                stagedFile?.let { f -> withContext(NonCancellable + Dispatchers.IO) { runCatching { f.delete() } } }
             }
         }
 
@@ -13087,6 +13297,9 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
 
         // Own subdirectory so the FileProvider root can name it without exposing cacheDir.
         val stageDir = File(appContext.cacheDir, "dcc_out").apply { mkdirs() }
+        // Copies left behind by sends that never finished (process killed mid-send).
+        val staleBefore = System.currentTimeMillis() - 24L * 60 * 60 * 1000
+        stageDir.listFiles()?.forEach { if (it.isFile && it.lastModified() < staleBefore) it.delete() }
         val out = run {
             val candidate = File(stageDir, offerName)
             if (!candidate.exists()) candidate else {

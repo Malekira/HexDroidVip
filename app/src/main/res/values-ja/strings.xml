@@ -793,7 +793,7 @@
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">SDCC を使用（TLS 暗号化）</string>
-    <string name="setting_dcc_secure_desc">送信ファイル転送は DCC SSEND（TLS 暗号化）を使用します。リモートクライアントも SDCC に対応している必要があります。</string>
+    <string name="setting_dcc_secure_desc">送信ファイル転送とチャットは DCC SSEND と SCHAT（TLS 暗号化）を使用します。リモートクライアントも SDCC に対応している必要があります。</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">ユーザー:</string>
@@ -1057,7 +1057,7 @@
     <string name="vm_quietlist_usage">使い方: /quietlist #channel</string>
     <string name="vm_exceptlist_usage">使い方: /exceptlist #channel</string>
     <string name="vm_invexlist_usage">使い方: /invexlist #channel</string>
-    <string name="vm_dcc_chat_usage">使い方: /dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">使い方: /dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">+AGE での送信に失敗しました。メッセージは送信されていません。</string>
     <string name="vm_ignoring">%1$s を無視します</string>
     <string name="vm_unignored">%1$s の無視を解除しました</string>
@@ -1127,6 +1127,12 @@
     <string name="vm_dcc_chat_offering">%2$s に DCC%1$s CHAT を申し出ています…</string>
     <string name="vm_dcc_chat_sent">%2$s に DCC%1$s CHAT の申し出を送信しました (ポート %3$s)</string>
     <string name="vm_dcc_chat_offer_failed">DCC CHAT の申し出に失敗しました: %1$s</string>
+    <string name="vm_dcc_chat_tls_peer">%1$s による安全な DCC CHAT。相手の証明書 (SHA-256): %2$s。傍受されていないか相手と照合してください。</string>
+    <string name="vm_dcc_chat_tls_local">%1$s による安全な DCC CHAT。あなたの証明書 (SHA-256): %2$s。相手にも同じフィンガープリントが表示されるはずです。</string>
+    <string name="vm_dcc_no_chat_offer">%1$s からの保留中の DCC CHAT 招待はありません。</string>
+    <string name="dcc_send_pick_title">%1$s にファイルを送信しますか？</string>
+    <string name="dcc_send_pick_body">%2$s の %1$s に DCC で送るファイルを選んでください。</string>
+    <string name="vm_dcc_no_file_picker">このデバイスではファイル選択ツールを利用できません。</string>
     <string name="vm_dcc_offering_active">%2$s に DCC%3$s で %1$s を申し出ています (アクティブ、ポート %4$s)…</string>
     <string name="vm_dcc_offering_passive">%2$s に DCC%3$s で %1$s を申し出ています (パッシブ)…</string>
     <string name="vm_dcc_accepted_resume">%1$s が受け入れました。%2$s バイト目から再開します…</string>

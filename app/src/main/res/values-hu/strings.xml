@@ -793,7 +793,7 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">SDCC használata (TLS titkosítás)</string>
-    <string name="setting_dcc_secure_desc">A kimenő fájlátvitelhez DCC SSEND (TLS-csomagban) használatos. A távoli kliensnek is támogatnia kell az SDCC-t.</string>
+    <string name="setting_dcc_secure_desc">A kimenő fájlátvitelhez és csevegéshez DCC SSEND és SCHAT (TLS-csomagban) használatos. A távoli kliensnek is támogatnia kell az SDCC-t.</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">Felhasználók:</string>
@@ -1057,7 +1057,7 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
     <string name="vm_quietlist_usage">Használat: /quietlist #channel</string>
     <string name="vm_exceptlist_usage">Használat: /exceptlist #channel</string>
     <string name="vm_invexlist_usage">Használat: /invexlist #channel</string>
-    <string name="vm_dcc_chat_usage">Használat: /dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">Használat: /dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">A +AGE küldés nem sikerült; az üzenet nem lett elküldve.</string>
     <string name="vm_ignoring">Figyelmen kívül hagyva: %1$s</string>
     <string name="vm_unignored">Már nincs figyelmen kívül hagyva: %1$s</string>
@@ -1127,6 +1127,12 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
     <string name="vm_dcc_chat_offering">DCC%1$s CHAT felajánlása neki: %2$s…</string>
     <string name="vm_dcc_chat_sent">DCC%1$s CHAT ajánlat elküldve neki: %2$s (port %3$s)</string>
     <string name="vm_dcc_chat_offer_failed">A DCC CHAT felajánlás nem sikerült: %1$s</string>
+    <string name="vm_dcc_chat_tls_peer">Biztonságos DCC CHAT (%1$s). A partner tanúsítványa (SHA-256): %2$s. Egyeztesd vele, hogy kizárd a lehallgatást.</string>
+    <string name="vm_dcc_chat_tls_local">Biztonságos DCC CHAT (%1$s). A te tanúsítványod (SHA-256): %2$s. A partnerednek ugyanezt az ujjlenyomatot kell látnia.</string>
+    <string name="vm_dcc_no_chat_offer">Nincs függőben lévő DCC CHAT ajánlat tőle: %1$s.</string>
+    <string name="dcc_send_pick_title">Fájl küldése neki: %1$s?</string>
+    <string name="dcc_send_pick_body">Válassz egy fájlt, amelyet DCC-n keresztül felajánlasz neki: %1$s (%2$s).</string>
+    <string name="vm_dcc_no_file_picker">Ezen az eszközön nem érhető el fájlválasztó.</string>
     <string name="vm_dcc_offering_active">%1$s felajánlása neki: %2$s, DCC%3$s útján (aktív, port %4$s)…</string>
     <string name="vm_dcc_offering_passive">%1$s felajánlása neki: %2$s, DCC%3$s útján (passzív)…</string>
     <string name="vm_dcc_accepted_resume">%1$s elfogadta; folytatás %2$s bájttól…</string>

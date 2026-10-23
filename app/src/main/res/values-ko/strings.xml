@@ -793,7 +793,7 @@
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">SDCC 사용 (TLS 암호화)</string>
-    <string name="setting_dcc_secure_desc">발신 파일 전송은 DCC SSEND(TLS 암호화)를 사용합니다. 원격 클라이언트도 SDCC를 지원해야 합니다.</string>
+    <string name="setting_dcc_secure_desc">발신 파일 전송과 대화는 DCC SSEND 및 SCHAT(TLS 암호화)를 사용합니다. 원격 클라이언트도 SDCC를 지원해야 합니다.</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">사용자:</string>
@@ -1057,7 +1057,7 @@
     <string name="vm_quietlist_usage">사용법: /quietlist #channel</string>
     <string name="vm_exceptlist_usage">사용법: /exceptlist #channel</string>
     <string name="vm_invexlist_usage">사용법: /invexlist #channel</string>
-    <string name="vm_dcc_chat_usage">사용법: /dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">사용법: /dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">+AGE 전송에 실패했습니다. 메시지를 보내지 않았습니다.</string>
     <string name="vm_ignoring">%1$s을(를) 무시합니다</string>
     <string name="vm_unignored">%1$s 무시를 해제했습니다</string>
@@ -1127,6 +1127,12 @@
     <string name="vm_dcc_chat_offering">%2$s에게 DCC%1$s CHAT을 제안하는 중…</string>
     <string name="vm_dcc_chat_sent">%2$s에게 DCC%1$s CHAT 제안을 보냈습니다 (포트 %3$s)</string>
     <string name="vm_dcc_chat_offer_failed">DCC CHAT 제안에 실패했습니다: %1$s</string>
+    <string name="vm_dcc_chat_tls_peer">%1$s(으)로 보호된 DCC CHAT. 상대방 인증서 (SHA-256): %2$s. 가로채기가 없는지 상대방과 비교하세요.</string>
+    <string name="vm_dcc_chat_tls_local">%1$s(으)로 보호된 DCC CHAT. 내 인증서 (SHA-256): %2$s. 상대방에게도 같은 지문이 보여야 합니다.</string>
+    <string name="vm_dcc_no_chat_offer">%1$s의 대기 중인 DCC CHAT 제안이 없습니다.</string>
+    <string name="dcc_send_pick_title">%1$s에게 파일을 보낼까요?</string>
+    <string name="dcc_send_pick_body">%2$s의 %1$s에게 DCC로 보낼 파일을 선택하세요.</string>
+    <string name="vm_dcc_no_file_picker">이 기기에서 사용할 수 있는 파일 선택기가 없습니다.</string>
     <string name="vm_dcc_offering_active">%2$s에게 DCC%3$s(으)로 %1$s을(를) 제안하는 중 (능동, 포트 %4$s)…</string>
     <string name="vm_dcc_offering_passive">%2$s에게 DCC%3$s(으)로 %1$s을(를) 제안하는 중 (수동)…</string>
     <string name="vm_dcc_accepted_resume">%1$s이(가) 수락했습니다. %2$s바이트 지점부터 이어받습니다…</string>

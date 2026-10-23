@@ -793,7 +793,7 @@
 
     <!-- SDCC settings -->
     <string name="setting_dcc_secure">استخدام SDCC (تشفير TLS)</string>
-    <string name="setting_dcc_secure_desc">تستخدم عمليات نقل الملفات الصادرة DCC SSEND (مشفّرة بـ TLS). يجب أن يدعم العميل البعيد SDCC أيضاً.</string>
+    <string name="setting_dcc_secure_desc">تستخدم عمليات نقل الملفات والدردشات الصادرة DCC SSEND وSCHAT (مشفّرة بـ TLS). يجب أن يدعم العميل البعيد SDCC أيضاً.</string>
 
     <!-- Channel list user count filter -->
     <string name="list_users_filter_label">المستخدمون:</string>
@@ -1057,7 +1057,7 @@
     <string name="vm_quietlist_usage">الاستخدام: ‎/quietlist ‎#channel</string>
     <string name="vm_exceptlist_usage">الاستخدام: ‎/exceptlist ‎#channel</string>
     <string name="vm_invexlist_usage">الاستخدام: ‎/invexlist ‎#channel</string>
-    <string name="vm_dcc_chat_usage">الاستخدام: ‎/dcc chat &lt;nick&gt;</string>
+    <string name="vm_dcc_chat_usage">الاستخدام: ‎/dcc chat|schat &lt;nick&gt;, /dcc send &lt;nick&gt; [mime], /dcc accept|reject [nick], /dcc close [nick]</string>
     <string name="vm_age_send_failed">فشل الإرسال عبر +AGE؛ لم تُرسل الرسالة.</string>
     <string name="vm_ignoring">يتم تجاهل %1$s</string>
     <string name="vm_unignored">لم يعد %1$s متجاهَلاً</string>
@@ -1127,6 +1127,12 @@
     <string name="vm_dcc_chat_offering">جارٍ عرض DCC%1$s CHAT على %2$s…</string>
     <string name="vm_dcc_chat_sent">أُرسل عرض DCC%1$s CHAT إلى %2$s (المنفذ %3$s)</string>
     <string name="vm_dcc_chat_offer_failed">فشل عرض DCC CHAT: %1$s</string>
+    <string name="vm_dcc_chat_tls_peer">دردشة DCC آمنة عبر %1$s. شهادة الطرف الآخر (SHA-256): %2$s. قارنها معه لاستبعاد الاعتراض.</string>
+    <string name="vm_dcc_chat_tls_local">دردشة DCC آمنة عبر %1$s. شهادتك (SHA-256): %2$s. يجب أن يرى الطرف الآخر البصمة نفسها.</string>
+    <string name="vm_dcc_no_chat_offer">لا يوجد عرض دردشة DCC معلّق من %1$s.</string>
+    <string name="dcc_send_pick_title">إرسال ملف إلى %1$s؟</string>
+    <string name="dcc_send_pick_body">اختر ملفاً لعرضه على %1$s على %2$s عبر DCC.</string>
+    <string name="vm_dcc_no_file_picker">لا يتوفر منتقي ملفات على هذا الجهاز.</string>
     <string name="vm_dcc_offering_active">جارٍ عرض %1$s على %2$s عبر DCC%3$s (نشط، المنفذ %4$s)…</string>
     <string name="vm_dcc_offering_passive">جارٍ عرض %1$s على %2$s عبر DCC%3$s (سلبي)…</string>
     <string name="vm_dcc_accepted_resume">قبل %1$s؛ المتابعة من %2$s بايت…</string>
