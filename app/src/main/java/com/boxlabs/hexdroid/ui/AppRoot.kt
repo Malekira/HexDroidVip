@@ -441,7 +441,7 @@ fun AppRoot(
                     onReject = vm::rejectDcc,
                     onAcceptChat = vm::acceptDccChat,
                     onRejectChat = vm::rejectDccChat,
-                    onSend = vm::sendDccFileFlow,
+                    onSendFile = { nick -> vm.requestDccSendPick(nick) },
                     onStartChat = vm::startDccChat,
                     onShareFile = vm::shareFile,
                     onSetDccEnabled = vm::setDccEnabled,
@@ -519,7 +519,13 @@ fun AppRoot(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { scriptFilePicker.launch(arrayOf(pick.mimeFilter)) }) {
+                TextButton(onClick = {
+                    try {
+                        scriptFilePicker.launch(arrayOf(pick.mimeFilter))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        vm.scriptFilePickResult(null)
+                    }
+                }) {
                     Text(stringResource(R.string.script_pick_file_choose))
                 }
             },

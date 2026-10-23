@@ -31,6 +31,7 @@ import androidx.documentfile.provider.DocumentFile
 import kotlin.concurrent.thread
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.BufferedOutputStream
@@ -900,51 +901,73 @@ class DccManager(ctx: Context) {
 
     /**
      * Active DCC CHAT: listen on a port in portMin..portMax and return the socket of the peer that
-     * connects, TLS-wrapped as the server when [secure] (SCHAT). Cancellation stops the listen.
+     * connects, TLS-wrapped as the server when [secure] (SCHAT). Cancellation stops the listen, and
+     * the socket is closed if the caller is cancelled or fails before it finishes.
      */
     suspend fun startChat(
         portMin: Int,
         portMax: Int,
         secure: Boolean = false,
         onClient: suspend (addrField: String, port: Int) -> Unit
-    ): Socket = withContext(Dispatchers.IO) {
-        val ss = bindFirstAvailable(portMin, portMax)
-        val cancelHandle = coroutineContext[Job]?.invokeOnCompletion(onCancelling = true) { runCatching { ss.close() } }
-        val rawSock = try {
-            onClient(dccAddressField(), ss.localPort)
-            ss.soTimeout = 45_000
-            try {
-                ss.accept()
-            } catch (_: SocketTimeoutException) {
-                throw IOException("DCC CHAT timed out waiting for peer to connect")
+    ): Socket {
+        val caller = currentCoroutineContext()[Job]
+        return withContext(Dispatchers.IO) {
+            val ss = bindFirstAvailable(portMin, portMax)
+            val cancelHandle = coroutineContext[Job]?.invokeOnCompletion(onCancelling = true) { runCatching { ss.close() } }
+            val rawSock = try {
+                onClient(dccAddressField(), ss.localPort)
+                ss.soTimeout = 45_000
+                try {
+                    ss.accept()
+                } catch (_: SocketTimeoutException) {
+                    throw IOException("DCC CHAT timed out waiting for peer to connect")
+                }
+            } finally {
+                cancelHandle?.dispose()
+                runCatching { ss.close() }
             }
-        } finally {
-            cancelHandle?.dispose()
-            runCatching { ss.close() }
+            closeIfAbandoned(caller, rawSock)
+            try {
+                ensureActive()
+                rawSock.tcpNoDelay = true
+                rawSock.keepAlive = true
+            } catch (t: Throwable) {
+                runCatching { rawSock.close() }
+                throw t
+            }
+            if (secure) DccTls.wrap(rawSock, server = true) else rawSock
         }
-        try {
-            ensureActive()
-            rawSock.tcpNoDelay = true
-            rawSock.keepAlive = true
-        } catch (t: Throwable) {
-            runCatching { rawSock.close() }
-            throw t
-        }
-        if (secure) DccTls.wrap(rawSock, server = true) else rawSock
     }
 
-    /** Active DCC CHAT: connect to the offered ip:port, TLS-wrapped as the client for SCHAT. */
-    suspend fun connectChat(offer: DccChatOffer, proxy: ProxyConfig = ProxyConfig()): Socket = withContext(Dispatchers.IO) {
-        validateRemoteIp(offer.ip)
-        val rawSock = openOutbound(offer.ip, offer.port, proxy)
-        try {
-            rawSock.tcpNoDelay = true
-            rawSock.keepAlive = true
-        } catch (t: Throwable) {
-            runCatching { rawSock.close() }
-            throw t
+    /**
+     * Active DCC CHAT: connect to the offered ip:port, TLS-wrapped as the client for SCHAT. The
+     * socket is closed if the caller is cancelled or fails before it finishes.
+     */
+    suspend fun connectChat(offer: DccChatOffer, proxy: ProxyConfig = ProxyConfig()): Socket {
+        val caller = currentCoroutineContext()[Job]
+        return withContext(Dispatchers.IO) {
+            validateRemoteIp(offer.ip)
+            val rawSock = openOutbound(offer.ip, offer.port, proxy)
+            closeIfAbandoned(caller, rawSock)
+            try {
+                rawSock.tcpNoDelay = true
+                rawSock.keepAlive = true
+            } catch (t: Throwable) {
+                runCatching { rawSock.close() }
+                throw t
+            }
+            if (offer.secure) DccTls.wrap(rawSock, server = false) else rawSock
         }
-        if (offer.secure) DccTls.wrap(rawSock, server = false) else rawSock
+    }
+
+    /**
+     * Close [sock] when [caller] is cancelled or fails, including after it has been returned but
+     * before the caller resumed. Also aborts a TLS handshake in progress.
+     */
+    private fun closeIfAbandoned(caller: Job?, sock: Socket) {
+        caller?.invokeOnCompletion(onCancelling = true) { cause ->
+            if (cause != null) runCatching { sock.close() }
+        }
     }
 
     /**

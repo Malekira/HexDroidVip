@@ -870,13 +870,13 @@ class IrcViewModel(
             "an electric eel", "a koi carp", "a sardine", "an anchovy", "a kipper",
         )
 
+        /** A picker MIME filter given to /dcc send: type/subtype, either part may be *. */
+        val DCC_MIME_FILTER = Regex("^(\\*|[A-Za-z0-9][A-Za-z0-9.+-]*)/(\\*|[A-Za-z0-9][A-Za-z0-9.+-]*)$")
+
         /**
          * Matches the substitution tokens in a command-alias template: $channel, $chan,
          * $network, $net, $server, $nick, $me, $*, $1..$9, and $$ (a literal dollar).
          */
-        /** A picker MIME filter given to /dcc send: type/subtype, either part may be *. */
-        val DCC_MIME_FILTER = Regex("^(\\*|[A-Za-z0-9][A-Za-z0-9.+-]*)/(\\*|[A-Za-z0-9][A-Za-z0-9.+-]*)$")
-
         val ALIAS_VAR = Regex(
             "\\$\\$|\\$(channel|chan|network|net|server|nick|me|\\*|[1-9])(?![A-Za-z0-9])",
             RegexOption.IGNORE_CASE,
@@ -3192,6 +3192,10 @@ class IrcViewModel(
      */
     fun hasLiveConnection(networkId: String): Boolean =
         runtimes[networkId]?.client?.isConnectedNow() == true
+
+    /** True when [buffer] (DCCCHAT:nick) on [networkId] has an open DCC chat. */
+    fun hasDccChatSession(networkId: String, buffer: String): Boolean =
+        dccChatSessions.containsKey(findDccChatKey(networkId, buffer.removePrefix("DCCCHAT:")))
 
     /**
      * Copy the notification settings that gate an alert to where the push service can
@@ -6846,7 +6850,7 @@ fun startAddNetwork() {
                                     !_state.value.settings.dccEnabled -> say(appContext.getString(R.string.vm_dcc_disabled))
                                     c?.isConnectedNow() != true && _state.value.connections[netId]?.connected != true ->
                                         say(appContext.getString(R.string.vm_not_connected))
-                                    else -> requestDccSendPick(target, netIdArg = netId, mimeFilter = mime, confirm = true)
+                                    else -> requestDccSendPick(target, netIdArg = netId, mimeFilter = mime, confirm = true, statusKey = currentKey)
                                 }
                             }
                             "chat", "schat" -> {
@@ -8627,7 +8631,7 @@ if (code == "442") {
                         // Pass the DCC chat buffer key so the notification deep-links directly
                         // into the buffer (where Accept/Reject inline actions live), rather than
                         // requiring the user to navigate to the generic Transfers screen first.
-                        notifier.notifyDccIncomingChat(netId, offer0.from, dccBufferKey = chatKey)
+                        notifier.notifyDccIncomingChat(netId, offer0.from, dccBuffer = splitKey(chatKey).second)
                     }
                 }
             }
@@ -12910,11 +12914,6 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
         return if (name.any { it.isWhitespace() }) "\"$name\"" else name
     }
 
-    fun sendDccFileFlow(uri: android.net.Uri, targetNick: String) {
-        val netId = _state.value.activeNetworkId ?: return
-        sendDccFile(uri, targetNick, netId)
-    }
-
     // ---- DCC send file picking -----------------------------------------------
     /** A DCC send waiting for the user to choose its file. */
     data class DccSendPick(
@@ -12925,6 +12924,8 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
         val mimeFilter: String,
         /** Show a prompt naming the recipient before the picker opens. */
         val confirm: Boolean,
+        /** Buffer for the send's status lines; null picks the query or server buffer. */
+        val statusKey: String? = null,
         /** The picker has been opened for this request. */
         val launched: Boolean = false,
     )
@@ -12934,13 +12935,15 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
 
     /**
      * Ask the UI for a file to offer [targetNick] on [netIdArg] (default: the active network).
-     * [confirm] shows a prompt naming the recipient before the picker. Replaces any pending request.
+     * [confirm] shows a prompt naming the recipient before the picker; [statusKey] is where the
+     * send reports. Replaces any pending request.
      */
     fun requestDccSendPick(
         targetNick: String,
         netIdArg: String? = null,
         mimeFilter: String = "*/*",
         confirm: Boolean = false,
+        statusKey: String? = null,
     ) {
         val st = _state.value
         val netId = netIdArg ?: st.activeNetworkId ?: return
@@ -12957,6 +12960,7 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
             networkName = st.networks.firstOrNull { it.id == netId }?.name ?: netId,
             mimeFilter = mimeFilter,
             confirm = confirm,
+            statusKey = statusKey,
         )
     }
 
@@ -12969,7 +12973,7 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
     fun dccSendPickResult(uri: android.net.Uri?) {
         val pick = _dccSendPick.value ?: return
         _dccSendPick.value = null
-        if (uri != null) sendDccFile(uri, pick.nick, pick.netId)
+        if (uri != null) sendDccFile(uri, pick.nick, pick.netId, pick.statusKey)
     }
 
     /** No picker could be opened for the pending DCC send. */
@@ -12979,7 +12983,7 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
         append(bufKey(pick.netId, "*server*"), from = "DCC", text = appContext.getString(R.string.vm_dcc_no_file_picker), isHighlight = true)
     }
 
-    private fun sendDccFile(uri: android.net.Uri, targetNick: String, netId: String) {
+    private fun sendDccFile(uri: android.net.Uri, targetNick: String, netId: String, statusKeyArg: String? = null) {
         val rt = runtimes[netId] ?: return
         val c = rt.client
         if (targetNick.isBlank()) return
@@ -12993,9 +12997,9 @@ private fun moveNickAcrossChannels(netId: String, oldNick: String, newNick: Stri
         val job = viewModelScope.launch {
             var offerNameForState: String? = null
             var stagedFile: File? = null
-            // Buffer to show DCC status messages in - the target's query buffer if open,
-            // otherwise the server buffer.
-            val statusKey = run {
+            // Buffer to show DCC status messages in: the one the send was typed in, else the
+            // target's query buffer if open, otherwise the server buffer.
+            val statusKey = statusKeyArg?.takeIf { _state.value.buffers.containsKey(it) } ?: run {
                 val targetKey = resolveBufferKey(netId, target)
                 if (_state.value.buffers.containsKey(targetKey)) targetKey
                 else bufKey(netId, "*server*")

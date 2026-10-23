@@ -23,8 +23,6 @@ package com.boxlabs.hexdroid.ui
 import com.boxlabs.hexdroid.ui.tour.TourTarget
 import com.boxlabs.hexdroid.ui.tour.tourTarget
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.imePadding
@@ -639,7 +637,8 @@ fun TransfersScreen(
     onAcceptChat: (DccChatOffer) -> Unit,
     onRejectChat: (DccChatOffer) -> Unit,
     onStartChat: (String) -> Unit,
-    onSend: (android.net.Uri, String) -> Unit,
+    /** Pick a file and offer it to the given nick. */
+    onSendFile: (String) -> Unit,
     onShareFile: (String) -> Unit,
     onSetDccEnabled: (Boolean) -> Unit,
     onSetDccSendMode: (DccSendMode) -> Unit,
@@ -659,10 +658,6 @@ fun TransfersScreen(
 ) {
     var target by remember { mutableStateOf("") }
     var chatTarget by remember { mutableStateOf("") }
-
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) onSend(uri, target.trim())
-    }
 
     val dccEnabled = state.settings.dccEnabled
     val running = state.dccTransfers.filter { it.isRunning() }
@@ -847,7 +842,7 @@ fun TransfersScreen(
                         }
                         item {
                             Button(
-                                onClick = { picker.launch(arrayOf("*/*")) },
+                                onClick = { onSendFile(target.trim()) },
                                 enabled = dccEnabled && target.trim().isNotBlank(),
                                 modifier = Modifier
                                     .tourTarget(TourTarget.TRANSFERS_PICK_FILE)

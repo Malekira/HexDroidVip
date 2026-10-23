@@ -436,10 +436,11 @@ class NotificationHelper(private val ctx: Context) {
         NotificationManagerCompat.from(ctx).notify(notifId, builder.build())
     }
 
-    fun notifyDccIncomingChat(networkId: String, from: String, dccBufferKey: String? = null) {
+    /** Incoming DCC chat offer; tapping opens [dccBuffer] (a buffer name such as DCCCHAT:nick). */
+    fun notifyDccIncomingChat(networkId: String, from: String, dccBuffer: String? = null) {
         ensureChannels()
-        val contentIntent = if (dccBufferKey != null)
-            openBufferPendingIntent(networkId, dccBufferKey)
+        val contentIntent = if (dccBuffer != null)
+            openBufferPendingIntent(networkId, dccBuffer)
         else
             openTransfersPendingIntent(networkId)
 

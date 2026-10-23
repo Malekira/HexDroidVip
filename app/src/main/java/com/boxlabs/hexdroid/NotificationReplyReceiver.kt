@@ -59,9 +59,13 @@ class NotificationReplyReceiver : BroadcastReceiver() {
         // Check whether there is actually a live connection for this network before
         // attempting to send. update the notification to prompt the user to
         // reconnect rather than leaving them thinking the reply was delivered.
-        val hasLiveConnection = vm?.hasLiveConnection(netId) == true
+        val hasLiveConnection = if (buffer.startsWith("DCCCHAT:")) {
+            vm?.hasDccChatSession(netId, buffer) == true
+        } else {
+            vm?.hasLiveConnection(netId) == true
+        }
 
-        if (hasLiveConnection) {
+        if (hasLiveConnection && vm != null) {
             vm.sendToBuffer(netId, buffer, replyText, from = from, originalText = originalText, msgId = replyMsgId)
             // Cancel by tag as well as id: message notifications are posted under a
             // per-buffer tag, and an untagged cancel matches nothing.
