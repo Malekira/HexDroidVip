@@ -53,8 +53,8 @@ import javax.net.ssl.X509TrustManager
 
 /**
  * TLS for Secure DCC (SSEND and SCHAT). The side that accepted the TCP connection is the TLS
- * server and the side that sent is the client, Any peer certificate is accepted;
- * the server certificate's SHA-256 fingerprint is reported for comparison.
+ * server and the side that sends requests is the client. Any peer certificate is accepted;
+ * the server certificate's SHA-256 fingerprint is shown for comparison.
  */
 object DccTls {
     private const val KEY_ALIAS = "hexdroid_dcc_tls"

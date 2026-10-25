@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">タイムスタンプを表示</string>
     <string name="setting_timestamp_format">タイムスタンプ形式 (Java)</string>
     <string name="setting_hide_motd">接続時にMOTDを非表示</string>
-    <string name="setting_hide_joinpartquit">入退室メッセージを非表示</string>
+    <string name="setting_channel_events">チャンネルイベント</string>
+    <string name="setting_events_all_shown">すべて表示中</string>
+    <string name="setting_events_all_hidden">すべて非表示中</string>
+    <string name="setting_events_some_shown">%2$d 件中 %1$d 件を表示</string>
+    <string name="setting_events_hide_all">すべて隠す</string>
+    <string name="setting_events_show_all">すべて表示</string>
+    <string name="setting_channel_events_own">自分のニック変更と自分へのキックは常に表示されます。</string>
+    <string name="event_joins">入室</string>
+    <string name="event_parts">退室</string>
+    <string name="event_quits">終了</string>
+    <string name="event_nick_changes">ニック変更</string>
+    <string name="event_topic_changes">トピック変更</string>
+    <string name="event_kicks">キック</string>
+    <string name="event_mode_changes">モード変更</string>
     <string name="setting_hide_away_notify">離席/復帰通知を非表示</string>
     <string name="setting_color_channel_events">色付きチャンネルイベント</string>
     <string name="setting_hide_topic_on_entry">入室時にトピックを非表示</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">アカウント</string>
     <string name="chat_ban_type_domain">ドメイン</string>
     <string name="chat_react_custom">カスタムリアクション</string>
+    <string name="chat_reactions_unsupported">このサーバーはリアクションに対応していません</string>
     <string name="chat_react_custom_hint">絵文字または単語</string>
     <string name="chat_react_send">リアクション</string>
+    <string name="chat_reactions_title">リアクション</string>
+    <string name="chat_reactions_all">すべて</string>
+    <string name="chat_reactions_who">リアクションした人を表示</string>
+    <string name="chat_reaction_you">あなた</string>
+    <string name="chat_reaction_cd">%1$s、%2$s がリアクション</string>
     <string name="chat_reply_not_loaded">以前のメッセージへの返信</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">ドラッグして並べ替え</string>
     <string name="networks_insecure_title">安全でない接続がブロックされました</string>
     <string name="networks_local_title">ローカルネットワーク権限が必要</string>
-    <string name="networks_local_body">{0}への接続にはローカルネットワーク権限が必要です。
-
-        これは Android 17 の新しい要件で、ローカルネットワーク上のサーバー (自宅のネットワーク、バウンサーなど) への接続に適用されます。</string>
+    <string name="networks_local_body">%1$sへの接続にはローカルネットワーク権限が必要です。\n\nこれは Android 17 の新しい要件で、ローカルネットワーク上のサーバー (自宅のネットワーク、バウンサーなど) への接続に適用されます。</string>
     <string name="networks_local_grant">権限を許可</string>
     <string name="networks_insecure_body">暗号化されていないIRC接続は保護されておらず、メッセージとパスワードが漏洩する可能性があります。</string>
     <string name="networks_insecure_body2">TLSなしで%1$sに接続するには、このネットワークの暗号化されていない接続を明示的に許可する必要があります。</string>
@@ -516,7 +533,7 @@
 
     <!-- Ignore list screen -->
     <string name="ignore_title">無視リスト</string>
-    <string name="ignore_nick_label">無視するニック</string>
+    <string name="ignore_nick_label">ニックまたは nick!user@host マスク</string>
     <string name="ignore_no_nicks">無視されているニックはありません。</string>
     <string name="ignore_no_networks">ネットワークがまだ設定されていません。</string>
     <string name="ignore_add">追加</string>
@@ -649,7 +666,7 @@
     <string name="setting_dcc_downloads_default">ダウンロード（デフォルト）</string>
     <string name="setting_dcc_downloads_custom">カスタムフォルダ</string>
     <string name="section_backup_restore">バックアップ &amp; 復元</string>
-    <string name="setting_backup_export_desc">ネットワーク設定とアプリ設定をJSONファイルにエクスポートします。パスワードとTLS証明書は含まれません。</string>
+    <string name="setting_backup_export_desc">ネットワーク設定とアプリ設定を JSON ファイルにエクスポートします。パスワードはパスフレーズで暗号化して含めることができます。TLS 証明書は含まれません。</string>
     <string name="setting_restore_desc">復元すると、現在のすべてのネットワークと設定が置き換えられます。</string>
     <string name="setting_restore_confirm">現在のすべてのネットワークと設定がバックアップファイルのものに置き換えられます。パスワードはバックアップに含まれておらず、再入力が必要です。 この操作は元に戻せません。</string>
     <string name="setting_backup_error">エラー</string>
@@ -756,7 +773,7 @@
     <string name="nick_devoice">発言権を剥奪 (-v)</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">ネットワーク</string>
-    <string name="ignore_list_desc">無視されたニックネームは大文字小文字を区別せずに照合され、このネットワークのチャット、通知、着信DCCオファーに適用されます。</string>
+    <string name="ignore_list_desc">各項目はニック、または *!*@example.com のようなマスクで、大文字と小文字は区別しません。このネットワークで各項目が何を無視するか選んでください。</string>
     <string name="ignore_list_tip">ヒント: ニックリストまたはチャットで名前をタップして誰かを無視することもできます。</string>
     <!-- ListScreen -->
     <string name="list_loading">読み込み中… (%1$d)</string>
@@ -821,6 +838,25 @@
     <string name="bouncer_networks_already_imported">インポート済み</string>
     <string name="bouncer_networks_unnamed">(名前のないアップストリーム)</string>
     <string name="bouncer_networks_clone_dismiss">閉じる</string>
+    <string name="bouncer_networks_add">ネットワークを追加</string>
+    <string name="bouncer_networks_import_all">すべてインポート</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">平文</string>
+    <string name="bouncer_networks_error">エラー: %1$s</string>
+    <string name="bouncer_networks_actions">%1$s の操作</string>
+    <string name="bouncer_net_dialog_add_title">バウンサーにネットワークを追加</string>
+    <string name="bouncer_net_dialog_edit_title">%1$s を編集</string>
+    <string name="bouncer_net_field_name_hint">空欄にするとホスト名を使います</string>
+    <string name="bouncer_net_field_port_hint">空欄にすると既定値を使います</string>
+    <string name="bouncer_net_field_pass_keep">空欄にすると現在の値を保持します</string>
+    <string name="bouncer_net_optional">空欄の項目にはバウンサーの既定値が使われます。</string>
+    <string name="bouncer_net_import_after">プロファイルとしてインポートする</string>
+    <string name="bouncer_net_host_required">サーバーのホスト名を入力してください。</string>
+    <string name="bouncer_net_port_invalid">ポートは 1 から 65535 の数字にしてください。</string>
+    <string name="bouncer_net_add">追加</string>
+    <string name="bouncer_net_delete_title">%1$s を削除しますか?</string>
+    <string name="bouncer_net_delete_body">バウンサーはこのネットワークから切断し、保存していた履歴とともにこのネットワークを忘れます。</string>
+    <string name="bouncer_net_delete_profile">インポートしたプロファイルも削除する</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">バウンサーでは SASL を推奨します。代わりにこの PASS フィールドを使う場合は、パスワードだけを入力してください。上のフィールドのバウンサーユーザー名とネットワークが自動的に先頭に追加されます。<b>username/network:password</b> をすべて入力しても動作します。</string>
@@ -1099,6 +1135,17 @@
     <string name="vm_caps_removed">サーバーが機能を削除しました: %1$s</string>
     <string name="vm_bouncer_removed">バウンサーのネットワークを削除しました: %1$s</string>
     <string name="vm_bouncer_state">バウンサーのネットワーク %1$s: %2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">バウンサーのネットワーク %1$s: %2$s</string>
+    <string name="vm_bouncer_renamed">バウンサーのネットワーク %1$s は %2$s に名前が変わりました。プロファイル「%3$s」も追従します。</string>
+    <string name="vm_bouncer_import_none">バウンサーのネットワークはすべてインポート済みです。</string>
+    <string name="vm_bouncer_import_all">インポートしたバウンサーのネットワーク: %1$d。使うものは自動接続をオンにしてください。</string>
+    <string name="vm_bouncer_not_connected">ネットワークを管理するにはバウンサーに接続してください。</string>
+    <string name="vm_bouncer_refused">バウンサーが拒否しました: %1$s</string>
+    <string name="vm_bouncer_refused_attr">バウンサーが %1$s を拒否しました: %2$s</string>
+    <string name="vm_bouncer_added">「%1$s」をバウンサーに追加しました。</string>
+    <string name="vm_bouncer_changed">バウンサー上の「%1$s」を更新しました。</string>
+    <string name="vm_bouncer_deleted">「%1$s」をバウンサーから削除しました。</string>
+    <string name="vm_bouncer_deleted_profiles">「%1$s」をバウンサーから削除し、そのプロファイルも削除しました。</string>
     <string name="vm_deleted_message">%1$s がメッセージを削除しました</string>
     <string name="vm_names_none">%1$s の NAMES: (なし)</string>
     <string name="vm_names_header">%1$s の NAMES (%2$s):</string>
@@ -1132,7 +1179,8 @@
     <string name="vm_dcc_no_chat_offer">%1$s からの保留中の DCC CHAT 招待はありません。</string>
     <string name="dcc_send_pick_title">%1$s にファイルを送信しますか？</string>
     <string name="dcc_send_pick_body">%2$s の %1$s に DCC で送るファイルを選んでください。</string>
-    <string name="vm_dcc_no_file_picker">このデバイスではファイル選択ツールを利用できません。</string>
+    <string name="no_file_picker">このデバイスではファイル選択ツールを利用できません。</string>
+    <string name="no_app_for_action">このデバイスにはこの操作を行えるアプリがありません。</string>
     <string name="vm_dcc_offering_active">%2$s に DCC%3$s で %1$s を申し出ています (アクティブ、ポート %4$s)…</string>
     <string name="vm_dcc_offering_passive">%2$s に DCC%3$s で %1$s を申し出ています (パッシブ)…</string>
     <string name="vm_dcc_accepted_resume">%1$s が受け入れました。%2$s バイト目から再開します…</string>
@@ -1172,6 +1220,7 @@
     <string name="vm_auth_sasl_bouncer">SASL 認証が拒否されました。バウンサーは接続を中継するために有効な SASL を必要とします。このプロファイルの SASL ユーザー名とパスワード (またはクライアント証明書) を確認してください。</string>
     <string name="vm_auth_sasl_rejected">SASL 認証が拒否されました。このプロファイルの SASL ユーザー名とパスワード (またはクライアント証明書) を確認してください。</string>
     <string name="vm_auth_rejected">認証が拒否されました。</string>
+    <string name="vm_auth_account_required">このサーバーにはアカウントが必要です。このネットワークで SASL をオンにするか、サーバーパスワードを設定してください。</string>
     <string name="vm_auth_halt_suffix">自動再接続を停止しました。認証情報を修正してから「再接続」をタップしてください。</string>
     <string name="vm_ref">(参照: %1$s)</string>
 
@@ -1827,4 +1876,68 @@
     <string name="vm_ev_has_left_nohost">%1$s が %2$s から退出しました</string>
     <string name="vm_ev_has_quit_nohost">%1$s が終了しました</string>
     <string name="push_encrypted">暗号化されたメッセージ</string>
+    <string name="setting_smart_filter">スマートフィルター</string>
+    <string name="setting_smart_filter_desc">入室・退室・終了・ニック変更は、最近発言した人の分だけ表示します。入室後すぐに発言した人は、その時点で入室も表示します。</string>
+    <string name="setting_smart_filter_window">発言した期間</string>
+    <string name="setting_smart_filter_minutes">%1$d 分</string>
+    <string name="menu_channel_settings">チャンネル設定</string>
+    <string name="menu_conversation_settings">会話の設定</string>
+    <string name="channel_settings_title">%1$s の設定</string>
+    <string name="channel_settings_mute">通知をミュート</string>
+    <string name="channel_settings_mute_desc">ここからは通知しません。未読数は引き続き表示されます。</string>
+    <string name="channel_settings_words">ハイライト語</string>
+    <string name="channel_settings_words_desc">設定の語に加えて、ここではこれらの語でもハイライトします。カンマで区切ってください。</string>
+    <string name="channel_settings_events_follow">設定と同じ</string>
+    <string name="channel_settings_events_custom">このチャンネル専用</string>
+    <string name="channel_settings_reset">リセット</string>
+    <string name="notif_self_name">あなた</string>
+    <string name="bubble_label">会話</string>
+    <string name="bubble_open_app">HexDroid で開く</string>
+    <string name="bubble_message_hint">メッセージ</string>
+    <string name="bubble_send">送信</string>
+    <string name="menu_search_logs">ログを検索</string>
+    <string name="log_search_title">ログを検索</string>
+    <string name="log_search_hint">メッセージを検索</string>
+    <string name="log_search_help">すべての語を含む行を探します。フレーズは引用符で囲み、特定の人の発言は from:nick で絞り込めます。</string>
+    <string name="log_search_scope_buffer">この会話</string>
+    <string name="log_search_scope_network">このネットワーク</string>
+    <string name="log_search_scope_all">すべてのネットワーク</string>
+    <string name="log_search_results">結果: %1$d 件</string>
+    <string name="log_search_more">新しい順に %1$d 件を表示しています。古いものを見るには検索を絞り込んでください。</string>
+    <string name="log_search_none">見つかりませんでした。</string>
+    <string name="log_search_logging_off">ログ記録がオフのため、以前に保存されたログだけを検索できます。</string>
+    <string name="log_search_go">メッセージへ移動</string>
+    <string name="log_search_searching">検索中…</string>
+    <string name="log_search_server_searching">バウンサーの履歴を検索中…</string>
+    <string name="log_search_server_count">バウンサー上で検索した会話: %1$d</string>
+    <string name="log_search_server_badge">バウンサー</string>
+    <string name="ignore_type_channel">チャンネルのメッセージ</string>
+    <string name="ignore_type_private">プライベートメッセージ</string>
+    <string name="ignore_type_notices">Notice</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">招待</string>
+    <string name="ignore_type_dcc">DCC の申し出</string>
+    <string name="ignore_type_events">入室・退室・終了</string>
+    <string name="vm_ignore_types_usage">一部だけ無視するには種類を追加します: PUBLIC、MSGS、NOTICES、CTCPS、INVITES、DCC、EVENTS、ALL。</string>
+    <string name="vm_backup_saved_with_passwords">バックアップを保存しました。パスワードはパスフレーズで暗号化されています。\n証明書は含まれません。</string>
+    <string name="backup_export_title">バックアップをエクスポート</string>
+    <string name="backup_include_passwords">パスワードを含める</string>
+    <string name="backup_include_passwords_desc">サーバー、SASL、プロキシのパスワードをパスフレーズで暗号化します。復元にはそのパスフレーズが必要です。</string>
+    <string name="backup_passphrase">パスフレーズ</string>
+    <string name="backup_passphrase_confirm">パスフレーズを再入力</string>
+    <string name="backup_passphrase_short">%1$d 文字以上。</string>
+    <string name="backup_passphrase_mismatch">パスフレーズが一致しません。</string>
+    <string name="backup_export_action">エクスポート</string>
+    <string name="restore_passphrase_title">バックアップのパスワード</string>
+    <string name="restore_passphrase_body">このバックアップにはパスフレーズで暗号化されたパスワードが含まれています。入力するとパスワードも復元します。</string>
+    <string name="restore_passphrase_wrong">このパスフレーズではパスワードを開けません。</string>
+    <string name="restore_with_passwords">復元</string>
+    <string name="restore_without_passwords">パスワードなしで復元</string>
+    <string name="debug_info_title">デバッグ情報をコピー</string>
+    <string name="debug_info_desc">バージョン、接続の詳細、ケーパビリティ、最近のエラー(不具合報告用)</string>
+    <string name="debug_info_raw">最近の生の行を含める</string>
+    <string name="debug_info_raw_desc">各ネットワークで送受信した直近 %1$d 行(パスワードは隠されます)。メッセージが含まれる場合があります。</string>
+    <string name="debug_info_check">公開する前に内容を確認してください。</string>
+    <string name="debug_info_copy">コピー</string>
+    <string name="debug_info_copied">デバッグ情報をコピーしました</string>
 </resources>

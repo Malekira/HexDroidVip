@@ -159,8 +159,13 @@ private val CREDITS: List<CreditGroup> = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutScreen(onBack: () -> Unit) {
+fun AboutScreen(
+    onBack: () -> Unit,
+    /** Builds the debug report, with the given number of raw lines per network. */
+    onBuildDebugInfo: ((rawLines: Int) -> String)? = null,
+) {
     val ctx = LocalContext.current
+    var showDebugInfo by remember { mutableStateOf(false) }
     val website = "https://hexdroid.org"
     val sourceUrl = "https://github.com/boxlabss/HexDroid"
     val scroll = rememberScrollState()
@@ -186,8 +191,11 @@ fun AboutScreen(onBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            AboutContent(ctx, website, sourceUrl)
+            AboutContent(ctx, website, sourceUrl, onDebugInfo = onBuildDebugInfo?.let { { showDebugInfo = true } })
         }
+    }
+    if (showDebugInfo && onBuildDebugInfo != null) {
+        DebugInfoDialog(build = onBuildDebugInfo, onDismiss = { showDebugInfo = false })
     }
 }
 
@@ -250,7 +258,7 @@ private fun BoxlabsSignature() {
 }
 
 @Composable
-private fun AboutContent(ctx: Context, website: String, sourceUrl: String) {
+private fun AboutContent(ctx: Context, website: String, sourceUrl: String, onDebugInfo: (() -> Unit)? = null) {
     // Cyan accent, used only for links, the version line and the flask
     val accent = Color(0xFF00B4F4)
 
@@ -305,6 +313,14 @@ private fun AboutContent(ctx: Context, website: String, sourceUrl: String) {
             subtitle = stringResource(R.string.about_report_issue_desc),
             accent = accent,
         ) { openUrl(ctx, "$sourceUrl/issues") }
+        if (onDebugInfo != null) {
+            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+            LinkRow(
+                title = stringResource(R.string.debug_info_title),
+                subtitle = stringResource(R.string.debug_info_desc),
+                accent = accent,
+            ) { onDebugInfo() }
+        }
         HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
         LinkRow(
             title = stringResource(R.string.about_privacy_policy),

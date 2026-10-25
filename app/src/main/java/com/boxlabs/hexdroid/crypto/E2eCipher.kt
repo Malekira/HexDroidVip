@@ -35,6 +35,7 @@ internal interface E2eCipher {
     /**
      * Decrypt [wireText], or null for a wrong prefix, a malformed payload or a failed tag.
      * [aadContext] must match the sender's. Callers show the wire text with a tamper hint on null.
+     * [allowRepeat] accepts a ciphertext already seen, as history playback delivers one again.
      */
-    fun decrypt(wireText: String, aadContext: String): String?
+    fun decrypt(wireText: String, aadContext: String, allowRepeat: Boolean = false): String?
 }

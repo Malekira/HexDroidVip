@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">Zaman damgalarını göster</string>
     <string name="setting_timestamp_format">Zaman biçimi (Java)</string>
     <string name="setting_hide_motd">Bağlantıda MOTD\'yi gizle</string>
-    <string name="setting_hide_joinpartquit">Giriş/çıkış mesajlarını gizle</string>
+    <string name="setting_channel_events">Kanal olayları</string>
+    <string name="setting_events_all_shown">Tümü görünür</string>
+    <string name="setting_events_all_hidden">Tümü gizli</string>
+    <string name="setting_events_some_shown">%1$d/%2$d görünür</string>
+    <string name="setting_events_hide_all">Tümünü gizle</string>
+    <string name="setting_events_show_all">Tümünü göster</string>
+    <string name="setting_channel_events_own">Kendi takma ad değişiklikleriniz ve sizin atılmanız her zaman gösterilir.</string>
+    <string name="event_joins">Girişler</string>
+    <string name="event_parts">Ayrılmalar</string>
+    <string name="event_quits">Çıkışlar</string>
+    <string name="event_nick_changes">Takma ad değişiklikleri</string>
+    <string name="event_topic_changes">Konu değişiklikleri</string>
+    <string name="event_kicks">Atılmalar</string>
+    <string name="event_mode_changes">Mod değişiklikleri</string>
     <string name="setting_hide_away_notify">Uzakta/geri döndü bildirimlerini gizle</string>
     <string name="setting_color_channel_events">Renkli kanal olayları</string>
     <string name="setting_hide_topic_on_entry">Girişte konuyu gizle</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">Hesap</string>
     <string name="chat_ban_type_domain">Alan adı</string>
     <string name="chat_react_custom">Özel tepki</string>
+    <string name="chat_reactions_unsupported">Bu sunucu tepkileri desteklemiyor</string>
     <string name="chat_react_custom_hint">Emoji veya kelime</string>
     <string name="chat_react_send">Tepki ver</string>
+    <string name="chat_reactions_title">Tepkiler</string>
+    <string name="chat_reactions_all">Tümü</string>
+    <string name="chat_reactions_who">Kimlerin tepki verdiğini gör</string>
+    <string name="chat_reaction_you">siz</string>
+    <string name="chat_reaction_cd">%1$s, tepki verenler: %2$s</string>
     <string name="chat_reply_not_loaded">Daha önceki bir mesaja yanıt</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">Yeniden sıralamak için sürükle</string>
     <string name="networks_insecure_title">Güvensiz bağlantı engellendi</string>
     <string name="networks_local_title">Yerel ağ erişimi gerekli</string>
-    <string name="networks_local_body">{0} adresine bağlanmak için Yerel ağ izni gerekir.
-
-        Bu, yerel ağınızdaki sunuculara (ev ağı, bouncer vb.) bağlanmak için Android 17 ile gelen yeni bir gerekliliktir.</string>
+    <string name="networks_local_body">%1$s adresine bağlanmak için Yerel ağ izni gerekir.\n\nBu, yerel ağınızdaki sunuculara (ev ağı, bouncer vb.) bağlanmak için Android 17 ile gelen yeni bir gerekliliktir.</string>
     <string name="networks_local_grant">İzin ver</string>
     <string name="networks_insecure_body">Şifrelenmemiş IRC bağlantıları korumasızdır ve mesajlarınızı ile şifrenizi ifşa edebilir.</string>
     <string name="networks_insecure_body2">%1$s adresine TLS olmadan bağlanmak için bu ağ için şifrelenmemiş bağlantılara açıkça izin vermelisiniz.</string>
@@ -516,7 +533,7 @@
 
     <!-- Ignore list screen -->
     <string name="ignore_title">Yoksayma listesi</string>
-    <string name="ignore_nick_label">Yoksayılacak nick</string>
+    <string name="ignore_nick_label">Takma ad veya nick!user@host maskesi</string>
     <string name="ignore_no_nicks">Yoksayılan nick yok.</string>
     <string name="ignore_no_networks">Henüz ağ yapılandırılmamış.</string>
     <string name="ignore_add">Ekle</string>
@@ -649,7 +666,7 @@
     <string name="setting_dcc_downloads_default">İndirmeler (varsayılan)</string>
     <string name="setting_dcc_downloads_custom">Özel klasör</string>
     <string name="section_backup_restore">Yedekleme &amp; Geri yükleme</string>
-    <string name="setting_backup_export_desc">Ağ yapılandırmalarınızı ve uygulama ayarlarınızı bir JSON dosyasına aktarın. Şifreler ve TLS sertifikaları dahil değildir.</string>
+    <string name="setting_backup_export_desc">Ağ yapılandırmalarınızı ve uygulama ayarlarınızı bir JSON dosyasına aktarın. Parolalar bir parola ifadesiyle şifrelenerek eklenebilir. TLS sertifikaları dahil değildir.</string>
     <string name="setting_restore_desc">Geri yükleme tüm mevcut ağları ve ayarları değiştirir.</string>
     <string name="setting_restore_confirm">Bu, tüm mevcut ağları ve ayarları yedek dosyasındakilerle değiştirir. Şifreler yedekte yer almıyordu ve yeniden girilmesi gerekecek. Bu işlem geri alınamaz.</string>
     <string name="setting_backup_error">Hata</string>
@@ -756,7 +773,7 @@
     <string name="nick_devoice">Voice al (-v)</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">Ağ</string>
-    <string name="ignore_list_desc">Yoksayılan nickler büyük/küçük harfe duyarsız eşleştirilir ve bu ağdaki sohbet, bildirimler ve gelen DCC teklifleri için geçerlidir.</string>
+    <string name="ignore_list_desc">Her girdi bir takma ad ya da *!*@example.com gibi bir maskedir; büyük/küçük harf ayrımı yapılmaz. Her birinin bu ağda neyi engelleyeceğini seçin.</string>
     <string name="ignore_list_tip">İpucu: birini nick listesinden veya sohbetteki adına dokunarak da yoksayabilirsiniz.</string>
     <!-- ListScreen -->
     <string name="list_loading">Yükleniyor… (%1$d)</string>
@@ -821,6 +838,25 @@
     <string name="bouncer_networks_already_imported">Zaten içe aktarıldı</string>
     <string name="bouncer_networks_unnamed">(adsız yukarı akış)</string>
     <string name="bouncer_networks_clone_dismiss">Kapat</string>
+    <string name="bouncer_networks_add">Ağ ekle</string>
+    <string name="bouncer_networks_import_all">Tümünü içe aktar</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">şifresiz</string>
+    <string name="bouncer_networks_error">Hata: %1$s</string>
+    <string name="bouncer_networks_actions">%1$s için işlemler</string>
+    <string name="bouncer_net_dialog_add_title">Bouncer ağı ekle</string>
+    <string name="bouncer_net_dialog_edit_title">%1$s düzenle</string>
+    <string name="bouncer_net_field_name_hint">Sunucu adresini kullanmak için boş bırakın</string>
+    <string name="bouncer_net_field_port_hint">Varsayılan için boş bırakın</string>
+    <string name="bouncer_net_field_pass_keep">Mevcut olanı korumak için boş bırakın</string>
+    <string name="bouncer_net_optional">Boş alanlar bouncer\'ın varsayılanlarını kullanır.</string>
+    <string name="bouncer_net_import_after">Profil olarak içe aktar</string>
+    <string name="bouncer_net_host_required">Sunucu adresini girin.</string>
+    <string name="bouncer_net_port_invalid">Port 1 ile 65535 arasında bir sayı olmalıdır.</string>
+    <string name="bouncer_net_add">Ekle</string>
+    <string name="bouncer_net_delete_title">%1$s silinsin mi?</string>
+    <string name="bouncer_net_delete_body">Bouncer bu ağla bağlantısını keser ve sakladığı geçmişle birlikte ağı unutur.</string>
+    <string name="bouncer_net_delete_profile">İçe aktarılan profili de sil</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">Bouncer\'lar için SASL önerilir. Bunun yerine bu PASS alanını kullanırsanız yalnızca şifreyi girin; yukarıdaki alanlardaki bouncer kullanıcı adı ve ağ otomatik olarak başa eklenir. Tam <b>username/network:password</b> yazmak da çalışır.</string>
@@ -1099,6 +1135,17 @@
     <string name="vm_caps_removed">Sunucu yetenek kaldırdı: %1$s</string>
     <string name="vm_bouncer_removed">Bouncer ağı kaldırıldı: %1$s</string>
     <string name="vm_bouncer_state">Bouncer ağı %1$s: %2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">Bouncer ağı %1$s: %2$s</string>
+    <string name="vm_bouncer_renamed">Bouncer ağı %1$s artık %2$s adını taşıyor. \"%3$s\" profili onu izliyor.</string>
+    <string name="vm_bouncer_import_none">Tüm bouncer ağları zaten içe aktarıldı.</string>
+    <string name="vm_bouncer_import_all">İçe aktarılan bouncer ağları: %1$d. Kullanmak istediklerinizde otomatik bağlanmayı açın.</string>
+    <string name="vm_bouncer_not_connected">Ağlarını yönetmek için bouncer\'a bağlanın.</string>
+    <string name="vm_bouncer_refused">Bouncer reddetti: %1$s</string>
+    <string name="vm_bouncer_refused_attr">Bouncer %1$s değerini reddetti: %2$s</string>
+    <string name="vm_bouncer_added">\"%1$s\" bouncer\'a eklendi.</string>
+    <string name="vm_bouncer_changed">\"%1$s\" bouncer\'da güncellendi.</string>
+    <string name="vm_bouncer_deleted">\"%1$s\" bouncer\'dan kaldırıldı.</string>
+    <string name="vm_bouncer_deleted_profiles">\"%1$s\" bouncer\'dan kaldırıldı ve profili silindi.</string>
     <string name="vm_deleted_message">%1$s bir mesaj sildi</string>
     <string name="vm_names_none">%1$s için NAMES: (yok)</string>
     <string name="vm_names_header">%1$s için NAMES (%2$s):</string>
@@ -1132,7 +1179,8 @@
     <string name="vm_dcc_no_chat_offer">%1$s kullanıcısından bekleyen DCC CHAT teklifi yok.</string>
     <string name="dcc_send_pick_title">%1$s kullanıcısına dosya gönderilsin mi?</string>
     <string name="dcc_send_pick_body">%2$s ağında %1$s kullanıcısına DCC ile sunulacak bir dosya seçin.</string>
-    <string name="vm_dcc_no_file_picker">Bu cihazda kullanılabilir bir dosya seçici yok.</string>
+    <string name="no_file_picker">Bu cihazda kullanılabilir bir dosya seçici yok.</string>
+    <string name="no_app_for_action">Bu cihazda bunu yapabilecek bir uygulama yok.</string>
     <string name="vm_dcc_offering_active">%1$s teklif ediliyor, alıcı %2$s, DCC%3$s üzerinden (etkin, bağlantı noktası %4$s)…</string>
     <string name="vm_dcc_offering_passive">%1$s teklif ediliyor, alıcı %2$s, DCC%3$s üzerinden (pasif)…</string>
     <string name="vm_dcc_accepted_resume">%1$s kabul etti; %2$s bayttan sürdürülüyor…</string>
@@ -1172,6 +1220,7 @@
     <string name="vm_auth_sasl_bouncer">SASL kimlik doğrulaması reddedildi. Bouncer sunucuları bağlantıyı yönlendirmek için geçerli SASL gerektirir. Bu profildeki SASL kullanıcı adı/parolasını (veya istemci sertifikasını) denetleyin.</string>
     <string name="vm_auth_sasl_rejected">SASL kimlik doğrulaması reddedildi. Bu profildeki SASL kullanıcı adı/parolasını (veya istemci sertifikasını) denetleyin.</string>
     <string name="vm_auth_rejected">Kimlik doğrulama reddedildi.</string>
+    <string name="vm_auth_account_required">Bu sunucu bir hesap gerektiriyor. Bu ağ için SASL\'ı açın veya sunucu şifresini ayarlayın.</string>
     <string name="vm_auth_halt_suffix">Otomatik yeniden bağlanma durduruldu; kimlik bilgilerini düzelttikten sonra «Yeniden bağlan» düğmesine dokunun.</string>
     <string name="vm_ref">(referans: %1$s)</string>
 
@@ -1827,4 +1876,68 @@
     <string name="vm_ev_has_left_nohost">%1$s şuradan ayrıldı: %2$s</string>
     <string name="vm_ev_has_quit_nohost">%1$s çıkış yaptı</string>
     <string name="push_encrypted">Şifreli mesaj</string>
+    <string name="setting_smart_filter">Akıllı filtre</string>
+    <string name="setting_smart_filter_desc">Girişler, ayrılmalar, çıkışlar ve takma ad değişiklikleri yalnızca yakın zamanda konuşmuş kişiler için gösterilir. Biri girdikten kısa süre sonra konuşursa girişi o zaman gösterilir.</string>
+    <string name="setting_smart_filter_window">Şu süre içinde konuşan:</string>
+    <string name="setting_smart_filter_minutes">%1$d dk</string>
+    <string name="menu_channel_settings">Kanal ayarları</string>
+    <string name="menu_conversation_settings">Sohbet ayarları</string>
+    <string name="channel_settings_title">%1$s ayarları</string>
+    <string name="channel_settings_mute">Bildirimleri sessize al</string>
+    <string name="channel_settings_mute_desc">Buradan hiçbir şey bildirim oluşturmaz. Okunmamış sayıları görünmeye devam eder.</string>
+    <string name="channel_settings_words">Vurgulama sözcükleri</string>
+    <string name="channel_settings_words_desc">Ayarlardakilere ek olarak burada bu sözcükleri de vurgula. Virgülle ayırın.</string>
+    <string name="channel_settings_events_follow">Ayarlardaki gibi</string>
+    <string name="channel_settings_events_custom">Bu kanala özel</string>
+    <string name="channel_settings_reset">Sıfırla</string>
+    <string name="notif_self_name">Siz</string>
+    <string name="bubble_label">Sohbet</string>
+    <string name="bubble_open_app">HexDroid\'de aç</string>
+    <string name="bubble_message_hint">Mesaj</string>
+    <string name="bubble_send">Gönder</string>
+    <string name="menu_search_logs">Kayıtlarda ara</string>
+    <string name="log_search_title">Kayıtlarda ara</string>
+    <string name="log_search_hint">Mesaj ara</string>
+    <string name="log_search_help">Tüm sözcükler geçmelidir. Bir ifadeyi tırnak içine alın, bir kişinin mesajları için from:nick kullanın.</string>
+    <string name="log_search_scope_buffer">Bu sohbet</string>
+    <string name="log_search_scope_network">Bu ağ</string>
+    <string name="log_search_scope_all">Tüm ağlar</string>
+    <string name="log_search_results">Sonuç: %1$d</string>
+    <string name="log_search_more">En yeni %1$d sonuç gösteriliyor. Eskileri görmek için aramayı daraltın.</string>
+    <string name="log_search_none">Eşleşme yok.</string>
+    <string name="log_search_logging_off">Kayıt tutma kapalı, bu yüzden yalnızca daha önce kaydedilmiş kayıtlarda arama yapılabilir.</string>
+    <string name="log_search_go">Mesaja git</string>
+    <string name="log_search_searching">Aranıyor…</string>
+    <string name="log_search_server_searching">Bouncer\'ın geçmişinde aranıyor…</string>
+    <string name="log_search_server_count">Bouncer\'da aranan konuşmalar: %1$d</string>
+    <string name="log_search_server_badge">Bouncer</string>
+    <string name="ignore_type_channel">Kanal mesajları</string>
+    <string name="ignore_type_private">Özel mesajlar</string>
+    <string name="ignore_type_notices">Bildiriler (NOTICE)</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">Davetler</string>
+    <string name="ignore_type_dcc">DCC teklifleri</string>
+    <string name="ignore_type_events">Girişler, ayrılmalar, çıkışlar</string>
+    <string name="vm_ignore_types_usage">Yalnızca bazı şeyleri engellemek için tür ekleyin: PUBLIC, MSGS, NOTICES, CTCPS, INVITES, DCC, EVENTS veya ALL.</string>
+    <string name="vm_backup_saved_with_passwords">Yedek kaydedildi, parolalar parola ifadenizle şifrelendi.\nSertifikalar dahil değildir.</string>
+    <string name="backup_export_title">Yedeği dışa aktar</string>
+    <string name="backup_include_passwords">Parolaları dahil et</string>
+    <string name="backup_include_passwords_desc">Sunucu, SASL ve proxy parolaları, bir parola ifadesiyle şifrelenir. Yalnızca onunla geri yüklenebilirler.</string>
+    <string name="backup_passphrase">Parola ifadesi</string>
+    <string name="backup_passphrase_confirm">Parola ifadesini tekrarla</string>
+    <string name="backup_passphrase_short">En az %1$d karakter.</string>
+    <string name="backup_passphrase_mismatch">Parola ifadeleri eşleşmiyor.</string>
+    <string name="backup_export_action">Dışa aktar</string>
+    <string name="restore_passphrase_title">Yedekteki parolalar</string>
+    <string name="restore_passphrase_body">Bu yedek, bir parola ifadesiyle şifrelenmiş parolalar içeriyor. Onları da geri yüklemek için ifadeyi girin.</string>
+    <string name="restore_passphrase_wrong">Bu parola ifadesi parolaları açmıyor.</string>
+    <string name="restore_with_passwords">Geri yükle</string>
+    <string name="restore_without_passwords">Parolalar olmadan geri yükle</string>
+    <string name="debug_info_title">Hata ayıklama bilgisini kopyala</string>
+    <string name="debug_info_desc">Sürüm, bağlantı ayrıntıları, yetenekler ve son hatalar; hata raporu için</string>
+    <string name="debug_info_raw">Son ham satırları dahil et</string>
+    <string name="debug_info_raw_desc">Her ağda gönderilen ve alınan son %1$d satır, parolalar gizlenmiş olarak. Mesaj içerebilirler.</string>
+    <string name="debug_info_check">Herkese açık paylaşmadan önce baştan sona okuyun.</string>
+    <string name="debug_info_copy">Kopyala</string>
+    <string name="debug_info_copied">Hata ayıklama bilgisi kopyalandı</string>
 </resources>

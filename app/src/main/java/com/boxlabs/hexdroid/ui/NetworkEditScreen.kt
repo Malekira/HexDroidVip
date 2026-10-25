@@ -1192,7 +1192,7 @@ fun NetworkEditScreen(
                     when (certFormat) {
                         ClientCertFormat.PEM_BUNDLE -> {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { pickPem.launch(arrayOf("*/*")) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
+                                Button(onClick = { pickPem.launchPicker(ctx, arrayOf("*/*")) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
                                     Text(if (pendingPemUri == null) stringResource(R.string.network_cert_choose_pem) else stringResource(R.string.network_cert_replace_pem))
                                 }
                                 OutlinedButton(
@@ -1210,10 +1210,10 @@ fun NetworkEditScreen(
                         }
                         ClientCertFormat.CERT_AND_KEY -> {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { pickCrt.launch(arrayOf("*/*")) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
+                                Button(onClick = { pickCrt.launchPicker(ctx, arrayOf("*/*")) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
                                     Text(if (pendingCertUri == null) stringResource(R.string.network_cert_choose_crt) else stringResource(R.string.network_cert_replace_crt))
                                 }
-                                Button(onClick = { pickKey.launch(arrayOf("*/*")) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
+                                Button(onClick = { pickKey.launchPicker(ctx, arrayOf("*/*")) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
                                     Text(if (pendingKeyUri == null) stringResource(R.string.network_cert_choose_key) else stringResource(R.string.network_cert_replace_key))
                                 }
                             }
@@ -1224,7 +1224,7 @@ fun NetworkEditScreen(
                         }
                         ClientCertFormat.PKCS12 -> {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { pickPem.launch(arrayOf("*/*")) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
+                                Button(onClick = { pickPem.launchPicker(ctx, arrayOf("*/*")) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
                                     Text(if (pendingPemUri == null) stringResource(R.string.network_cert_choose_p12) else stringResource(R.string.network_cert_replace_p12))
                                 }
                                 OutlinedButton(

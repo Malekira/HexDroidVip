@@ -82,12 +82,13 @@ class HexDroidApp : Application() {
         }
 
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            /** Main windows started. A bubble is not the app being in the foreground. */
             private var started = 0
+            /** Every started activity, bubbles included, for the foreground-service gate. */
+            private var startedAny = 0
 
             override fun onActivityStarted(activity: Activity) {
-                mainHandler.removeCallbacks(goBackgroundRunnable)
-                started = (started + 1).coerceAtLeast(1)
-                AppVisibility.isForeground = true
+                startedAny = (startedAny + 1).coerceAtLeast(1)
                 // Non-debounced signal used to gate startForegroundService(). Set true the
                 // instant an activity is started so the FGS-start gate matches reality.
                 AppVisibility.isActivityStarted = true
@@ -95,6 +96,10 @@ class HexDroidApp : Application() {
                 // outlived it and the user came back, clear that suppression so connections
                 // resume normally.
                 ircViewModel.onAppForegrounded()
+                if (activity is BubbleActivity) return
+                mainHandler.removeCallbacks(goBackgroundRunnable)
+                started = (started + 1).coerceAtLeast(1)
+                AppVisibility.isForeground = true
                 ircViewModel.onAppActiveChanged(true)
                 // Clear unread on the selected buffer when the app comes back to the foreground:
                 // messages that arrived in the background counted as unread, but this is the buffer
@@ -103,12 +108,14 @@ class HexDroidApp : Application() {
             }
 
             override fun onActivityStopped(activity: Activity) {
+                startedAny = (startedAny - 1).coerceAtLeast(0)
+                // Flip the FGS-start gate to false IMMEDIATELY (no debounce). Once no
+                // activity is started we can no longer call startForeground(), so
+                // we must stop arming the watchdog right away.
+                if (startedAny <= 0) AppVisibility.isActivityStarted = false
+                if (activity is BubbleActivity) return
                 started = (started - 1).coerceAtLeast(0)
                 if (started <= 0) {
-                    // Flip the FGS-start gate to false IMMEDIATELY (no debounce). Once no
-                    // activity is started we can no longer call startForeground(), so
-                    // we must stop arming the watchdog right away.
-                    AppVisibility.isActivityStarted = false
                     // Debounce: don't flip to background immediately. OEM overlays can fire
                     // a stop/start pair within milliseconds; we only go background if nothing
                     // restarts the activity within the debounce window.

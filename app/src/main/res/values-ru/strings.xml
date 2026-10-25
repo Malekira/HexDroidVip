@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">Показывать метки времени</string>
     <string name="setting_timestamp_format">Формат времени (Java)</string>
     <string name="setting_hide_motd">Скрывать MOTD при подключении</string>
-    <string name="setting_hide_joinpartquit">Скрывать сообщения о входе/выходе</string>
+    <string name="setting_channel_events">События канала</string>
+    <string name="setting_events_all_shown">Все показаны</string>
+    <string name="setting_events_all_hidden">Все скрыты</string>
+    <string name="setting_events_some_shown">Показано: %1$d из %2$d</string>
+    <string name="setting_events_hide_all">Скрыть все</string>
+    <string name="setting_events_show_all">Показать все</string>
+    <string name="setting_channel_events_own">Ваши смены ника и кики против вас всегда показываются.</string>
+    <string name="event_joins">Входы</string>
+    <string name="event_parts">Выходы</string>
+    <string name="event_quits">Отключения</string>
+    <string name="event_nick_changes">Смены ника</string>
+    <string name="event_topic_changes">Смены темы</string>
+    <string name="event_kicks">Кики</string>
+    <string name="event_mode_changes">Смены режимов</string>
     <string name="setting_hide_away_notify">Скрыть уведомления об отсутствии/возвращении</string>
     <string name="setting_color_channel_events">Цветные события канала</string>
     <string name="setting_hide_topic_on_entry">Скрывать тему при входе</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">Аккаунт</string>
     <string name="chat_ban_type_domain">Домен</string>
     <string name="chat_react_custom">Своя реакция</string>
+    <string name="chat_reactions_unsupported">Этот сервер не поддерживает реакции</string>
     <string name="chat_react_custom_hint">Эмодзи или слово</string>
     <string name="chat_react_send">Отреагировать</string>
+    <string name="chat_reactions_title">Реакции</string>
+    <string name="chat_reactions_all">Все</string>
+    <string name="chat_reactions_who">Кто отреагировал</string>
+    <string name="chat_reaction_you">вы</string>
+    <string name="chat_reaction_cd">%1$s, отреагировали: %2$s</string>
     <string name="chat_reply_not_loaded">Ответ на более раннее сообщение</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">Перетащите для изменения порядка</string>
     <string name="networks_insecure_title">Небезопасное соединение заблокировано</string>
     <string name="networks_local_title">Требуется доступ к локальной сети</string>
-    <string name="networks_local_body">Для подключения к {0} требуется разрешение «Локальная сеть».
-
-        Это новое требование Android 17 для подключения к серверам в вашей локальной сети (домашняя сеть, bouncer и т. п.).</string>
+    <string name="networks_local_body">Для подключения к %1$s требуется разрешение «Локальная сеть».\n\nЭто новое требование Android 17 для подключения к серверам в вашей локальной сети (домашняя сеть, bouncer и т. п.).</string>
     <string name="networks_local_grant">Дать разрешение</string>
     <string name="networks_insecure_body">Незашифрованные IRC-соединения не защищены и могут раскрыть ваши сообщения и пароль.</string>
     <string name="networks_insecure_body2">Для подключения к %1$s без TLS необходимо явно разрешить незашифрованные подключения для этой сети.</string>
@@ -516,7 +533,7 @@
 
     <!-- Ignore list screen -->
     <string name="ignore_title">Список игнорируемых</string>
-    <string name="ignore_nick_label">Ник для игнорирования</string>
+    <string name="ignore_nick_label">Ник или маска nick!user@host</string>
     <string name="ignore_no_nicks">Нет игнорируемых ников.</string>
     <string name="ignore_no_networks">Нет настроенных сетей.</string>
     <string name="ignore_add">Добавить</string>
@@ -649,7 +666,7 @@
     <string name="setting_dcc_downloads_default">Загрузки (по умолчанию)</string>
     <string name="setting_dcc_downloads_custom">Пользовательская папка</string>
     <string name="section_backup_restore">Резервная копия &amp; Восстановление</string>
-    <string name="setting_backup_export_desc">Экспортируйте конфигурации сетей и настройки приложения в файл JSON. Пароли и TLS-сертификаты не включаются.</string>
+    <string name="setting_backup_export_desc">Экспортируйте настройки сетей и приложения в файл JSON. Пароли можно включить, зашифровав их парольной фразой. Сертификаты TLS не включаются.</string>
     <string name="setting_restore_desc">Восстановление заменит все текущие сети и настройки.</string>
     <string name="setting_restore_confirm">Это заменит все текущие сети и настройки данными из файла резервной копии. Пароли не были включены в резервную копию и должны быть введены повторно. Это действие нельзя отменить.</string>
     <string name="setting_backup_error">Ошибка</string>
@@ -756,7 +773,7 @@
     <string name="nick_devoice">Снять голос (-v)</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">Сеть</string>
-    <string name="ignore_list_desc">Игнорируемые ники сопоставляются без учёта регистра и применяются к чату, уведомлениям и входящим DCC-предложениям в этой сети.</string>
+    <string name="ignore_list_desc">Каждая запись содержит ник или маску вида *!*@example.com, без учёта регистра. Выберите, что каждая из них скрывает в этой сети.</string>
     <string name="ignore_list_tip">Подсказка: вы также можете игнорировать кого-либо из списка ников или нажав на их имя в чате.</string>
     <!-- ListScreen -->
     <string name="list_loading">Загрузка… (%1$d)</string>
@@ -821,6 +838,25 @@
     <string name="bouncer_networks_already_imported">Уже импортировано</string>
     <string name="bouncer_networks_unnamed">(безымянный upstream)</string>
     <string name="bouncer_networks_clone_dismiss">Закрыть</string>
+    <string name="bouncer_networks_add">Добавить сеть</string>
+    <string name="bouncer_networks_import_all">Импортировать все</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">без шифрования</string>
+    <string name="bouncer_networks_error">Ошибка: %1$s</string>
+    <string name="bouncer_networks_actions">Действия для %1$s</string>
+    <string name="bouncer_net_dialog_add_title">Добавить сеть bouncer\'а</string>
+    <string name="bouncer_net_dialog_edit_title">Изменить %1$s</string>
+    <string name="bouncer_net_field_name_hint">Оставьте пустым, чтобы использовать хост</string>
+    <string name="bouncer_net_field_port_hint">Оставьте пустым для значения по умолчанию</string>
+    <string name="bouncer_net_field_pass_keep">Оставьте пустым, чтобы сохранить текущий</string>
+    <string name="bouncer_net_optional">Пустые поля берут значения по умолчанию bouncer\'а.</string>
+    <string name="bouncer_net_import_after">Импортировать как профиль</string>
+    <string name="bouncer_net_host_required">Введите имя хоста сервера.</string>
+    <string name="bouncer_net_port_invalid">Порт должен быть числом от 1 до 65535.</string>
+    <string name="bouncer_net_add">Добавить</string>
+    <string name="bouncer_net_delete_title">Удалить %1$s?</string>
+    <string name="bouncer_net_delete_body">Bouncer отключится от этой сети и забудет её вместе с сохранённой историей.</string>
+    <string name="bouncer_net_delete_profile">Также удалить импортированный профиль</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">Для bouncer\'ов рекомендуется SASL. Если вы всё же используете это поле PASS, введите только пароль; имя пользователя bouncer\'а и сеть из полей выше подставляются в начало автоматически. Ввод полного <b>username/network:password</b> тоже работает.</string>
@@ -1099,6 +1135,17 @@
     <string name="vm_caps_removed">Сервер убрал возможности: %1$s</string>
     <string name="vm_bouncer_removed">Сеть bouncer\'а удалена: %1$s</string>
     <string name="vm_bouncer_state">Сеть bouncer\'а %1$s: %2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">Сеть bouncer\'а %1$s: %2$s</string>
+    <string name="vm_bouncer_renamed">Сеть bouncer\'а %1$s переименована в %2$s. Профиль \"%3$s\" следует за ней.</string>
+    <string name="vm_bouncer_import_none">Все сети bouncer\'а уже импортированы.</string>
+    <string name="vm_bouncer_import_all">Импортировано сетей bouncer\'а: %1$d. Включите автоподключение для тех, которыми хотите пользоваться.</string>
+    <string name="vm_bouncer_not_connected">Подключитесь к bouncer\'у, чтобы управлять его сетями.</string>
+    <string name="vm_bouncer_refused">Bouncer отказал: %1$s</string>
+    <string name="vm_bouncer_refused_attr">Bouncer отклонил %1$s: %2$s</string>
+    <string name="vm_bouncer_added">\"%1$s\" добавлена в bouncer.</string>
+    <string name="vm_bouncer_changed">\"%1$s\" обновлена на bouncer\'е.</string>
+    <string name="vm_bouncer_deleted">\"%1$s\" удалена из bouncer\'а.</string>
+    <string name="vm_bouncer_deleted_profiles">\"%1$s\" удалена из bouncer\'а вместе с профилем.</string>
     <string name="vm_deleted_message">%1$s удалил сообщение</string>
     <string name="vm_names_none">NAMES для %1$s: (нет)</string>
     <string name="vm_names_header">NAMES для %1$s (%2$s):</string>
@@ -1132,7 +1179,8 @@
     <string name="vm_dcc_no_chat_offer">Нет ожидающего предложения DCC CHAT от %1$s.</string>
     <string name="dcc_send_pick_title">Отправить файл %1$s?</string>
     <string name="dcc_send_pick_body">Выберите файл, который нужно предложить %1$s в %2$s через DCC.</string>
-    <string name="vm_dcc_no_file_picker">На этом устройстве нет средства выбора файлов.</string>
+    <string name="no_file_picker">На этом устройстве нет средства выбора файлов.</string>
+    <string name="no_app_for_action">На этом устройстве нет приложения для этого действия.</string>
     <string name="vm_dcc_offering_active">Предложение %1$s для %2$s через DCC%3$s (активный, порт %4$s)…</string>
     <string name="vm_dcc_offering_passive">Предложение %1$s для %2$s через DCC%3$s (пассивный)…</string>
     <string name="vm_dcc_accepted_resume">%1$s принял; продолжение с %2$s байт…</string>
@@ -1172,6 +1220,7 @@
     <string name="vm_auth_sasl_bouncer">Аутентификация SASL отклонена. Bouncer\'ам требуется корректный SASL, чтобы направить подключение. Проверьте имя пользователя и пароль SASL (или клиентский сертификат) в этом профиле.</string>
     <string name="vm_auth_sasl_rejected">Аутентификация SASL отклонена. Проверьте имя пользователя и пароль SASL (или клиентский сертификат) в этом профиле.</string>
     <string name="vm_auth_rejected">Аутентификация отклонена.</string>
+    <string name="vm_auth_account_required">Этому серверу нужна учётная запись. Включите SASL для этой сети или задайте её пароль сервера.</string>
     <string name="vm_auth_halt_suffix">Автоподключение остановлено; нажмите «Переподключиться» после исправления учётных данных.</string>
     <string name="vm_ref">(ссылка: %1$s)</string>
 
@@ -1827,4 +1876,68 @@
     <string name="vm_ev_has_left_nohost">%1$s покинул %2$s</string>
     <string name="vm_ev_has_quit_nohost">%1$s отключился</string>
     <string name="push_encrypted">Зашифрованное сообщение</string>
+    <string name="setting_smart_filter">Умный фильтр</string>
+    <string name="setting_smart_filter_desc">Входы, выходы, отключения и смены ника показываются только для тех, кто недавно писал. Если кто-то напишет вскоре после входа, его вход будет показан тогда.</string>
+    <string name="setting_smart_filter_window">Писал за последние</string>
+    <string name="setting_smart_filter_minutes">%1$d мин</string>
+    <string name="menu_channel_settings">Настройки канала</string>
+    <string name="menu_conversation_settings">Настройки беседы</string>
+    <string name="channel_settings_title">Настройки: %1$s</string>
+    <string name="channel_settings_mute">Отключить уведомления</string>
+    <string name="channel_settings_mute_desc">Отсюда не приходят уведомления. Счётчики непрочитанного остаются.</string>
+    <string name="channel_settings_words">Слова для подсветки</string>
+    <string name="channel_settings_words_desc">Подсвечивать здесь и эти слова, помимо указанных в настройках. Разделяйте их запятыми.</string>
+    <string name="channel_settings_events_follow">Как в настройках</string>
+    <string name="channel_settings_events_custom">Свои для этого канала</string>
+    <string name="channel_settings_reset">Сбросить</string>
+    <string name="notif_self_name">Вы</string>
+    <string name="bubble_label">Беседа</string>
+    <string name="bubble_open_app">Открыть в HexDroid</string>
+    <string name="bubble_message_hint">Сообщение</string>
+    <string name="bubble_send">Отправить</string>
+    <string name="menu_search_logs">Поиск по логам</string>
+    <string name="log_search_title">Поиск по логам</string>
+    <string name="log_search_hint">Искать сообщения</string>
+    <string name="log_search_help">Должны встретиться все слова. Фразу возьмите в кавычки, а from:nick покажет сообщения одного человека.</string>
+    <string name="log_search_scope_buffer">Эта беседа</string>
+    <string name="log_search_scope_network">Эта сеть</string>
+    <string name="log_search_scope_all">Все сети</string>
+    <string name="log_search_results">Найдено: %1$d</string>
+    <string name="log_search_more">Показаны %1$d самых новых. Уточните поиск, чтобы увидеть более старые.</string>
+    <string name="log_search_none">Ничего не найдено.</string>
+    <string name="log_search_logging_off">Запись логов выключена, поэтому искать можно только в сохранённых ранее логах.</string>
+    <string name="log_search_go">К сообщению</string>
+    <string name="log_search_searching">Поиск…</string>
+    <string name="log_search_server_searching">Поиск в истории bouncer\'а…</string>
+    <string name="log_search_server_count">Просмотрено бесед на bouncer\'е: %1$d</string>
+    <string name="log_search_server_badge">Bouncer</string>
+    <string name="ignore_type_channel">Сообщения в канале</string>
+    <string name="ignore_type_private">Личные сообщения</string>
+    <string name="ignore_type_notices">Уведомления (NOTICE)</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">Приглашения</string>
+    <string name="ignore_type_dcc">Предложения DCC</string>
+    <string name="ignore_type_events">Входы, выходы, отключения</string>
+    <string name="vm_ignore_types_usage">Добавьте типы, чтобы скрывать только часть: PUBLIC, MSGS, NOTICES, CTCPS, INVITES, DCC, EVENTS или ALL.</string>
+    <string name="vm_backup_saved_with_passwords">Резервная копия сохранена, пароли зашифрованы вашей парольной фразой.\nСертификаты не включены.</string>
+    <string name="backup_export_title">Экспорт резервной копии</string>
+    <string name="backup_include_passwords">Включить пароли</string>
+    <string name="backup_include_passwords_desc">Пароли сервера, SASL и прокси, зашифрованные парольной фразой. Восстановить их можно только с ней.</string>
+    <string name="backup_passphrase">Парольная фраза</string>
+    <string name="backup_passphrase_confirm">Повторите парольную фразу</string>
+    <string name="backup_passphrase_short">Не менее %1$d символов.</string>
+    <string name="backup_passphrase_mismatch">Парольные фразы не совпадают.</string>
+    <string name="backup_export_action">Экспортировать</string>
+    <string name="restore_passphrase_title">Пароли в резервной копии</string>
+    <string name="restore_passphrase_body">В этой резервной копии есть пароли, зашифрованные парольной фразой. Введите её, чтобы восстановить и их.</string>
+    <string name="restore_passphrase_wrong">Эта парольная фраза не открывает пароли.</string>
+    <string name="restore_with_passwords">Восстановить</string>
+    <string name="restore_without_passwords">Восстановить без паролей</string>
+    <string name="debug_info_title">Копировать отладочную информацию</string>
+    <string name="debug_info_desc">Версия, сведения о подключении, возможности и недавние ошибки для отчёта об ошибке</string>
+    <string name="debug_info_raw">Включить последние сырые строки</string>
+    <string name="debug_info_raw_desc">Последние %1$d отправленных и полученных строк в каждой сети, пароли скрыты. В них могут быть сообщения.</string>
+    <string name="debug_info_check">Просмотрите текст, прежде чем публиковать его.</string>
+    <string name="debug_info_copy">Копировать</string>
+    <string name="debug_info_copied">Отладочная информация скопирована</string>
 </resources>

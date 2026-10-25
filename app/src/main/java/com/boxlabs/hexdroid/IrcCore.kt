@@ -18,1468 +18,30 @@
 
 package com.boxlabs.hexdroid
 
-import android.annotation.SuppressLint
 import com.boxlabs.hexdroid.connection.ConnectionConstants
-import com.boxlabs.hexdroid.connection.SocksProxy
-import com.boxlabs.hexdroid.data.AutoJoinChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ProducerScope
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayInputStream
-import java.net.InetAddress
-import java.net.InetSocketAddress
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.Socket
-import java.net.UnknownHostException
-import java.security.KeyStore
 import java.security.SecureRandom
-import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.Locale
-import javax.net.ssl.KeyManager
-import javax.net.ssl.KeyManagerFactory
-import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLException
-import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLSocket
-import javax.net.ssl.TrustManager
-import javax.net.ssl.X509TrustManager
 
-enum class SaslMechanism { PLAIN, EXTERNAL, SCRAM_SHA_256 }
+/** Numerics refusing a PRIVMSG or NOTICE. The refused target is the second parameter. */
+private val SEND_REFUSAL_CODES = setOf("401", "403", "404", "407", "477", "486", "489", "492", "531", "716")
 
-sealed class SaslConfig {
-    data object Disabled : SaslConfig()
-    data class Enabled(
-        val mechanism: SaslMechanism,
-        val authcid: String?,
-        val password: String?
-    ) : SaslConfig()
-}
-
-data class CapPrefs(
-    val messageTags: Boolean = true,
-    val serverTime: Boolean = true,
-    val echoMessage: Boolean = true,
-    val labeledResponse: Boolean = true,
-    val batch: Boolean = true,
-    // Both the graduated cap and its draft alias are requested so we work with
-    // older (draft/chathistory) and modern (chathistory) servers simultaneously.
-    val draftChathistory: Boolean = true,
-    val draftEventPlayback: Boolean = true,
-    val utf8Only: Boolean = true,
-    val accountNotify: Boolean = true,
-    val awayNotify: Boolean = true,
-    val chghost: Boolean = true,
-    val extendedJoin: Boolean = true,
-    val inviteNotify: Boolean = true,
-    val multiPrefix: Boolean = true,
-    val setname: Boolean = true,
-    val userhostInNames: Boolean = false,
-    val draftRelaymsg: Boolean = false,
-    val draftReadMarker: Boolean = true,
-    /** IRCv3 MONITOR: track online/offline status of specific nicks. */
-    val monitor: Boolean = true,
-    /** IRCv3 account-tag: include services account in PRIVMSG/NOTICE tags. */
-    val accountTag: Boolean = true,
-    /** draft/typing (+typing tag): show when other users are typing. */
-    val typingIndicator: Boolean = true,
-    /** soju.im/no-implicit-names: suppress automatic NAMES list on JOIN (bouncer only). */
-    val sojuNoImplicitNames: Boolean = true,
-    /**
-     * IRCv3 standard-replies (FAIL/WARN/NOTE): structured error replies from modern IRCd.
-     */
-    val standardReplies: Boolean = true,
-    /**
-     * IRCv3 pre-away: allows sending AWAY before numeric 001.
-     */
-    val preAway: Boolean = true,
-    /**
-     * IRCv3 message-ids (msgid tag): unique ID per message, used for deduplication
-     * when echo-message and history replay are both active.
-     */
-    val messageIds: Boolean = true,
-    /**
-     * soju.im/read: soju's proprietary read-marker (parallel to draft/read-marker).
-     * Requesting both ensures read position syncs on soju-based bouncers.
-     */
-    val sojuRead: Boolean = true,
-    /**
-     * WHOX: send WHO #chan %tuhsnfar,42 on join to obtain full ident/host/account for all
-     * members. Only sent when the server advertises WHOX in ISUPPORT (005).
-     */
-    val whox: Boolean = true,
-
-    /**
-     * draft/channel-rename: handle RENAME commands so channel renames update the buffer
-     * key and display name without a full re-join cycle.
-     */
-    val channelRename: Boolean = true,
-
-    /**
-     * draft/extended-monitor: richer MONONLINE replies that include account name and
-     * real name alongside the nick!user@host prefix. Ergo 2.13+.
-     */
-    val extendedMonitor: Boolean = true,
-
-    /**
-     * draft/message-reactions: emoji reactions sent via TAGMSG +draft/react.
-     * When enabled, incoming reactions are surfaced as status lines in the buffer.
-     * Outgoing reactions: long-press a message in the chat UI to pick a preset emoji,
-     * or use the /react and /unreact slash commands for arbitrary emoji.
-     */
-    val messageReactions: Boolean = true,
-
-    /**
-     * draft/no-implicit-names: suppress automatic NAMES list on JOIN (generic form,
-     * graduated from the draft). Parallel to soju.im/no-implicit-names.
-     */
-    val noImplicitNames: Boolean = false,
-
-    /**
-     * draft/multiline (also requested as `multiline`): receive a message delivered as a multiline
-     * BATCH as one ChatMessage or Notice. `+draft/multiline-concat` on a line joins it without a
-     * newline. Sending builds the same batches (see [buildMultilineWireLines]).
-     */
-    val multiline: Boolean = true,
-    /** draft/message-redaction: negotiate the cap and offer "Delete message" for own messages. */
-    val messageRedaction: Boolean = true,
-    /** draft/account-registration: negotiate the cap and enable /register and /verify. */
-    val accountRegistration: Boolean = true,
-    /** draft/extended-isupport: fetch the ISUPPORT list before registration completes. */
-    val extendedIsupport: Boolean = true,
-    /** draft/metadata-2: user/channel metadata (display-name, avatar). Requires [batch]. */
-    val metadata2: Boolean = true,
-    /**
-     * soju.im/FILEHOST uploads. the endpoint arrives via ISUPPORT, but grouped
-     * with the per-network capability toggles so the attach button can be disabled per network.
-     */
-    val filehostUploads: Boolean = true,
-
-    /**
-     * draft/webpush (soju.im/webpush): lets the server deliver messages of interest as
-     * Web Push notifications while no TCP connection is open. The push endpoint comes
-     * from a UnifiedPush distributor on the device and is handed to the server with
-     * WEBPUSH REGISTER.
-     */
-    val webPush: Boolean = true
-)
-
-/** One change in a channel MODE line: [adding], the mode letter, and its argument when it takes one. */
-data class ChannelModeChange(val adding: Boolean, val mode: Char, val arg: String?)
-
-data class TlsClientCert(
-    val pkcs12: ByteArray = ByteArray(0),
-    val password: String? = null,
-    /** An Android Keystore alias (see [NetworkCertificates]), used instead of [pkcs12]. */
-    val keystoreAlias: String? = null,
-)
-
-data class IrcConfig(
-    val host: String,
-    val port: Int,
-    val useTls: Boolean,
-    val allowInvalidCerts: Boolean,
-    val nick: String,
-    val altNick: String?,
-    val username: String,
-    val realname: String,
-    val serverPassword: String? = null,
-    val sasl: SaslConfig = SaslConfig.Disabled,
-    val clientCert: TlsClientCert? = null,
-    val capPrefs: CapPrefs = CapPrefs(),
-    val autoJoin: List<AutoJoinChannel> = emptyList(),
-    val historyLimit: Int = 50,
-    val connectTimeoutMs: Int = ConnectionConstants.SOCKET_CONNECT_TIMEOUT_MS,
-    val readTimeoutMs: Int = ConnectionConstants.SOCKET_READ_TIMEOUT_MS,
-    val tcpNoDelay: Boolean = false,  // Nagle coalescing is fine for IRC; disabling it causes extra radio wake-ups
-    val keepAlive: Boolean = ConnectionConstants.TCP_KEEPALIVE,
-    /**
-     * Character encoding for this connection.
-     * - "auto" = try UTF-8, auto-detect non-UTF-8 encodings
-     * - Or explicit: "UTF-8", "windows-1251", "ISO-8859-1", etc.
-     */
-    val encoding: String = "auto",
-    /** True when connecting through a bouncer (ZNC, soju, etc). */
-    val isBouncer: Boolean = false,
-    /**
-     * Optional away message to set at connection time (pre-away).
-     * When non-null and the pre-away CAP is negotiated, AWAY is sent before 001
-     * so the server marks the user as away from session start.
-     */
-    val initialAwayMessage: String? = null,
-    /** Answer CTCP queries. ACTION and DCC are unaffected: neither sends a reply. */
-    val ctcpRepliesEnabled: Boolean = true,
-    /**
-     * TOFU certificate fingerprint (SHA-256, lowercase hex, colon-separated). Only used with
-     * [allowInvalidCerts]: the first connect reports it via [IrcEvent.TlsFingerprintLearned]; later
-     * connects enforce only the pin and refuse on mismatch ([IrcEvent.TlsFingerprintChanged]).
-     * Without invalid certs, normal chain and hostname checks apply and any pin is ignored.
-     */
-    val tlsTofuFingerprint: String? = null,
-    /**
-     * Additional accepted TOFU fingerprints. Used for round-robin DNS hosts where the
-     * connection lands on a different server (and thus a different cert) each time.
-     * The verifier accepts any peer whose fingerprint is either [tlsTofuFingerprint] OR a
-     * member of this set. Empty for the common single-server case. Same [allowInvalidCerts]
-     * gating as [tlsTofuFingerprint] - dormant when invalid-certs is off.
-     */
-    val tlsTofuFingerprints: Set<String> = emptySet(),
-    /**
-     * Certificate identities the user has accepted for this profile after a hostname mismatch,
-     * lowercased. The connection proceeds when the peer certificate's identity set is a subset
-     * of this one. Only consulted when [allowInvalidCerts] is off.
-     */
-    val tlsAcceptedIdentities: Set<String> = emptySet(),
-    /**
-     * Bouncer protocol this profile targets, which sets the SASL authcid and USER syntax in
-     * [effectiveAuthIdentity]: NONE direct; SOJU `user/network@clientid`; ZNC
-     * `user@clientid/network`; GENERIC `user/network` with no client id. The order matters: the
-     * wrong one routes to the wrong upstream or fails authentication.
-     */
-    val bouncerKind: BouncerKind = BouncerKind.NONE,
-    /**
-     * For bouncers using a network selector in the username: the upstream network name.
-     * Composed into the auth identity per [bouncerKind]'s rules. Use [effectiveAuthIdentity]
-     * at every send site rather than concatenating inline.
-     */
-    val bouncerNetworkName: String? = null,
-    /**
-     * For bouncers supporting per-client identification (ZNC clientbuffer, soju per-client
-     * history): a short identifier for THIS device/client (e.g. "phone", "desktop").
-     * Composed into the auth identity per [bouncerKind]'s rules. Leave null when not using
-     * per-client buffers, or for bouncers that don't support the concept.
-     */
-    val bouncerClientId: String? = null,
-    /**
-     * SOCKS proxy to tunnel this connection through. Default [ProxyConfig] has
-     * type NONE (direct connection)
-     */
-    val proxy: com.boxlabs.hexdroid.connection.ProxyConfig = com.boxlabs.hexdroid.connection.ProxyConfig(),
-    /**
-     * Network to bind this connection's socket (and, on the direct path, DNS) to, or null for
-     * default routing. Pinning makes a Wi-Fi/cellular handoff drop the socket promptly, and lets
-     * the ViewModel match its onLost callback to this connection.
-     */
-    val pinnedNetwork: android.net.Network? = null
-) {
-    /**
-     * The authentication identity for this connection, with the bouncer network name and client id
-     * added in [bouncerKind]'s syntax. Returned unchanged for NONE, when both fields are blank, or
-     * when [base] already contains '/' (hand-assembled). A bare '@' is not treated as
-     * hand-assembled, since usernames can be email addresses.
-     *
-     * SOJU libera/phone -> user/libera@phone; ZNC libera/phone -> user@phone/libera; GENERIC ->
-     * user/libera.
-     */
-    fun effectiveAuthIdentity(base: String): String {
-        if (bouncerKind == BouncerKind.NONE) return base
-
-        val net = bouncerNetworkName?.takeIf { it.isNotBlank() }
-        val cid = bouncerClientId?.takeIf { it.isNotBlank() }
-        if (net == null && cid == null) return base
-
-        // Legacy hand-rolled identity (`/` is the unambiguous bouncer-network separator).
-        // Don't double up.
-        if (base.contains('/')) return base
-
-        return when (bouncerKind) {
-            BouncerKind.NONE -> base
-            BouncerKind.SOJU -> when {
-                net != null && cid != null -> "$base/$net@$cid"
-                net != null -> "$base/$net"
-                cid != null -> "$base@$cid"
-                else -> base
-            }
-            BouncerKind.ZNC -> when {
-                net != null && cid != null -> "$base@$cid/$net"
-                net != null -> "$base/$net"
-                cid != null -> "$base@$cid"
-                else -> base
-            }
-            // Generic bouncers (kiwibnc, pounce single-network, anything not explicitly typed):
-            // accept the soju-style `user/network` form. Ignore clientId since the convention
-            // varies and we can't safely guess the order.
-            BouncerKind.GENERIC -> if (net != null) "$base/$net" else base
-        }
-    }
-
-    /**
-     * The PASS value for this connection. For bouncer profiles with a network name or client id it
-     * is `<authcid>:<password>`, with the authcid from [effectiveAuthIdentity]; direct connections
-     * pass the password unchanged. Left alone when it already looks hand-assembled (a '/' before
-     * the first colon). Null when [password] is blank, so no PASS line is sent.
-     */
-    fun effectivePassLine(password: String?): String? {
-        val pw = password?.takeIf { it.isNotBlank() } ?: return null
-        if (bouncerKind == BouncerKind.NONE) return pw
-
-        val net = bouncerNetworkName?.takeIf { it.isNotBlank() }
-        val cid = bouncerClientId?.takeIf { it.isNotBlank() }
-        if (net == null && cid == null) return pw  // nothing to prepend
-
-        // Hand-assembled detection: require a `/` before the first `:`. The `/` is the
-        // unambiguous bouncer-network separator (no real IRC username may contain it),
-        // so its presence is a strong signal the user typed the full identity themselves.
-        // `@` is not used because it's common in passwords.
-        val firstColon = pw.indexOf(':')
-        if (firstColon > 0 && pw.substring(0, firstColon).contains('/')) return pw
-
-        // Otherwise compose: <effective-authcid>:<password>.
-        // Reuses effectiveAuthIdentity so SOJU vs ZNC ordering and clientId handling
-        // stay in one place.
-        return "${effectiveAuthIdentity(username)}:$pw"
-    }
-}
-
-/**
- * Bouncer protocol family. Determines how [IrcConfig.effectiveAuthIdentity] composes the
- * username/network/clientId fields into the SASL authcid and USER command.
- */
-enum class BouncerKind { NONE, SOJU, ZNC, GENERIC }
-
-/**
- * Machine-readable cause of a disconnect, so reasons can be translated.
- * [IrcEvent.Disconnected].
- */
-enum class DisconnectCode {
-    /** No diagnosis available. Consumers fall back to their text heuristics. */
-    UNKNOWN,
-
-    /** The user, or the app on the user's behalf, closed the session. */
-    USER_QUIT,
-
-    /** Server closed the stream with no diagnosis. */
-    EOF,
-
-    /** Server sent ERROR :... immediately before dropping the link. */
-    SERVER_ERROR,
-
-    /** Never reached a usable session: the connect attempt itself failed. */
-    CONNECT_FAILED,
-
-    /** Host did not resolve, or nothing was listening on the configured port. */
-    HOST_UNREACHABLE,
-
-    /** TLS failure a retry will hit again: bad cert, no shared protocol, pin failure. */
-    TLS_UNRECOVERABLE,
-
-    /** Presented certificate no longer matches the stored TOFU fingerprint. */
-    TLS_FINGERPRINT_CHANGED,
-
-    /** Certificate is valid but was not issued for the host we connected to. */
-    TLS_HOSTNAME_MISMATCH,
-
-    /** Registration did not complete within REGISTRATION_TIMEOUT_MS. */
-    REGISTRATION_TIMEOUT,
-
-    /** No inbound traffic for PING_TIMEOUT_MS: the link is dead. */
-    PING_TIMEOUT,
-
-    /** Socket read timed out after SOCKET_READ_TIMEOUT_MS (Doze/NAT killed it). */
-    READ_TIMEOUT,
-
-    /** Peer reset the connection, or the pipe broke mid-stream. */
-    CONNECTION_RESET,
-
-    /** Any other mid-stream socket or TLS failure. */
-    CONNECTION_ERROR;
-
-    /**
-     * Dead-socket class that feeds flap detection. Deliberately excludes
-     * [CONNECTION_ERROR]: a generic mid-stream failure is not evidence of an unstable
-     * link the way a timeout or reset is, and counting it would pause auto-reconnect
-     * on networks that are merely noisy.
-     */
-    val isDeadSocket: Boolean
-        get() = this == PING_TIMEOUT || this == READ_TIMEOUT || this == CONNECTION_RESET
-
-    /** True when we never had a working session, so flap detection must not count it. */
-    val isConnectAttemptFailure: Boolean
-        get() = this == CONNECT_FAILED || this == HOST_UNREACHABLE || this == TLS_UNRECOVERABLE
-
-    /**
-     * True for disconnects the UI renders with error styling rather than a plain status line.
-     * [READ_TIMEOUT] stays a plain status line.
-     */
-    val stylesAsError: Boolean
-        get() = isConnectAttemptFailure || this == CONNECTION_ERROR || this == CONNECTION_RESET
-}
-
-sealed class IrcEvent {
-    data class Status(val text: String) : IrcEvent()
-    data class Connected(val server: String) : IrcEvent()
-    data class Registered(val nick: String) : IrcEvent()
-    /**
-     * @param reason human-readable, translated, for display only. Never match on it.
-     * @param code machine-readable cause. Classify on this.
-     */
-    data class Disconnected(
-        val reason: String?,
-        val code: DisconnectCode = DisconnectCode.UNKNOWN,
-    ) : IrcEvent()
-    /**
-     * The server's certificate fingerprint differs from the stored TOFU pin; the connection is
-     * refused. Could be a legitimate rotation or an interception.
-     */
-    data class TlsFingerprintChanged(val stored: String, val actual: String) : IrcEvent()
-    /**
-     * Emitted on the first TLS connection when no TOFU fingerprint was stored yet.
-     * The caller should persist [fingerprint] in the network profile for future verification.
-     */
-    data class TlsFingerprintLearned(val fingerprint: String) : IrcEvent()
-    /**
-     * The host doesn't match the certificate's identities and the profile hasn't accepted them; the
-     * connection is refused. [sans] lists the SAN names, SAN IPs and subject CN.
-     */
-    data class TlsHostnameMismatch(val expected: String, val sans: List<String>) : IrcEvent()
-    /**
-     * @param transient set by the emitter when the failure is a routine connectivity blip
-     *   that should not raise a notification. Null means "not stated", and the consumer
-     *   falls back to its own heuristic.
-     */
-    data class Error(val message: String, val transient: Boolean? = null) : IrcEvent()
-
-    /**
-     * The server rejected an outbound multiline BATCH (FAIL BATCH MULTILINE_*). The batch
-     * never reached the channel, so the optimistic local echo has to be marked undelivered.
-     * [target] is best-effort: the FAIL carries no batch id, so it is the target of the
-     * most recent multiline send on this connection.
-     */
-    data class MultilineSendFailed(val target: String?, val code: String, val reason: String) : IrcEvent()
-
-    // get latency from PING/PONG (milliseconds)
-    data class LagUpdated(val lagMs: Long?) : IrcEvent()
-
-    // Raw server line (for logging/debug) */
-    data class ServerLine(val line: String) : IrcEvent()
-
-    // server output (MOTD/WHOIS/etc)
-    /** One line of raw protocol traffic, emitted only while the raw log is enabled. */
-    data class RawLine(val outgoing: Boolean, val line: String) : IrcEvent()
-
-    data class ServerText(
-        val text: String,
-        val code: String? = null,
-        val bufferName: String? = null,
-        /** True when the line was matched to an outstanding WHOIS. */
-        val isWhoisReply: Boolean = false,
-    ) : IrcEvent()
-
-    // CTCP replies
-    data class CtcpReply(
-        val from: String,
-        val command: String,
-        val args: String,
-        val timeMs: Long? = null
-    ) : IrcEvent()
-
-
-    // ISUPPORT (005) tokens
-    data class ISupport(
-        val chantypes: String,
-        val caseMapping: String,
-        val prefixModes: String,
-        val prefixSymbols: String,
-        val statusMsg: String? = null,
-        /** Raw CHANMODES token value (e.g. "b,e,I,k,l,imnpst"). */
-        val chanModes: String? = null,
-        /**
-         * LINELEN ISUPPORT token: maximum bytes per IRC line including the trailing CRLF.
-         * RFC 1459 = 512; IRCv3 / Ergo / InspIRCd = typically 4096.
-         * Null when the server did not advertise LINELEN (assume 512).
-         */
-        val linelen: Int? = null,
-        /**
-         * ELIST ISUPPORT token (uppercased): supported server-side LIST search extensions.
-         * Contains 'U' when the server can filter LIST by user count ("LIST >N"). Null when
-         * not advertised.
-         */
-        val elist: String? = null,
-        /**
-         * soju.im/FILEHOST (or draft/FILEHOST) upload endpoint URL, null when the
-         * server does not offer HTTP file uploads.
-         */
-        val filehostUrl: String? = null,
-        /** ICON / draft/ICON ISUPPORT token: server-supplied icon URL. */
-        val networkIconUrl: String? = null,
-        /** EXTBAN prefix (e.g. "~"), or empty string when the ircd uses no prefix; null if unsupported. */
-        val extbanPrefix: String? = null,
-        /** EXTBAN type letters (e.g. "acfijmnpqrtACFGOST"); null when the server has no EXTBAN token. */
-        val extbanTypes: String? = null,
-        /** draft/account-extban letter from ACCOUNTEXTBAN (e.g. "a"); null when unsupported. */
-        val accountExtban: String? = null
-    ) : IrcEvent()
-
-    // Join failure numerics (e.g. 471-477) with the channel extracted
-    data class JoinError(val channel: String, val message: String, val code: String) : IrcEvent()
-
-    // Channel modes as reported by RPL_CHANNELMODEIS (324)
-    /**
-     * RPL_CHANNELMODEIS. [modes] keeps its parameters ("+ntl 59"). [silent] is set when the
-     * query came from the UI rather than the user, in which case the modes are stored but
-     * no line is printed.
-     */
-    data class ChannelModeIs(
-        val channel: String,
-        val modes: String,
-        val code: String = "324",
-        val silent: Boolean = false,
-    ) : IrcEvent()
-
-    // Channel ban list entry (RPL_BANLIST / 367)
-    data class BanListItem(
-        val channel: String,
-        val mask: String,
-        val setBy: String? = null,
-        val setAtMs: Long? = null,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // End of channel ban list (RPL_ENDOFBANLIST / 368)
-    data class BanListEnd(
-        val channel: String,
-        val code: String = "368",
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // Channel quiet list entry (common: RPL_QUIETLIST / 728)
-    data class QuietListItem(
-        val channel: String,
-        val mask: String,
-        val setBy: String? = null,
-        val setAtMs: Long? = null,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // End of channel quiet list (common: RPL_ENDOFQUIETLIST / 729)
-    data class QuietListEnd(
-        val channel: String,
-        val code: String = "729",
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // Channel exception list entry (+e) (RPL_EXCEPTLIST / 348)
-    data class ExceptListItem(
-        val channel: String,
-        val mask: String,
-        val setBy: String? = null,
-        val setAtMs: Long? = null,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // End of channel exception list (+e) (RPL_ENDOFEXCEPTLIST / 349)
-    data class ExceptListEnd(
-        val channel: String,
-        val code: String = "349",
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // Channel invite-exemption list (+I) (RPL_INVEXLIST / 346)
-    data class InvexListItem(
-        val channel: String,
-        val mask: String,
-        val setBy: String? = null,
-        val setAtMs: Long? = null,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // End of invite-exemption list (+I) (RPL_ENDOFINVEXLIST / 347)
-    data class InvexListEnd(
-        val channel: String,
-        val code: String = "347",
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    data class ChatMessage(
-        val from: String,
-        val target: String,
-        val text: String,
-        val isPrivate: Boolean,
-        val isAction: Boolean = false,
-        /**
-         * True when this was assembled from a draft/multiline BATCH, i.e. the sender meant
-         * it as ONE message with embedded newlines. The UI folds long ones behind a "show
-         * more"; a MOTD, an ASCII-art paste sent as separate PRIVMSGs, or any other
-         * naturally multi-line rendering is not this and must not be folded.
-         */
-        val multiline: Boolean = false,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false,
-        /**
-         * draft/chathistory-context: a related message the server volunteered alongside the
-         * history that was asked for. The spec says these "MUST NOT be counted towards the
-         * message limit", so they take no part in deciding whether a page was empty or in
-         * anchoring the next request.
-         */
-        val isChathistoryContext: Boolean = false,
-        /** draft/oper-tag: true when the server marked the sender as an IRC operator. */
-        val fromOper: Boolean = false,
-        /** bot message tag (Bot Mode spec): true when the sender is flagged as a bot. */
-        val fromBot: Boolean = false,
-        /**
-         * +draft/channel-context client tag: for a PM, the channel this message was sent
-         * in the context of (e.g. a reply to something said in that channel). Null for
-         * channel messages or when the tag is absent/invalid.
-         */
-        val channelContext: String? = null,
-        /** IRCv3 msgid tag — used for deduplication when echo-message and chathistory overlap. */
-        val msgId: String? = null,
-        /**
-         * IRCv3 +draft/reply / +reply tag: the msgid of the message this is a reply to.
-         * Non-null when the sender used a reply feature
-         */
-        val replyToMsgId: String? = null,
-        /**
-         * IRCv3 account-tag: services account name of the sender, when available.
-         * Requires the account-tag CAP to be negotiated.
-         */
-        val senderAccount: String? = null,
-        /**
-         * End-to-end encryption scheme this message arrived under. Non-null when
-         * the wire payload was prefixed with a scheme indicator AND decryption
-         * succeeded; the UI renders a per-scheme padlock annotation in this case.
-         * Null for cleartext messages and for failed-decrypt attempts (the wire
-         * text is shown verbatim in the latter case so the user can investigate).
-         */
-        val encryption: com.boxlabs.hexdroid.crypto.E2eScheme? = null,
-        /**
-         * IRCv3 labeled-response `label` tag echoed back on our OWN messages (echo-message +
-         * labeled-response). Lets the ViewModel correlate a server echo to the exact optimistic
-         * local echo we already displayed, an exact match that replaces fuzzy content-matching on
-         * servers that support it. Null on servers without labeled-response and on other people's
-         * messages, where the content-fingerprint/consumeEchoIfMatch fallback still applies.
-         */
-        val label: String? = null,
-    ) : IrcEvent()
-
-data class Notice(
-        /** draft/oper-tag: true when the server marked the sender as an IRC operator. */
-        val fromOper: Boolean = false,
-        /** bot message tag (Bot Mode spec): true when the sender is flagged as a bot. */
-        val fromBot: Boolean = false,
-        val from: String,
-        // IRC target param (channel, our nick, etc.)
-        val target: String,
-        val text: String,
-        val isPrivate: Boolean,
-        /** True when the NOTICE prefix looks like a server prefix (no '!'). */
-        val isServer: Boolean = false,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false,
-        /** IRCv3 msgid tag — used for deduplication. */
-        val msgId: String? = null,
-        /**
-         * IRCv3 +draft/reply / +reply tag: the msgid of the message this NOTICE replies to.
-         * Non-null when the sender attached a reply tag.
-         */
-        val replyToMsgId: String? = null,
-        /** E2E scheme; see [ChatMessage.encryption]. */
-        val encryption: com.boxlabs.hexdroid.crypto.E2eScheme? = null,
-    ) : IrcEvent()
-
-    data class DccOfferEvent(val offer: DccOffer) : IrcEvent()
-
-    // CTCP DCC CHAT offer
-    data class DccChatOfferEvent(val offer: DccChatOffer) : IrcEvent()
-
-    /**
-     * Incoming CTCP `DCC RESUME` from [from]. Carries the request we'd need to honour
-     * if [resume] matches one of our outgoing SEND offers (we're the sender).
-     */
-    data class DccResumeRequest(val from: String, val resume: DccResume) : IrcEvent()
-
-    /**
-     * Incoming CTCP `DCC ACCEPT` from [from]. The sender confirmed our RESUME request:
-     * the original SEND can now be answered (active: we connect; passive: we listen)
-     * with the agreed start offset.
-     */
-    data class DccAcceptResponse(val from: String, val accept: DccAccept) : IrcEvent()
-
-    // Numeric 442 (ERR_NOTONCHANNEL)
-    data class NotOnChannel(val channel: String, val message: String, val code: String = "442") : IrcEvent()
-    /** 381 RPL_YOUREOPER — user successfully authenticated as IRC operator */
-    data class YoureOper(val message: String) : IrcEvent()
-    /** User MODE -o/-O received on our own nick — de-opered */
-    object YoureDeOpered : IrcEvent()
-    /** ChannelModeChanged — live MODE change on a channel (not 324 snapshot) */
-    data class ChannelModeChanged(val channel: String, val modes: String) : IrcEvent()
-
-    /** A channel MODE line from [byNick]: as written ([modes], with arguments) and as single changes. */
-    data class ChannelModeChanges(
-        val channel: String,
-        val byNick: String?,
-        val modes: String,
-        val changes: List<ChannelModeChange>,
-        val isHistory: Boolean = false,
-    ) : IrcEvent()
-
-    /** A CTCP request (anything but ACTION) from [from]: [command] uppercased, then its arguments. */
-    data class CtcpRequest(
-        val from: String,
-        val target: String,
-        val command: String,
-        val args: String,
-        val isHistory: Boolean = false,
-    ) : IrcEvent()
-
-    data class Joined(val channel: String, val nick: String, val userHost: String? = null, val timeMs: Long? = null, val isHistory: Boolean = false,
-        /** IRCv3 extended-join: services account name sent in JOIN params[1], or null if not logged in ("*"). */
-        val account: String? = null,
-        /** IRCv3 extended-join: realname (gecos) sent as trailing in JOIN. */
-        val realname: String? = null,
-        /** For our own live join: the key we sent with the JOIN, or null if none. */
-        val key: String? = null,
-    ) : IrcEvent()
-    data class Parted(val channel: String, val nick: String, val userHost: String? = null, val reason: String?, val timeMs: Long? = null, val isHistory: Boolean = false) : IrcEvent()
-    /**
-     * [historyChannel] is set only for a QUIT replayed inside a CHATHISTORY batch, naming the
-     * channel that batch was for.
-     */
-    data class Quit(
-        val nick: String,
-        val userHost: String? = null,
-        val reason: String?,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false,
-        val historyChannel: String? = null,
-    ) : IrcEvent()
-
-    data class Kicked(
-        val channel: String,
-        val victim: String,
-        val byNick: String?,
-        val byHost: String? = null,
-        val reason: String? = null,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // Names list items may include prefixes (@,+,%,&,~)
-    data class Names(val channel: String, val names: List<String>) : IrcEvent()
-    data class NamesEnd(val channel: String) : IrcEvent()
-
-    data class Topic(val channel: String, val topic: String?, val setter: String? = null, val timeMs: Long? = null, val isHistory: Boolean = false) : IrcEvent()
-
-    // Topic text reurned by server (RPL_TOPIC / 332) sent after JOIN or /TOPIC.
-    data class TopicReply(val channel: String, val topic: String?, val timeMs: Long? = null, val isHistory: Boolean = false) : IrcEvent()
-
-    // Topic setter + time (RPL_TOPICWHOTIME / 333)
-    data class TopicWhoTime(val channel: String, val setter: String, val setAtMs: Long?, val timeMs: Long? = null, val isHistory: Boolean = false) : IrcEvent()
-
-	/**
-     * Channel user mode change (e.g. MODE #chan +o Nick).
-     * @prefix is one of '~','&','@','%','+' depending on mode, or null if not a rank mode.
-     */
-    data class ChannelUserMode(
-        val channel: String, val nick: String, val prefix: Char?, val adding: Boolean,
-        val timeMs: Long? = null, val isHistory: Boolean = false,
-        /** Who set the mode, when the MODE line names them. */
-        val byNick: String? = null,
-    ) : IrcEvent()
-
-    // MODE line for a channel (includes channel modes and user rank mode changes)
-    data class ChannelModeLine(val channel: String, val line: String, val timeMs: Long? = null, val isHistory: Boolean = false) : IrcEvent()
-    data object ChannelListStart : IrcEvent()
-    data class ChannelListItem(val channel: String, val users: Int, val topic: String) : IrcEvent()
-    data object ChannelListEnd : IrcEvent()
-    /**
-     * RPL_TRYAGAIN (263): the server rate-limited or temporarily refused [command]
-     * (commonly LIST under SECURELIST). [message] is the server's explanation, if any.
-     */
-    data class TryAgain(val command: String, val message: String?) : IrcEvent()
-
-    data class NickChanged(
-        val oldNick: String,
-        val newNick: String,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false,
-        /**
-         * Channel this was replayed for, set only inside a CHATHISTORY batch.
-         *
-         * A nick change is broadcast to every channel the person shares, so a replayed one
-         * has to be told which room it came from: the member lists say where they are now,
-         * not where they were then.
-         */
-        val historyChannel: String? = null,
-    ) : IrcEvent()
-
-    // LagUpdated is defined above with a nullable value so callers can clear lag on disconnect.
-
-    // IRCv3 CHGHOST: user changed their ident/host (requires chghost CAP)
-    data class Chghost(
-        val nick: String,
-        val newUser: String,
-        val newHost: String,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // IRCv3 ACCOUNT: user's services account name changed (requires account-notify CAP)
-    data class AccountChanged(
-        val nick: String,
-        /** New account name, or "*" if logged out. */
-        val account: String,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // IRCv3 SETNAME: user changed their realname (requires setname CAP)
-    data class Setname(
-        val nick: String,
-        val newRealname: String,
-        val timeMs: Long? = null,
-        val isHistory: Boolean = false
-    ) : IrcEvent()
-
-    // Incoming INVITE
-    data class InviteReceived(
-        val from: String,
-        val channel: String,
-        val timeMs: Long? = null
-    ) : IrcEvent()
-
-    // ERROR :message - server-sent fatal error (usually precedes disconnect)
-    data class ServerError(val message: String) : IrcEvent()
-
-    // AWAY status change for another user in a shared channel (requires away-notify CAP)
-    data class AwayChanged(
-        val nick: String,
-        /** null = no longer away; non-null = new away message */
-        val awayMessage: String?,
-        val timeMs: Long? = null
-    ) : IrcEvent()
-
-    // IRCv3 CAP NEW: server advertised a new capability after registration
-    data class CapNew(val caps: List<String>) : IrcEvent()
-
-    // IRCv3 CAP DEL: server withdrew a previously negotiated capability
-    data class CapDel(val caps: List<String>) : IrcEvent()
-    /**
-     * IRCv3 STS `sts` cap observed. [host] is the configured server host, [secure]
-     * whether this connection uses TLS. The port drives the insecure-connection
-     * upgrade; the duration drives policy persistence on secure connections (0 =
-     * delete the stored policy).
-     */
-    data class StsReceived(val host: String, val secure: Boolean, val port: Int?, val durationSec: Long?) : IrcEvent()
-    /**
-     * IRCv3 draft/message-redaction: [fromNick] deleted the message [msgId] in [target].
-     * Applied on receipt only - the server echoes our own REDACTs back, so a rejected
-     * redact (FAIL REDACT ...) never leaves the local buffer disagreeing with the channel.
-     */
-    data class MessageRedacted(
-        val fromNick: String,
-        val target: String,
-        val msgId: String,
-        val reason: String?,
-        val timeMs: Long?,
-        /** True when replayed from history rather than happening now. */
-        val isHistory: Boolean = false,
-    ) : IrcEvent()
-    /**
-     * draft/metadata-2: a metadata key changed on [target] (a nick or channel).
-     * [value] is null when the key was removed / is not set. [visibility] is "*" for
-     * keys everyone can see, or an implementation-defined string.
-     */
-    data class MetadataChanged(val target: String, val key: String, val visibility: String?, val value: String?) : IrcEvent()
-
-    /**
-     * draft/account-registration progress, surfaced structurally so a guided
-     * registration dialog can drive its own state machine. [command] is REGISTER
-     * or VERIFY; [stage] is the server-sent stage (SUCCESS/VERIFICATION_REQUIRED) or "FAIL:<code>" for a
-     * standard-reply failure. [account] is the account name when known; [message] is the detail.
-     */
-    data class AccountRegUpdate(
-        val command: String,
-        val stage: String,
-        val account: String?,
-        val message: String?,
-    ) : IrcEvent()
-
-    /**
-     * A bouncer upstream network from `BOUNCER NETWORK` (soju.im/bouncer-networks). A null field
-     * means "keep the previous value" unless its key is in [clearedKeys], which means it was
-     * cleared. [removed] is set for `BOUNCER NETWORK <id> *`, where only [networkId] is meaningful.
-     */
-    data class BouncerNetwork(
-        val networkId: String,
-        val name: String?,
-        val host: String?,
-        val state: String?,      // "connected" | "connecting" | "disconnected"
-        val removed: Boolean = false,
-        /** Lower-cased attribute keys that the message explicitly cleared (key= with empty value). */
-        val clearedKeys: Set<String> = emptySet()
-    ) : IrcEvent()
-
-    /**
-     * IRCv3 MONITOR: online/offline status notification for a watched nick.
-     * Emitted when MONONLINE or MONOFFLINE is received, or on MONLIST reply (731/732).
-     *
-     * With draft/extended-monitor, MONONLINE entries are nick!user@host [account],
-     * so ident, host, and account are populated when available.
-     */
-    data class MonitorStatus(
-        val nick: String,
-        val online: Boolean,
-        val timeMs: Long? = null,
-        /** ident from extended-monitor MONONLINE nick!user@host (null when not present). */
-        val ident: String? = null,
-        /** host from extended-monitor MONONLINE nick!user@host (null when not present). */
-        val host: String? = null,
-        /** services account from extended-monitor MONONLINE (null when not logged in or not present). */
-        val account: String? = null
-    ) : IrcEvent()
-
-    /**
-     * IRCv3 draft/read-marker: server sent an updated read marker (last-read message ID)
-     * for a buffer. The client can use this to show unread-message indicators.
-     *
-     * @param target  Channel or nick buffer name.
-     * @param timestamp  ISO 8601 timestamp of the last-read message.
-     */
-    data class ReadMarker(
-        val target: String,
-        val timestamp: String
-    ) : IrcEvent()
-
-    /**
-     * IRCv3 draft/typing (+typing tag on TAGMSG): another user is typing (or stopped).
-     *
-     * @param target  Channel or nick that received the TAGMSG.
-     * @param nick    Nick of the user whose typing state changed.
-     * @param state   "active" | "paused" | "done"
-     */
-    data class TypingStatus(
-        val target: String,
-        val nick: String,
-        val state: String,        // "active" | "paused" | "done"
-        val timeMs: Long? = null
-    ) : IrcEvent()
-
-    /** [nick] has read our private messages up to and including [msgId]. */
-    data class ReadReceipt(val nick: String, val msgId: String) : IrcEvent()
-
-    /**
-     * WHOX reply (354) for a nick: provides enriched ident/host/account data.
-     * Emitted after a WHO #chan %tuhsnfar,42 query sent on channel join (when WHOX is
-     * advertised in ISUPPORT 005).  The UI can use this to enrich the nicklist with
-     * full hostname and services account information.
-     */
-    data class WhoxReply(
-        val nick: String,
-        val ident: String,
-        val host: String,
-        /** Services account name, or null if the user is not identified. */
-        val account: String? = null,
-        /**
-         * True when the WHOX flags field starts with 'G' (Gone/away).
-         * 'H' means Here (present), 'G' means Gone (away).
-         * Null when flags were not included in the reply.
-         */
-        val isAway: Boolean? = null,
-        /** Bot Mode: true when the WHOX flags field carries the BOT ISUPPORT mode letter. */
-        val isBot: Boolean = false
-    ) : IrcEvent()
-
-    /**
-     * draft/channel-rename: the server renamed [oldName] to [newName].
-     * The client should update its buffer key, display name, and re-advertise the join.
-     */
-    data class ChannelRenamed(
-        val oldName: String,
-        val newName: String,
-        val timeMs: Long? = null
-    ) : IrcEvent()
-
-    /**
-     * draft/message-reactions: a TAGMSG with +draft/react was received.
-     * [adding] = true means the reaction was added, false means it was removed.
-     */
-    data class MessageReaction(
-        val fromNick: String,
-        val target: String,
-        val reaction: String,
-        val msgId: String?,
-        val adding: Boolean,
-        val timeMs: Long? = null,
-        /** True when replayed from history rather than happening now. */
-        val isHistory: Boolean = false,
-    ) : IrcEvent()
-
-    /**
-     * Emitted by /query to ask the ViewModel to open/focus a PM buffer without
-     * necessarily sending a message. The ViewModel handles ensureBuffer + selectBuffer.
-     */
-    data class OpenQueryBuffer(val nick: String) : IrcEvent()
-
-    /**
-     * The server rejected our credentials (464, or SASL 904/905/906), so the ViewModel halts
-     * auto-reconnect until the user acts. Not sent for 907, 908 or connection failures, which are
-     * worth retrying. [source] is "PASS" or "SASL".
-     */
-    data class AuthFailed(val reason: String, val source: String) : IrcEvent()
-
-    /**
-     * A CHATHISTORY reply batch opened for [target]. Its messages arrive as ordinary events with
-     * isHistory set; the open/close pair tells the ViewModel whether they fill a backfill request
-     * or are catch-up.
-     */
-    /**
-     * A CHATHISTORY request was rejected with FAIL. [target] is present for the codes that carry
-     * one (INVALID_TARGET, MESSAGE_ERROR, INVALID_MSGREFTYPE); [label] names the request exactly
-     * when present.
-     */
-    data class HistoryRequestFailed(
-        val target: String?,
-        val code: String,
-        val description: String,
-        val label: String? = null,
-    ) : IrcEvent()
-
-    /**
-     * Our own away state changed because we asked for it.
-     *
-     * [message] is null when returning from away.
-     */
-    data class SelfAwayChanged(val message: String?) : IrcEvent()
-
-    data class HistoryBatchStart(
-        val target: String,
-        val label: String? = null,
-        /**
-         * True when the batch opener carried draft/chathistory-end, meaning the server has
-         * nothing older for this target. Null when it said nothing either way.
-         */
-        val complete: Boolean? = null,
-    ) : IrcEvent()
-
-    /** The CHATHISTORY reply batch for [target] closed. See [HistoryBatchStart]. */
-    /**
-     * @param lines how many lines the batch carried, whatever their type. This is what "the
-     *   server returned an empty batch" means: counting only the lines that become visible
-     *   messages reads a batch of nothing but JOIN and PART events as empty.
-     */
-    data class HistoryBatchEnd(
-        val target: String,
-        val label: String? = null,
-        val lines: Int = 0,
-    ) : IrcEvent()
-
-    /**
-     * One entry of a CHATHISTORY TARGETS reply: a buffer the server holds history for.
-     *
-     * @param target     Channel or nick.
-     * @param timestamp  ISO 8601 time of the most recent stored message for that target.
-     */
-    data class HistoryTarget(val target: String, val timestamp: String) : IrcEvent()
-
-    /**
-     * We joined [channel] and its history should be fetched, up to [limit] messages when
-     * nothing is held to anchor on. The request is left to the caller, which knows what the
-     * buffer already holds and can wait for its saved log to load.
-     */
-    data class JoinHistoryWanted(val channel: String, val limit: Int) : IrcEvent()
-
-    /**
-     * An outgoing `/msg` or `/notice`, to be shown in the buffer the user typed it in.
-     */
-    data class OutgoingEcho(val originBuffer: String, val target: String, val text: String) : IrcEvent()
-
-    /**
-     * A CTCP request and the automatic reply we sent, as a pair.
-     *
-     * Emitted together so the UI can show both sides in one place.
-     * [reply] is null for a request we recognised but did not answer, so the request is
-     * still visible without implying a reply went out.
-     */
-    data class CtcpExchange(val fromNick: String, val request: String, val reply: String?) : IrcEvent()
-
-    /**
-     * The server confirmed a WEBPUSH REGISTER for [endpoint]. Registration is only
-     * durable once this arrives, so the ViewModel records the endpoint here.
-     */
-    data class WebPushRegistered(val endpoint: String) : IrcEvent()
-
-    /** The server confirmed a WEBPUSH UNREGISTER for [endpoint]. */
-    data class WebPushUnregistered(val endpoint: String) : IrcEvent()
-
-    /**
-     * The server rejected a WEBPUSH command with a FAIL.
-     *
-     * [subcommand] is REGISTER or UNREGISTER, [code] the standard-replies error code.
-     */
-    data class WebPushFailed(val subcommand: String, val code: String, val message: String) : IrcEvent()
-
-    /**
-     * The server advertised a VAPID public key it had not advertised before.
-     */
-    data class WebPushVapidReady(val key: String) : IrcEvent()
-}
-
-/**
- * Case-fold [s] under the ISUPPORT CASEMAPPING [caseMapping], shared by IrcClient.casefold() and
- * the ViewModel. rfc1459 and strict-rfc1459 fold A-Z and the []\\{}| pairs (plain rfc1459 also ^
- * and ~); ascii folds A-Z only; anything else uses full Unicode lowercasing plus the rfc1459 pairs.
- */
-internal fun ircCasefold(s: String, caseMapping: String): String {
-    val cm = caseMapping.lowercase(Locale.ROOT)
-    val sb = StringBuilder(s.length)
-    for (ch0 in s) {
-        var ch = ch0
-        if (ch in 'A'..'Z') ch = (ch.code + 32).toChar()
-        when (cm) {
-            "rfc1459", "strict-rfc1459" -> {
-                ch = when (ch) {
-                    '[', '{' -> '{'
-                    ']', '}' -> '}'
-                    '\\', '|' -> '|'
-                    else -> ch
-                }
-                if (cm == "rfc1459" && (ch == '^' || ch == '~')) ch = '~'
-            }
-            "ascii" -> { /* ASCII A-Z already handled above */ }
-            else -> {
-                ch = ch.lowercaseChar()
-                ch = when (ch) {
-                    '[', '{' -> '{'
-                    ']', '}' -> '}'
-                    '\\', '|' -> '|'
-                    '^', '~' -> '~'
-                    else -> ch
-                }
-            }
-        }
-        sb.append(ch)
-    }
-    return sb.toString()
-}
-
-/** Parsed `draft/multiline=max-bytes=4096,max-lines=24` cap value. */
-internal data class MultilineLimits(val maxBytes: Int, val maxLines: Int)
-
-/**
- * Parse the multiline cap value. A missing, zero or absurd value means "the server
- * imposes no limit", in which case we still apply a sane one of our own so a hostile
- * or buggy advertisement can't make us build a single batch out of a 50 MB paste.
- */
-internal fun parseMultilineLimits(raw: String?): MultilineLimits {
-    var bytes = 0
-    var lines = 0
-    for (tok in (raw ?: "").split(',')) {
-        val k = tok.substringBefore('=').trim().lowercase(Locale.ROOT)
-        val v = tok.substringAfter('=', "").trim().toIntOrNull() ?: continue
-        when (k) {
-            "max-bytes" -> bytes = v
-            "max-lines" -> lines = v
-        }
-    }
-    return MultilineLimits(
-        maxBytes = if (bytes in 1..1_048_576) bytes else 4096,
-        maxLines = if (lines in 1..1000) lines else 24,
-    )
-}
-
-/** Nicknames that reach a network service, lowercased. */
-private val SERVICE_NICKS = setOf(
-    "nickserv", "chanserv", "authserv", "hostserv", "operserv", "botserv", "memoserv",
-    "ns", "cs", "hs", "os", "bs", "ms", "x", "q", "l", "w",
-)
-
-/** Service subcommands whose arguments carry a password. */
-private val SERVICE_SECRET_CMDS = setOf(
-    "IDENTIFY", "REGISTER", "SETPASS", "GHOST", "RECOVER", "RELEASE",
-    "LOGIN", "AUTH", "PASS", "SASLPASS", "CONFIRM", "RESETPASS",
-)
-
-/**
- * Strip credentials from a raw protocol line before it is shown or copied.
- */
-internal fun redactRawLine(line: String): String {
-    // Tags are never secret and can contain spaces in values, so split them off first.
-    val tagPrefix: String
-    val rest: String
-    if (line.startsWith("@")) {
-        val sp = line.indexOf(' ')
-        if (sp < 0) return line
-        tagPrefix = line.substring(0, sp + 1)
-        rest = line.substring(sp + 1)
-    } else {
-        tagPrefix = ""
-        rest = line
-    }
-    val body = if (rest.startsWith(":")) rest.substringAfter(' ', "") else rest
-    val leader = if (rest.startsWith(":")) rest.substring(0, rest.length - body.length) else ""
-    val rawVerb = body.substringBefore(' ').uppercase(Locale.ROOT)
-    val rawArgs = body.substringAfter(' ', "")
-
-    // MSG, SQUERY and the NICKSERV-as-verb aliases are rewritten to the PRIVMSG form.
-    val aliasService = rawVerb.lowercase(Locale.ROOT).takeIf { it in SERVICE_NICKS }
-    val verb = when {
-        aliasService != null -> "PRIVMSG"
-        rawVerb == "MSG" || rawVerb == "SQUERY" -> "PRIVMSG"
-        else -> rawVerb
-    }
-    val args = when {
-        aliasService != null -> "$rawVerb $rawArgs"
-        else -> rawArgs
-    }
-
-    fun hide(keep: String) = tagPrefix + leader + rawVerb + (if (keep.isEmpty()) "" else " $keep") + " <hidden>"
-
-    return when {
-        // PASS <password>, and the bouncer form PASS <user>/<network>:<password>.
-        verb == "PASS" -> hide("")
-        // AUTHENTICATE <base64>. "+" and "*" are protocol markers and the first line is
-        // the mechanism name, all of which are worth seeing; only the payload is secret.
-        verb == "AUTHENTICATE" && args.isNotBlank() && args != "+" && args != "*" &&
-            !(args.length <= 20 && args.all { it.isDigit() || it in 'A'..'Z' || it == '-' }) -> hide("")
-        // OPER <name> <password>.
-        verb == "OPER" -> hide(args.substringBefore(' '))
-        // Services logins sent as a normal message: PRIVMSG NickServ :IDENTIFY <pw>.
-        verb == "PRIVMSG" || verb == "NOTICE" -> {
-            val target = args.substringBefore(' ')
-            val text = args.substringAfter(' ', "").removePrefix(":")
-            val svc = target.substringBefore('@').lowercase(Locale.ROOT)
-            val cmd = text.substringBefore(' ').uppercase(Locale.ROOT)
-            val sub = text.substringAfter(' ', "").substringBefore(' ').uppercase(Locale.ROOT)
-            val secretCmd = cmd in SERVICE_SECRET_CMDS || (cmd == "SET" && sub in setOf("PASSWORD", "PASS"))
-            when {
-                svc !in SERVICE_NICKS || !secretCmd -> line
-                aliasService != null -> "$tagPrefix$leader$rawVerb $cmd <hidden>"
-                else -> "$tagPrefix$leader$rawVerb $target :$cmd <hidden>"
-            }
-        }
-        // draft/account-registration.
-        verb == "REGISTER" || verb == "VERIFY" -> hide(args.substringBefore(' '))
-        // soju.im/webpush. The endpoint is a bearer capability: anyone holding it can
-        // push to this device, and the p256dh/auth keys let them encrypt a payload it
-        // will decrypt and show as a notification. Keep only the subcommand.
-        verb == "WEBPUSH" -> hide(args.substringBefore(' '))
-        // The server echoes the endpoint back as context on FAIL/WARN/NOTE for WEBPUSH,
-        // so the same secret arrives inbound. Keep the shape that identifies the problem
-        // (WEBPUSH <code> <subcommand>) and drop everything after it.
-        (verb == "FAIL" || verb == "WARN" || verb == "NOTE") &&
-            args.substringBefore(' ').equals("WEBPUSH", true) ->
-            hide(args.split(' ').take(3).joinToString(" "))
-        else -> line
-    }
-}
-
-/** How long a UI-issued MODE query stays marked silent, for servers that omit 329. */
-private const val SILENT_MODE_QUERY_TTL_MS = 15_000L
-
-/** How long an outstanding WHO is kept waiting for its 315. */
-private const val WHO_REQUEST_TTL_MS = 60_000L
-
-/** Vendor client-only tag for read receipts in private messages. Value: the msgid read up to. */
-internal const val READ_RECEIPT_TAG = "hexdroid.org/read"
-
-/** Split [text] into pieces of at most [maxBytes] UTF-8 bytes, never mid-codepoint. */
-internal fun splitByUtf8Bytes(text: String, maxBytes: Int): List<String> {
-    val bytes = text.toByteArray(Charsets.UTF_8)
-    if (bytes.size <= maxBytes) return listOf(text)
-    val out = mutableListOf<String>()
-    var off = 0
-    while (off < bytes.size) {
-        var len = minOf(maxBytes, bytes.size - off)
-        // Back off to a codepoint boundary: continuation bytes are 10xxxxxx.
-        while (len > 1 && off + len < bytes.size && (bytes[off + len].toInt() and 0xC0) == 0x80) len--
-        out += String(bytes, off, len, Charsets.UTF_8)
-        off += len
-    }
-    return out
-}
-
-/**
- * Build the lines that send [lines] to [target] as multiline BATCHes. An input line too long for
- * one PRIVMSG is split with `+draft/multiline-concat`. A message larger than one batch's
- * max-lines/max-bytes becomes consecutive batches; [openTags] (label, reply tag) go on the first
- * only.
- */
-internal fun buildMultilineWireLines(
-    target: String,
-    lines: List<String>,
-    limits: MultilineLimits,
-    perLineBytes: Int,
-    batchType: String,
-    concatTag: String,
-    nextBatchId: () -> String,
-    openTagsFor: () -> List<String>,
-): List<String> {
-    if (lines.isEmpty()) return emptyList()
-
-    // Expand input lines into (payload, isContinuationOfPreviousLine) pairs.
-    val inner = mutableListOf<Pair<String, Boolean>>()
-    for (raw in lines) {
-        val line = raw.replace("\r", "").replace("\n", "")
-        if (line.isEmpty()) { inner += "" to false; continue }
-        var first = true
-        for (piece in splitByUtf8Bytes(line, perLineBytes)) {
-            inner += piece to !first
-            first = false
-        }
-    }
-
-    // Spec: a message may not consist entirely of blank lines, and no line feed is
-    // appended after the last line, so leading/trailing blanks carry nothing.
-    while (inner.isNotEmpty() && inner.first().first.isEmpty()) inner.removeAt(0)
-    while (inner.isNotEmpty() && inner.last().first.isEmpty()) inner.removeAt(inner.size - 1)
-    if (inner.isEmpty()) return emptyList()
-
-    val out = mutableListOf<String>()
-    var i = 0
-    while (i < inner.size) {
-        var bytes = 0
-        var end = i
-        while (end < inner.size && end - i < limits.maxLines) {
-            // A line after the first is joined by a line feed unless it continues the previous one.
-            val joiner = if (end > i && !inner[end].second) 1 else 0
-            val b = inner[end].first.toByteArray(Charsets.UTF_8).size + joiner
-            if (end > i && bytes + b > limits.maxBytes) break
-            bytes += b
-            end++
-        }
-        // Never cut inside a split line: the first message of a batch cannot carry the
-        // concat tag, so the remainder would arrive as a separate message.
-        if (end < inner.size && inner[end].second) {
-            var back = end
-            while (back > i && inner[back].second) back--
-            if (back > i) end = back
-        }
-        if (end == i) end = i + 1  // never stall on a single over-budget line
-        // Never emit a batch that is entirely blank lines.
-        while (end < inner.size && (i until end).all { inner[it].first.isEmpty() }) end++
-
-        val batchId = nextBatchId()
-        val tags = openTagsFor()
-        val tag = if (tags.isEmpty()) "" else tags.joinToString(";", prefix = "@", postfix = " ")
-        out += "${tag}BATCH +$batchId $batchType $target"
-        for (j in i until end) {
-            val (payload, concat) = inner[j]
-            // j > i: an unavoidable mid-run cut (a single line longer than max-lines
-            // pieces) drops the tag rather than emitting an invalid leading concat.
-            val concatPart = if (concat && j > i) ";$concatTag" else ""
-            out += "@batch=$batchId$concatPart PRIVMSG $target :$payload"
-        }
-        out += "BATCH -$batchId"
-        i = end
-    }
-    return out
-}
-
-internal fun parseBouncerNetworkAttrs(
-    networkId: String,
-    attrTokens: List<String>
-): IrcEvent.BouncerNetwork {
-    if (attrTokens.size == 1 && attrTokens[0] == "*") {
-        return IrcEvent.BouncerNetwork(networkId, null, null, null, removed = true)
-    }
-    var name: String? = null
-    var host: String? = null
-    var state: String? = null
-    val cleared = mutableSetOf<String>()
-    for (tok in attrTokens) {
-        if (tok.isEmpty()) continue
-        val eq = tok.indexOf('=')
-        if (eq < 0) continue   // malformed token: skip, don't drop the message
-        val key = tok.substring(0, eq).lowercase()
-        val rawValue = tok.substring(eq + 1)
-        if (rawValue.isEmpty()) {
-            // Explicit clear (`key=` with no value).
-            cleared += key
-            continue
-        }
-        val value = unescapeIrcTagValue(rawValue)
-        when (key) {
-            "name"  -> if (name  == null) name  = value
-            "host"  -> if (host  == null) host  = value
-            "state" -> if (state == null) state = value
-        }
-    }
-    return IrcEvent.BouncerNetwork(networkId, name, host, state, clearedKeys = cleared)
-}
-
-/**
- * Parse one row of ZNC's `*status ListNetworks` table into a [IrcEvent.BouncerNetwork], or null if
- * it isn't a network row. A row starts and ends with `|`, has at least four cells and "Yes" or "No"
- * in the second. The network name serves as id and name; the server cell becomes the host, and
- * Yes/No become connected/disconnected.
- */
-internal fun parseZncListNetworksLine(line: String): IrcEvent.BouncerNetwork? {
-    val trimmed = line.trim()
-    if (!trimmed.startsWith("|") || !trimmed.endsWith("|")) return null
-
-    // Strip the outer `|` chars so split doesn't produce empty leading/trailing cells.
-    val inner = trimmed.substring(1, trimmed.length - 1)
-    val cells = inner.split('|').map { it.trim() }
-    if (cells.size < 4) return null
-
-    val name = cells[0]
-    val onirc = cells[1]
-    val server = cells[2]
-    // cells[3] = "IRC User" (nick!ident@host) currently unused, see kdoc.
-
-    if (name.isEmpty() || name.equals("Network", ignoreCase = true)) return null
-    if (!onirc.equals("Yes", ignoreCase = true) && !onirc.equals("No", ignoreCase = true)) return null
-
-    // ZNC's IRC Server cell looks like `server:+6697` strip the port (and the
-    // `+` TLS flag if present) to get just the host. We keep it best-effort: if the format
-    // is unfamiliar, surface the cell verbatim rather than dropping the row entirely.
-    val host = server.takeIf { it.isNotEmpty() }?.let { s ->
-        val colon = s.indexOf(':')
-        if (colon > 0) s.substring(0, colon) else s
-    }
-
-    val state = if (onirc.equals("Yes", ignoreCase = true)) "connected" else "disconnected"
-
-    return IrcEvent.BouncerNetwork(
-        networkId = name,   // ZNC has no opaque netid; the name doubles as the stable id.
-        name = name,
-        host = host,
-        state = state,
-        clearedKeys = emptySet()
-    )
-}
-
-/**
- * Resolve [host] to all its addresses with a hard time limit, since the platform resolvers have
- * none. On timeout the resolver thread is abandoned and an UnknownHostException follows the normal
- * connect-failure path. IP literals return immediately.
- */
-internal fun resolveAllWithTimeout(
-    host: String,
-    network: android.net.Network?,
-    timeoutMs: Int,
-): Array<InetAddress> {
-    val task = java.util.concurrent.FutureTask<Array<InetAddress>> {
-        network?.getAllByName(host) ?: InetAddress.getAllByName(host)
-    }
-    Thread(task, "irc-dns-resolve").apply { isDaemon = true; start() }
-    return try {
-        task.get(timeoutMs.toLong(), java.util.concurrent.TimeUnit.MILLISECONDS)
-    } catch (te: java.util.concurrent.TimeoutException) {
-        task.cancel(true)
-        throw java.net.UnknownHostException(
-            "DNS resolution timed out after ${timeoutMs / 1000}s (resolver unresponsive) for $host"
-        )
-    } catch (ee: java.util.concurrent.ExecutionException) {
-        throw ee.cause ?: ee
-    }
-}
+/** Numerics answering a channel MODE query the server can't serve, naming the channel. */
+private val MODE_QUERY_ERROR_CODES = setOf("401", "403", "442", "476", "479")
 
 /** App-provided localized-string lookup: (resId, args) -> formatted string. */
 typealias StringLookup = (Int, Array<out Any?>) -> String
@@ -1512,38 +74,64 @@ class IrcClient(val config: IrcConfig) {
     /** Try to switch back to the configured nick after registering on a fallback. Applied live. */
     @Volatile var nickRegainEnabled = true
 
-
     /** Latched when the server refuses nick changes outright (Ergo strict nick-reservation). */
-    @Volatile private var nickChangeRefused = false
-    /**
-     * Channels whose pending MODE query was issued by the UI rather than typed by the user.
-     */
-    private val silentModeQueries = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    @Volatile internal var nickChangeRefused = false
+    /** A channel MODE query on the wire, and whether the UI sent it. */
+    private class ModeQuery(val chanFold: String, val silent: Boolean)
 
-    /** Mark the next MODE reply for [channel] as UI-driven, so nothing about it is printed. */
-    fun markSilentModeQuery(channel: String) {
-        silentModeQueries[casefold(channel)] = System.currentTimeMillis() + SILENT_MODE_QUERY_TTL_MS
+    /** Channel MODE queries in write order. A reply ends the oldest query for its channel. Guarded by itself. */
+    private val modeQueries = ArrayDeque<ModeQuery>()
+
+    /** Casefolded channel whose 324 was the last line read, while its 329 may still follow. Read loop only. */
+    private var modeReplyOpen: String? = null
+
+    /**
+     * Ask for [channel]'s modes for the UI, in the background lane. The reply (324 and 329) updates
+     * state without being printed.
+     */
+    suspend fun querySilentModes(channel: String) {
+        enqueue(OutboundUnit(listOf("MODE $channel"), background = true, silentModeQuery = true))
+    }
+
+    /** Records a channel MODE query about to be written, so its reply can be told apart. */
+    private fun noteModeQuery(line: String, silent: Boolean) {
+        val start = if (line.startsWith("@")) line.indexOf(' ') + 1 else 0
+        if (!line.regionMatches(start, "MODE ", 0, 5, ignoreCase = true)) return
+        val words = line.split(' ').filter { it.isNotEmpty() }
+        val parts = if (words.firstOrNull()?.startsWith("@") == true) words.drop(1) else words
+        if (parts.size != 2 || !parts[0].equals("MODE", ignoreCase = true) || !isChannelName(parts[1])) return
+        synchronized(modeQueries) {
+            if (modeQueries.size >= MAX_PENDING_MODE_QUERIES) modeQueries.removeFirst()
+            modeQueries.addLast(ModeQuery(casefold(parts[1]), silent))
+        }
+    }
+
+    /** True when the 324 or 329 for [channel] answers a query the UI sent. */
+    internal fun isSilentModeReply(channel: String): Boolean = synchronized(modeQueries) {
+        val fold = casefold(channel)
+        modeQueries.firstOrNull { it.chanFold == fold }?.silent == true
+    }
+
+    /** Ends the oldest query for the casefolded channel [fold]. */
+    private fun finishModeQuery(fold: String) = synchronized(modeQueries) {
+        val idx = modeQueries.indexOfFirst { it.chanFold == fold }
+        if (idx >= 0) modeQueries.removeAt(idx)
     }
 
     /**
-     * A MODE query is answered by 324 AND 329, so the marker must survive the first of the
-     * pair: [consume] is false for 324 and true for 329, which terminates the exchange.
-     * The TTL covers servers that never send 329, so a marker can't leak into a later
-     * user-typed /mode.
+     * Ends a MODE reply the server finished without a 329: a 324 is followed by its 329 or by
+     * nothing of the reply at all, so any other line after a 324 ends that query.
      */
-    private fun isSilentModeQuery(channel: String, consume: Boolean): Boolean {
-        val fold = casefold(channel)
-        val expiry = silentModeQueries[fold] ?: return false
-        if (System.currentTimeMillis() > expiry) {
-            silentModeQueries.remove(fold)
-            return false
-        }
-        if (consume) silentModeQueries.remove(fold)
-        return true
+    private fun closeModeReplyBefore(msg: IrcMessage) {
+        val open = modeReplyOpen ?: return
+        if (msg.command == "PING" || msg.command == "PONG") return
+        if (msg.command == "329" && msg.allParams.getOrNull(1)?.let { casefold(it) } == open) return
+        finishModeQuery(open)
+        modeReplyOpen = null
     }
 
     /** Keys sent with outgoing JOINs, by casefolded channel, until the server confirms the join. */
-    private val joinKeys = java.util.concurrent.ConcurrentHashMap<String, String>()
+    internal val joinKeys = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     /** Records the key for each keyed channel in an outgoing `JOIN <chans> [<keys>]`. */
     private fun rememberJoinKeys(line: String) {
@@ -1558,30 +146,33 @@ class IrcClient(val config: IrcConfig) {
     }
 
     /** One WHO on the wire. [buffer] is where replies are printed; null for the client's own queries. */
-    private class WhoRequest(val maskFold: String, val buffer: String?, val expiresAt: Long)
+    internal class WhoRequest(val maskFold: String, val buffer: String?, val forChannel: Boolean)
 
-    /** WHO requests in the order they were sent, so replies can be matched to them. */
+    /** WHO requests in the order they were written, so replies can be matched to them. Guarded by itself. */
     private val whoRequests = ArrayDeque<WhoRequest>()
 
-    /** Records a WHO for [mask]. Call before sending it. */
-    private fun trackWho(mask: String, buffer: String?) {
+    /** A WHO for [mask] whose replies print in [buffer], or are handled silently with null. */
+    internal fun whoFor(mask: String, buffer: String?) = WhoRequest(casefold(mask), buffer, isChannelName(mask))
+
+    /** Records a WHO about to be written. */
+    private fun trackWho(req: WhoRequest) {
         synchronized(whoRequests) {
             if (whoRequests.size >= MAX_PENDING_WHO) whoRequests.removeFirst()
-            whoRequests.addLast(
-                WhoRequest(casefold(mask), buffer, System.currentTimeMillis() + WHO_REQUEST_TTL_MS)
-            )
+            whoRequests.addLast(req)
         }
     }
 
-    /** The WHO that the current 352/354 reply belongs to. */
-    private fun currentWho(): WhoRequest? = synchronized(whoRequests) {
-        val now = System.currentTimeMillis()
-        while (whoRequests.isNotEmpty() && whoRequests.first().expiresAt < now) whoRequests.removeFirst()
-        whoRequests.firstOrNull()
+    /**
+     * The WHO a 352/354 reply belongs to: the oldest outstanding one that could have produced it.
+     * A WHO for a channel only answers with that [channel]; any other WHO can name any channel.
+     */
+    internal fun currentWho(channel: String? = null): WhoRequest? = synchronized(whoRequests) {
+        val fold = channel?.let { casefold(it) }
+        whoRequests.firstOrNull { fold == null || !it.forChannel || it.maskFold == fold }
     }
 
     /** Completes the WHO for [mask], also dropping any earlier request the server never ended. */
-    private fun finishWho(mask: String): WhoRequest? = synchronized(whoRequests) {
+    internal fun finishWho(mask: String): WhoRequest? = synchronized(whoRequests) {
         val idx = whoRequests.indexOfFirst { it.maskFold == casefold(mask) }
         if (idx < 0) return@synchronized whoRequests.removeFirstOrNull()
         repeat(idx) { whoRequests.removeFirst() }
@@ -1595,10 +186,24 @@ class IrcClient(val config: IrcConfig) {
      * false skips the flood delay, as for multiline batches, which servers exempt from their own
      * flood penalty.
      */
-    private data class OutboundUnit(val lines: List<String>, val paced: Boolean = true)
+    private data class OutboundUnit(
+        val lines: List<String>,
+        val paced: Boolean = true,
+        /** Sent only when nothing the user typed is waiting: automatic queries and refreshes. */
+        val background: Boolean = false,
+        /** A MODE query the UI makes, whose reply isn't printed. */
+        val silentModeQuery: Boolean = false,
+        /** The WHO these lines send, recorded as they are written. */
+        val who: WhoRequest? = null,
+        /** Messages these lines send that the server will echo, recorded as they are written. */
+        val sends: List<SendTrack> = emptyList(),
+    )
 
-    /** Outbound queue. */
+    /** Outbound queue for what the user sends, and everything else not marked background. */
     private val outbound = Channel<OutboundUnit>(capacity = 300)
+
+    /** Outbound queue for automatic queries; drained only when [outbound] is empty. */
+    private val outboundBackground = Channel<OutboundUnit>(capacity = 300)
 
     /**
      * Drop queued outbound lines matching [pred] now, e.g. a closed game's flood backlog. Drains
@@ -1606,15 +211,50 @@ class IrcClient(val config: IrcConfig) {
      * matching line or slightly reorder the survivors.
      */
     fun purgeOutbound(pred: (String) -> Boolean) {
-        val survivors = ArrayList<OutboundUnit>()
-        while (true) {
-            val unit = outbound.tryReceive().getOrNull() ?: break
-            // Drop a unit only if every line in it matches; a batch is all-or-nothing,
-            // since a half-dropped batch is exactly the corruption this queue prevents.
-            if (!unit.lines.all(pred)) survivors.add(unit)
+        for (lane in listOf(outbound, outboundBackground)) {
+            val survivors = ArrayList<OutboundUnit>()
+            while (true) {
+                val unit = lane.tryReceive().getOrNull() ?: break
+                // Drop a unit only if every line in it matches; a batch is all-or-nothing,
+                // since a half-dropped batch is exactly the corruption this queue prevents.
+                if (!unit.lines.all(pred)) survivors.add(unit)
+            }
+            for (unit in survivors) lane.trySend(unit)
         }
-        for (unit in survivors) outbound.trySend(unit)
     }
+
+    /**
+     * The writer's flood pacing, replayed as typed lines are queued, so a send can tell when it goes
+     * out. Background units are left out: they wait for typed lines, not the other way round.
+     */
+    private val queuedPaceLock = Any()
+    private var queuedFloodClock = 0L
+    @Volatile private var queuedDueAtMs = 0L
+
+    private fun noteQueued(unit: OutboundUnit) {
+        if (unit.background) return
+        val now = System.currentTimeMillis()
+        synchronized(queuedPaceLock) {
+            if (!registered || config.isBouncer || safeRate) {
+                queuedDueAtMs = maxOf(queuedDueAtMs, now)
+                return
+            }
+            if (queuedFloodClock < now) queuedFloodClock = now
+            queuedFloodClock += if (unit.paced) {
+                floodPenaltyMs * unit.lines.size + unit.lines.sumOf { it.length } * floodPerCharMs
+            } else {
+                floodPenaltyMs
+            }
+            val earliest = if (unit.paced) queuedFloodClock - floodBurstMs else now
+            queuedDueAtMs = maxOf(queuedDueAtMs, now, earliest)
+        }
+    }
+
+    /**
+     * How long until the last queued typed line is written, as flood pacing holds it back. A line
+     * queued just before this call goes out about this far from now.
+     */
+    fun sendBacklogMs(): Long = (queuedDueAtMs - System.currentTimeMillis()).coerceAtLeast(0L)
 
     // Outbound flood pacing (applied in the writer loop). IRC servers charge a per-line penalty of
     // roughly 2s + length/120s and cut you for "excess flood" once you get ~10s ahead of real time.
@@ -1640,13 +280,21 @@ class IrcClient(val config: IrcConfig) {
          * How many open batches to track at once, bounding a server that never closes them.
          * Eviction is by oldest, so tracking keeps working rather than shutting off.
          */
-        private const val MAX_TRACKED_BATCHES = 64
+        internal const val MAX_TRACKED_BATCHES = 64
         /** Outstanding WHOIS routes kept before the oldest is dropped. */
         private const val MAX_PENDING_WHOIS = 50
         /** Nicks whose user, host and account are remembered for building bans. */
         private const val MAX_KNOWN_USERS = 4000
+        /** Raw lines kept for a debug report. */
+        private const val RECENT_RAW_LINES = 300
         /** Outstanding WHO requests kept before the oldest is dropped. */
         private const val MAX_PENDING_WHO = 50
+        /** Outstanding channel MODE queries kept before the oldest is dropped. */
+        private const val MAX_PENDING_MODE_QUERIES = 64
+        /** Sends awaiting their echo before the oldest is dropped; the outbound queue holds 300. */
+        private const val MAX_AWAITING_ECHOES = 300
+        /** Send ids, unique across connections so a reconnect never reuses one still awaited. */
+        private val sendIdCounter = java.util.concurrent.atomic.AtomicLong()
 
         /**
          * CHATHISTORY selector timestamp format. See [historyTimestamp].
@@ -1655,31 +303,6 @@ class IrcClient(val config: IrcConfig) {
             java.time.format.DateTimeFormatter
                 .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
                 .withZone(java.time.ZoneOffset.UTC)
-
-        /**
-         * SSLContext cache keyed by trust and key material, so reconnects to the same profile reuse
-         * the JSSE session cache and get TLS session resumption. Entries are never evicted; the set
-         * of distinct keys is small.
-         */
-        private val sslContextCache = java.util.concurrent.ConcurrentHashMap<SslContextKey, SSLContext>()
-
-        /**
-         * Key for [sslContextCache]: trust mode, client certificate (Keystore alias, or a digest of
-         * the PKCS#12 and its password), and TOFU pin, since each changes the context's trust or
-         * key material.
-         */
-        private data class SslContextKey(
-            val allowInvalidCerts: Boolean,
-            val keystoreAlias: String?,
-            val pkcs12Sha256: String?,
-            val passwordSha256: String?,
-            val tlsTofuFingerprint: String?,
-        )
-
-        /** Lowercase hex SHA-256 of [bytes]. */
-        private fun sha256Hex(bytes: ByteArray): String =
-            java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
-                .joinToString("") { b -> (b.toInt() and 0xff).toString(16).padStart(2, '0') }
     }
 
     @Volatile private var socket: Socket? = null
@@ -1697,7 +320,7 @@ class IrcClient(val config: IrcConfig) {
     // True once 001 (RPL_WELCOME) is received. After registration, 433 during pre-reg
     // IRCd's like Ergo sends the correct nick via 001 after SASL completes, so any
     // queued 433 responses for nicks tried before SASL finished should be ignored.
-    private var registered = false
+    internal var registered = false
 
     // Tracks where a WHOIS was invoked from so we can route the numeric replies back
     // to that buffer (instead of always dumping them in the server buffer). Insertion
@@ -1708,7 +331,7 @@ class IrcClient(val config: IrcConfig) {
      * Route the replies of a WHOIS for [fold] back to [buffer]. Removed when the reply ends (318,
      * 401, 406); at the cap the oldest entry is evicted.
      */
-    private fun rememberWhoisBuffer(fold: String, buffer: String) = synchronized(pendingWhoisBufferByNick) {
+    internal fun rememberWhoisBuffer(fold: String, buffer: String) = synchronized(pendingWhoisBufferByNick) {
         // Re-inserted so a repeat WHOIS counts as the newest entry.
         pendingWhoisBufferByNick.remove(fold)
         if (pendingWhoisBufferByNick.size >= MAX_PENDING_WHOIS) {
@@ -1717,7 +340,7 @@ class IrcClient(val config: IrcConfig) {
         pendingWhoisBufferByNick[fold] = buffer
     }
 
-    @Volatile private var currentNick: String = config.nick
+    @Volatile internal var currentNick: String = config.nick
 
     // Lag measurement (client PING -> server PONG RTT)
     @Volatile private var pendingLagPingToken: String? = null
@@ -1730,17 +353,17 @@ class IrcClient(val config: IrcConfig) {
     @Volatile private var lastInboundAtMs: Long = 0L
 
     // ISUPPORT-derived server features (defaults are RFC1459-ish)
-    @Volatile private var chantypes: String = "#&"
-    @Volatile private var caseMapping: String = "rfc1459"
-    @Volatile private var statusMsg: String? = null
-    @Volatile private var chanModes: String? = null
-    @Volatile private var prefixModes: String = "qaohv"
-    @Volatile private var prefixSymbols: String = "~&@%+"
-    @Volatile private var prefixModeToSymbol: Map<Char, Char> = mapOf(
+    @Volatile internal var chantypes: String = "#&"
+    @Volatile internal var caseMapping: String = "rfc1459"
+    @Volatile internal var statusMsg: String? = null
+    @Volatile internal var chanModes: String? = null
+    @Volatile internal var prefixModes: String = "qaohv"
+    @Volatile internal var prefixSymbols: String = "~&@%+"
+    @Volatile internal var prefixModeToSymbol: Map<Char, Char> = mapOf(
         'q' to '~', 'a' to '&', 'o' to '@', 'h' to '%', 'v' to '+'
     )
     /** True when the server advertises WHOX in ISUPPORT (005). */
-    @Volatile private var whoxSupported: Boolean = false
+    @Volatile internal var whoxSupported: Boolean = false
 
     /**
      * ELIST=<chars> from ISUPPORT (005): which server-side LIST search extensions the server
@@ -1749,7 +372,7 @@ class IrcClient(val config: IrcConfig) {
      * 005 is seen. Stored uppercase. Used so the channel-list UI only offers server-side
      * filtering the server can actually honour, instead of having it silently ignored.
      */
-    @Volatile private var elistTokens: String? = null
+    @Volatile internal var elistTokens: String? = null
 
     /**
      * MONITOR=<n> from ISUPPORT (005): maximum entries the server allows in this client's
@@ -1757,26 +380,35 @@ class IrcClient(val config: IrcConfig) {
      * pre-005 default) means MONITOR support hasn't been confirmed. The /monitor dispatcher
      * uses this to surface a clear message in the server buffer when MONITOR is unsupported.
      */
-    @Volatile private var monitorLimit: Int = -1
+    @Volatile internal var monitorLimit: Int = -1
 
     /**
      * CLIENTTAGDENY from ISUPPORT: client-only tags this server won't relay. Null = no restriction.
      * Comma-separated; "*" denies all, "-name" re-allows one. Interpreted by [clientTagAllowed].
      */
-    @Volatile private var clientTagDeny: String? = null
+    @Volatile internal var clientTagDeny: String? = null
 
     /**
      * soju.im/FILEHOST (or draft/FILEHOST) from ISUPPORT: HTTP endpoint for file
      * uploads, advertised by soju, Ergo (additional-isupport), and standalone
      * filehost servers. Null when the server offers none.
      */
-    @Volatile private var filehostUrl: String? = null
+    @Volatile internal var filehostUrl: String? = null
 
     /** ICON / draft/ICON ISUPPORT token: server-supplied icon URL. Null = none. */
-    @Volatile private var networkIconUrl: String? = null
+    @Volatile internal var networkIconUrl: String? = null
 
     /** BOT ISUPPORT token: the user-mode letter that flags a bot (e.g. 'B'). Null = unset. */
-    @Volatile private var botModeChar: Char? = null
+    @Volatile internal var botModeChar: Char? = null
+
+    /** BOUNCER_NETID ISUPPORT token: the soju network this connection is bound to. Null = unbound. */
+    @Volatile internal var bouncerNetId: String? = null
+
+    /**
+     * soju.im/SAFERATE ISUPPORT token: the server delays a fast client rather than disconnecting
+     * it, so our own flood pacing is off.
+     */
+    @Volatile internal var safeRate: Boolean = false
 
     /** What we last saw of a nick: ident, host and services account. */
     private data class KnownUser(val user: String? = null, val host: String? = null, val account: String? = null)
@@ -1792,7 +424,7 @@ class IrcClient(val config: IrcConfig) {
     }
 
     /** Record what we know of [nick]. Null leaves a field unchanged; an [account] of "*" or "0" clears it. */
-    private fun noteUser(nick: String, user: String? = null, host: String? = null, account: String? = null) {
+    internal fun noteUser(nick: String, user: String? = null, host: String? = null, account: String? = null) {
         if (nick.isBlank()) return
         val key = casefold(nick)
         synchronized(knownUsers) {
@@ -1806,6 +438,20 @@ class IrcClient(val config: IrcConfig) {
     }
 
     private fun knownUser(nick: String): KnownUser? = synchronized(knownUsers) { knownUsers[casefold(nick)] }
+
+    /** The last seen `user@host` of [nick], or null when either part is unknown. */
+    fun userHostOf(nick: String): String? {
+        val k = knownUser(nick) ?: return null
+        val user = k.user ?: return null
+        val host = k.host ?: return null
+        return "$user@$host"
+    }
+
+    /**
+     * Asked before answering a CTCP request; true leaves it unanswered. Given the sender's nick
+     * and `user@host` when known.
+     */
+    @Volatile var ctcpIgnored: ((nick: String, userHost: String?) -> Boolean)? = null
 
     /** Record the sender of [msg] from its `nick!user@host` prefix and account tag; a NICK carries over. */
     private fun noteSender(msg: IrcMessage) {
@@ -1842,23 +488,23 @@ class IrcClient(val config: IrcConfig) {
     }
 
     /** EXTBAN prefix (e.g. "~", or "" for no prefix). Null when the server has no EXTBAN token. */
-    @Volatile private var extbanPrefix: String? = null
+    @Volatile internal var extbanPrefix: String? = null
     /** EXTBAN type letters. Null when unsupported. */
-    @Volatile private var extbanTypes: String? = null
+    @Volatile internal var extbanTypes: String? = null
     /** draft/account-extban letter (from ACCOUNTEXTBAN=<name>,<letter>). Null when unsupported. */
-    @Volatile private var accountExtban: String? = null
+    @Volatile internal var accountExtban: String? = null
 
     /** CHATHISTORY ISUPPORT token: max messages the server returns per request. 0 = unset. */
-    @Volatile private var chatHistoryLimit: Int = 0
+    @Volatile internal var chatHistoryLimit: Int = 0
 
     /** Set when this network's own certificate couldn't be made or read, so none was presented. */
-    @Volatile private var netCertUnavailable = false
+    @Volatile internal var netCertUnavailable = false
 
     /** Set when this connection created the network's certificate, which is announced once. */
-    @Volatile private var netCertCreated = false
+    @Volatile internal var netCertCreated = false
 
     /** UTF8ONLY ISUPPORT token: the server only accepts UTF-8. */
-    @Volatile private var utf8OnlyServer: Boolean = false
+    @Volatile internal var utf8OnlyServer: Boolean = false
 
     /**
      * VAPID ISUPPORT token (draft/webpush): the server's application-server public key,
@@ -1866,20 +512,20 @@ class IrcClient(val config: IrcConfig) {
      * distributor so it can reject push messages that are not signed by this server.
      * Null when the server offers no VAPID key.
      */
-    @Volatile private var vapidPublicKey: String? = null
+    @Volatile internal var vapidPublicKey: String? = null
 
     /**
      * Set when this 005 line introduced a VAPID key, so the event can be emitted after the
      * whole line is parsed rather than mid-token.
      */
-    private var vapidBecameReady: Boolean = false
+    internal var vapidBecameReady: Boolean = false
 
     /**
      * MSGREFTYPES ISUPPORT token: the message-reference types the server accepts in
      * CHATHISTORY selectors (e.g. "timestamp", "msgid"). Empty = token absent, in which
      * case both are assumed per the spec default.
      */
-    @Volatile private var msgRefTypes: List<String> = emptyList()
+    @Volatile internal var msgRefTypes: List<String> = emptyList()
 
     /**
      * The selector type used by the most recent CHATHISTORY request.
@@ -1887,7 +533,7 @@ class IrcClient(val config: IrcConfig) {
      * A server that rejects one with INVALID_MSGREFTYPE is telling us it does not accept
      * that type, so it is dropped and the next request falls to the other.
      */
-    @Volatile private var lastHistoryRefType: String? = null
+    @Volatile internal var lastHistoryRefType: String? = null
 
     /**
      * Reference types the server has rejected with INVALID_MSGREFTYPE.
@@ -1896,7 +542,7 @@ class IrcClient(val config: IrcConfig) {
      * absent, assume both are accepted": removing the last entry there would read as a
      * server that never restricted anything.
      */
-    @Volatile private var refusedRefTypes: Set<String> = emptySet()
+    @Volatile internal var refusedRefTypes: Set<String> = emptySet()
 
     /** Clamp a desired CHATHISTORY count to the server's advertised limit, if any. */
     /** Max messages per CHATHISTORY request: the ISUPPORT token, else the capability's value. 0 = unknown. */
@@ -1906,7 +552,7 @@ class IrcClient(val config: IrcConfig) {
         return fromCap?.trim()?.toIntOrNull()?.takeIf { it > 0 } ?: 0
     }
 
-    private fun clampHistoryLimit(requested: Int): Int {
+    internal fun clampHistoryLimit(requested: Int): Int {
         val max = historyPageLimit()
         return if (max in 1 until requested) max else requested
     }
@@ -1929,7 +575,7 @@ class IrcClient(val config: IrcConfig) {
      * Format [instant] as a CHATHISTORY timestamp: `YYYY-MM-DDThh:mm:ss.sssZ` with the milliseconds
      * always present, which `Instant.toString()` drops when they are zero.
      */
-    private fun historyTimestamp(instant: java.time.Instant): String =
+    internal fun historyTimestamp(instant: java.time.Instant): String =
         HISTORY_TS_FORMAT.format(instant)
 
     /** Lower bound for a CHATHISTORY range that means "everything the server holds". */
@@ -1939,7 +585,7 @@ class IrcClient(val config: IrcConfig) {
      * Server-advertised length limits from ISUPPORT (TOPICLEN, KICKLEN, AWAYLEN,
      * QUITLEN, NICKLEN, MAXNICKLEN, CHANNELLEN, NAMELEN). Absent key = no known limit.
      */
-    private val lengthLimits = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    internal val lengthLimits = java.util.concurrent.ConcurrentHashMap<String, Int>()
 
     /** The advertised limit for [key] (uppercased ISUPPORT token), or 0 when unset. */
     fun isupportLengthLimit(key: String): Int = lengthLimits[key.uppercase()] ?: 0
@@ -1949,22 +595,22 @@ class IrcClient(val config: IrcConfig) {
      * server's advertised limit so the local view matches what the server will store,
      * instead of letting the server silently cut it. A no-op when the limit is unset.
      */
-    private fun clampLen(text: String, key: String): String {
+    internal fun clampLen(text: String, key: String): String {
         val lim = lengthLimits[key] ?: 0
         return if (lim in 1 until text.length) text.take(lim) else text
     }
 
     /** KNOCK ISUPPORT token: server supports the KNOCK command for invite-only channels. */
-    @Volatile private var knockSupported = false
+    @Volatile internal var knockSupported = false
 
     /**
      * CHANLIMIT ISUPPORT token: max channels joinable per channel-type prefix
      * (e.g. "#:20"). Keyed by prefix char. Absent = no known limit.
      */
-    private val chanLimits = java.util.concurrent.ConcurrentHashMap<Char, Int>()
+    internal val chanLimits = java.util.concurrent.ConcurrentHashMap<Char, Int>()
 
     /** Advertised channel-join limit for [chan]'s type prefix, or 0 when unknown. */
-    private fun channelLimitFor(chan: String): Int =
+    internal fun channelLimitFor(chan: String): Int =
         chan.firstOrNull()?.let { chanLimits[it] } ?: 0
 
     /**
@@ -1972,7 +618,7 @@ class IrcClient(val config: IrcConfig) {
      * VERIFICATION_REQUIRED response, so a bare `/verify <code>` targets the right
      * account without the user retyping it. Cleared on SUCCESS and per session.
      */
-    @Volatile private var pendingVerifyAccount: String? = null
+    @Volatile internal var pendingVerifyAccount: String? = null
 
     /**
      * True if [tag] may be sent as a client-only tag. Pass the bare name ("typing", not "+typing"):
@@ -2001,32 +647,54 @@ class IrcClient(val config: IrcConfig) {
      * Null until the server sends 005 — callers should treat null as 512.
      */
     @Volatile var serverLinelen: Int? = null
-        private set
+        internal set
 
     // Track joined channels (original case preserved, keyed by casefold)
-    private val joinedChannelCases = mutableMapOf<String, String>()
+    internal val joinedChannelCases = mutableMapOf<String, String>()
 
     // Channel for emitting events from commands (merged into events() flow)
-    private val commandEvents = Channel<IrcEvent>(capacity = Channel.UNLIMITED)  // Or adjust capacity
+    internal val commandEvents = Channel<IrcEvent>(capacity = Channel.UNLIMITED)  // Or adjust capacity
 
     /**
      * Reference to the active IrcSession so that command handlers (handleSlashCommand, etc.)
      * can query negotiated capabilities without being inside the events() channelFlow scope.
      * Written on the IO thread when the session is created; read from any coroutine.
      */
-    @Volatile private var sessionRef: IrcSession? = null
+    @Volatile internal var sessionRef: IrcSession? = null
 
     /** Returns true if the given IRCv3 capability was successfully negotiated with the server. */
     fun hasCap(cap: String): Boolean = sessionRef?.hasCap(cap) == true
+
+    /** The capabilities enabled on this connection, sorted. */
+    fun enabledCaps(): List<String> = sessionRef?.enabledCapsList().orEmpty()
+
+    /**
+     * The most recent raw lines both ways, as (time, outgoing, line), kept for debug reports.
+     * Outgoing lines are stored with passwords already hidden.
+     */
+    private val recentRaw = ArrayDeque<Triple<Long, Boolean, String>>()
+
+    private fun noteRecentRaw(outgoing: Boolean, line: String) {
+        synchronized(recentRaw) {
+            recentRaw.addLast(Triple(System.currentTimeMillis(), outgoing, line))
+            while (recentRaw.size > RECENT_RAW_LINES) recentRaw.removeFirst()
+        }
+    }
+
+    /** Up to [max] of the most recent raw lines, oldest first, with passwords hidden. */
+    fun recentRawLines(max: Int): List<Triple<Long, Boolean, String>> {
+        val snapshot = synchronized(recentRaw) { recentRaw.toList() }
+        return snapshot.takeLast(max.coerceAtLeast(0)).map { (t, out, line) -> Triple(t, out, if (out) line else redactRawLine(line)) }
+    }
 
     /** Raw value of a capability from CAP LS/NEW (e.g. draft/account-registration flags). */
     fun capValue(cap: String): String? = sessionRef?.capValue(cap)
 
     /** True if either the graduated or draft chathistory cap is enabled. */
-    private fun hasChathistoryCap(): Boolean = hasCap("chathistory") || hasCap("draft/chathistory")
+    internal fun hasChathistoryCap(): Boolean = hasCap("chathistory") || hasCap("draft/chathistory")
 
     /** True if either the soju.im/read or draft/read-marker cap is enabled. */
-    private fun hasReadMarkerCap(): Boolean = hasCap("draft/read-marker") || hasCap("soju.im/read")
+    internal fun hasReadMarkerCap(): Boolean = hasCap("draft/read-marker") || hasCap("soju.im/read")
 
     /** True if either the graduated or draft pre-away cap is enabled. */
     private fun hasPreAwayCap(): Boolean = hasCap("pre-away") || hasCap("draft/pre-away")
@@ -2043,14 +711,14 @@ class IrcClient(val config: IrcConfig) {
     private val labelCounter = java.util.concurrent.atomic.AtomicLong(0)
     // CTCP flood protection: last reply time per nick, so we answer at most once per
     // CTCP_RATE_LIMIT_MS per sender and cannot be flooded into a K-line.
-    private val ctcpLastReplyMs = mutableMapOf<String, Long>()
-    private val CTCP_RATE_LIMIT_MS = 5_000L
+    internal val ctcpLastReplyMs = mutableMapOf<String, Long>()
+    internal val CTCP_RATE_LIMIT_MS = 5_000L
 
     /**
      * Drop reply times that are past the rate-limit window, so a flood from rotating nicks
      * cannot grow the map for the life of the connection.
      */
-    private fun pruneCtcpReplyTimes(now: Long) {
+    internal fun pruneCtcpReplyTimes(now: Long) {
         if (ctcpLastReplyMs.size < 64) return
         ctcpLastReplyMs.entries.removeAll { now - it.value >= CTCP_RATE_LIMIT_MS }
     }
@@ -2059,8 +727,8 @@ class IrcClient(val config: IrcConfig) {
      * MONITOR list entries (732) collected until 733 ends the list, then printed as one line. Reset
      * on each 733.
      */
-    private val monitorListBuffer = mutableListOf<String>()
-    private fun nextLabel(): String = "h${labelCounter.incrementAndGet()}"
+    internal val monitorListBuffer = mutableListOf<String>()
+    internal fun nextLabel(): String = "h${labelCounter.incrementAndGet()}"
 
     /**
      * Build an optional `@label=<id>` tag prefix for use with labeled-response.
@@ -2073,7 +741,7 @@ class IrcClient(val config: IrcConfig) {
 	 * STATUSMSG targets (e.g. "@#chan") should be routed to the underlying channel buffer.
 	 * See ISUPPORT STATUSMSG.
 	 */
-	private fun normalizeMsgTarget(target: String): String {
+	internal fun normalizeMsgTarget(target: String): String {
 		val t = target.trim()
 		val sm = statusMsg
 		return if (sm != null && t.length >= 2 && sm.indexOf(t[0]) >= 0 && chantypes.indexOf(t[1]) >= 0) {
@@ -2083,7 +751,7 @@ class IrcClient(val config: IrcConfig) {
 		}
 	}
 
-    private fun isChannelName(name: String): Boolean =
+    internal fun isChannelName(name: String): Boolean =
         name.isNotEmpty() && chantypes.contains(name[0])
 
     /**
@@ -2092,7 +760,7 @@ class IrcClient(val config: IrcConfig) {
      * `BouncerServ`. Used by both the PRIVMSG and NOTICE handlers, since ZNC's `*status` replies by
      * NOTICE.
      */
-    private fun isBouncerPseudoUser(nick: String): Boolean {
+    internal fun isBouncerPseudoUser(nick: String): Boolean {
         if (nick.isEmpty()) return false
         if (nick.startsWith("*")) return true
         return nick.equals("BouncerServ", ignoreCase = true)
@@ -2103,13 +771,13 @@ class IrcClient(val config: IrcConfig) {
      * (default), NICK `nick!*@*`, USER `*!user@*`, DOMAIN `*!*@*.domain`, ACCOUNT (the server's
      * account extban, see [accountBanMask]), RAW for a mask typed as-is.
      */
-    private enum class BanMaskType { NICK, USER, HOST, DOMAIN, ACCOUNT, RAW }
+    internal enum class BanMaskType { NICK, USER, HOST, DOMAIN, ACCOUNT, RAW }
 
     /**
      * Parse an optional mask-type keyword: `n|nick`, `u|user|ident`, `h|host`, `d|domain`,
      * `a|acct|account`. Null when not recognised; callers then use [BanMaskType.HOST].
      */
-    private fun parseMaskType(kw: String?): BanMaskType? = when (kw?.lowercase()) {
+    internal fun parseMaskType(kw: String?): BanMaskType? = when (kw?.lowercase()) {
         null, "" -> null
         "n", "nick" -> BanMaskType.NICK
         "u", "user", "ident" -> BanMaskType.USER
@@ -2120,7 +788,7 @@ class IrcClient(val config: IrcConfig) {
     }
 
     /** True if [s] already looks like a ban mask rather than a plain nick. */
-    private fun looksLikeRawMask(s: String): Boolean =
+    internal fun looksLikeRawMask(s: String): Boolean =
         s.contains('!') || s.contains('@') || s.startsWith("$")
 
     /**
@@ -2175,74 +843,196 @@ class IrcClient(val config: IrcConfig) {
      * Channels we've requested CHATHISTORY for in this session, to avoid re-fetching on
      * rejoin. Keyed by [casefold]
      */
-    private val historyRequested = mutableSetOf<String>()
+    internal val historyRequested = mutableSetOf<String>()
 
     /**
      * Channels we've explicitly requested NAMES for in this session (soju.im/no-implicit-names
      * / draft/no-implicit-names), to avoid re-fetching on rejoin. Keyed by [casefold].
      */
-    private val namesRequested = mutableSetOf<String>()
+    internal val namesRequested = mutableSetOf<String>()
 
     /**
-     * Outgoing lines we have already displayed locally, awaiting their echo-message copy.
-     *
+     * A PRIVMSG or NOTICE, or one multiline batch, sent with echo-message and awaiting the
+     * server's answer: its echo, a refusal, or another reply.
      */
-    private data class PendingEcho(
+    internal class SendTrack(
+        val id: Long,
         val notice: Boolean,
+        /** The target as written. */
         val target: String,
+        val targetFold: String,
+        /** The text as written, compared formatting- and whitespace-insensitively when there is no label. */
         val text: String,
-        val expiry: Long,
+        val label: String?,
+        /** The echo is dropped here: /msg, /notice and CTCP replies, which are printed when sent. */
+        val suppress: Boolean,
+        val multiline: Boolean,
     )
 
-    private val suppressedEchoes = ArrayDeque<PendingEcho>()
+    /** Sends awaiting their answer, in write order. Guarded by itself. */
+    private val awaitingEchoes = ArrayDeque<SendTrack>()
 
-    /** Remember an outgoing line so [consumeOutgoingEcho] can recognise its echo. */
-    private fun registerOutgoingEcho(notice: Boolean, target: String, text: String) {
-        val now = System.currentTimeMillis()
-        while (suppressedEchoes.isNotEmpty() && suppressedEchoes.first().expiry < now) {
-            suppressedEchoes.removeFirst()
+    /** A track for a message about to be queued, or null without echo-message, when no answer is coming. */
+    private fun newSendTrack(
+        notice: Boolean,
+        target: String,
+        text: String,
+        label: String?,
+        suppress: Boolean = false,
+        multiline: Boolean = false,
+    ): SendTrack? {
+        if (!hasCap("echo-message")) return null
+        return SendTrack(sendIdCounter.incrementAndGet(), notice, target, casefold(target), text, label, suppress, multiline)
+    }
+
+    /** Records [sends] as written. Called by the writer just before their lines go out. */
+    private fun noteSendsWritten(sends: List<SendTrack>) {
+        if (sends.isEmpty()) return
+        synchronized(awaitingEchoes) {
+            for (s in sends) {
+                if (awaitingEchoes.size >= MAX_AWAITING_ECHOES) awaitingEchoes.removeFirst()
+                awaitingEchoes.addLast(s)
+            }
         }
-        if (suppressedEchoes.size >= 32) suppressedEchoes.removeFirst()
-        suppressedEchoes.addLast(PendingEcho(notice, casefold(target), text, now + 30_000L))
+    }
+
+    /** The label of a reply: its own tag, or that of the labeled batch it arrives in. */
+    internal fun replyLabel(tags: Map<String, String?>): String? =
+        tags["label"]?.takeIf { it.isNotBlank() } ?: tags["batch"]?.let { batchLabels[it] }
+
+    /** True when [echoed] is the server's copy of [sent], which it may have stripped of formatting or trimmed. */
+    private fun echoTextMatches(sent: String, echoed: String): Boolean =
+        sent == echoed || stripIrcFormatting(sent).trim() == stripIrcFormatting(echoed).trim()
+
+    /**
+     * Matches an echo of ours to its send: by label where the reply carries one, otherwise the
+     * oldest unlabeled send of the same kind to the same target with the same text. The server
+     * answers in order, so earlier sends to that target are finished too and reported delivered.
+     * Returns the matched send, or null for a message sent from elsewhere.
+     */
+    internal suspend fun ProducerScope<IrcEvent>.confirmEcho(
+        notice: Boolean,
+        rawTarget: String,
+        text: String,
+        label: String?,
+    ): SendTrack? {
+        val earlier = ArrayList<Long>()
+        val match = synchronized(awaitingEchoes) {
+            val idx = if (label != null) {
+                awaitingEchoes.indexOfFirst { it.label == label }
+            } else {
+                val fold = casefold(rawTarget)
+                awaitingEchoes.indexOfFirst {
+                    it.label == null && it.notice == notice && it.targetFold == fold && echoTextMatches(it.text, text)
+                }
+            }
+            if (idx < 0) return@synchronized null
+            val found = awaitingEchoes.removeAt(idx)
+            val it = awaitingEchoes.iterator()
+            var i = 0
+            while (it.hasNext() && i < idx) {
+                val s = it.next()
+                if (s.targetFold == found.targetFold) {
+                    it.remove()
+                    if (!s.suppress) earlier += s.id
+                }
+                i++
+            }
+            found
+        }
+        if (earlier.isNotEmpty()) send(IrcEvent.SendResolved(earlier, failed = false))
+        return match
+    }
+
+    /** Removes the send answered by [label], if one is awaiting it. */
+    private fun takeSendByLabel(label: String): SendTrack? = synchronized(awaitingEchoes) {
+        val idx = awaitingEchoes.indexOfFirst { it.label == label }
+        if (idx >= 0) awaitingEchoes.removeAt(idx) else null
     }
 
     /**
-     * True when this self-echo is the server's copy of a line we already displayed.
-     * Consumes the entry, so sending the same text twice suppresses only the first echo.
+     * The send that a refusal, ACK or FAIL answers: by label where the reply carries one,
+     * otherwise the oldest unlabeled send matching [pick]. Removed from the awaiting list.
      */
-    private fun consumeOutgoingEcho(notice: Boolean, target: String, text: String): Boolean {
-        val now = System.currentTimeMillis()
-        val fold = casefold(target)
-        val idx = suppressedEchoes.indexOfFirst {
-            it.notice == notice && it.target == fold && it.text == text && it.expiry >= now
+    internal fun takeAnsweredSend(tags: Map<String, String?>, pick: (SendTrack) -> Boolean): SendTrack? {
+        val label = replyLabel(tags)
+        if (label != null) return takeSendByLabel(label)
+        return synchronized(awaitingEchoes) {
+            val idx = awaitingEchoes.indexOfFirst { it.label == null && pick(it) }
+            if (idx >= 0) awaitingEchoes.removeAt(idx) else null
         }
-        if (idx < 0) return false
-        suppressedEchoes.removeAt(idx)
-        return true
     }
 
     /**
-     * Answer a CTCP request and record the reply for echo suppression.
-     *
-     * [payload] is the CTCP body without the \u0001 framing, which is added here so every
-     * reply site frames identically and the recorded text matches what comes back.
+     * Finishes whatever this line answers among outstanding sends, MODE queries and WHOs: the
+     * single labeled answer to a send (an ACK, an error, a notice), a refused message, an error
+     * for a MODE query, or a server too busy for a command.
      */
-    private suspend fun sendCtcpReply(target: String, payload: String) {
-        val framed = "\u0001$payload\u0001"
-        sendRaw("NOTICE $target :$framed")
-        registerOutgoingEcho(notice = true, target = target, text = framed)
+    private suspend fun ProducerScope<IrcEvent>.noteQueryAnswer(msg: IrcMessage) {
+        val cmd = msg.command
+        val numeric = cmd.length == 3 && cmd.all { it.isDigit() }
+        // A labeled command gets one answer. Its echo, a batch around several replies and a
+        // FAIL for a multiline batch are matched where they are handled; anything else carrying
+        // the label is the whole answer.
+        val ownLabel = msg.tags["label"]?.takeIf { it.isNotBlank() }
+        val ownEcho = (cmd == "PRIVMSG" || cmd == "NOTICE") && nickEquals(msg.prefixNick(), currentNick)
+        val batchFail = cmd == "FAIL" && msg.params.firstOrNull().equals("BATCH", ignoreCase = true)
+        if (ownLabel != null && cmd != "BATCH" && !ownEcho && !batchFail) {
+            val sent = takeSendByLabel(ownLabel)
+            if (sent != null) {
+                val failed = cmd == "FAIL" || (numeric && cmd[0] in '4'..'5')
+                if (!sent.suppress) send(IrcEvent.SendResolved(listOf(sent.id), failed))
+                return
+            }
+        }
+        if (!numeric) return
+        val subject = msg.params.getOrNull(1)
+        if (cmd in MODE_QUERY_ERROR_CODES && subject != null && isChannelName(subject)) {
+            finishModeQuery(casefold(subject))
+        }
+        if (cmd == "263") {
+            // RPL_TRYAGAIN: <me> <command> :Please wait. The oldest of that kind is dropped.
+            when (val kind = subject?.uppercase(Locale.ROOT)) {
+                "MODE" -> synchronized(modeQueries) { modeQueries.removeFirstOrNull() }
+                "WHO" -> synchronized(whoRequests) { whoRequests.removeFirstOrNull() }
+                "PRIVMSG", "NOTICE" -> {
+                    val dropped = takeAnsweredSend(msg.tags) { it.notice == (kind == "NOTICE") }
+                    if (dropped != null && !dropped.suppress) send(IrcEvent.SendResolved(listOf(dropped.id), failed = true))
+                }
+            }
+            return
+        }
+        if (cmd in SEND_REFUSAL_CODES && subject != null) {
+            val fold = casefold(subject)
+            val refused = takeAnsweredSend(msg.tags) { it.targetFold == fold } ?: return
+            if (!refused.suppress) send(IrcEvent.SendResolved(listOf(refused.id), failed = true))
+        }
+    }
+
+    /**
+     * Answer a CTCP request. [payload] is the CTCP body without the \u0001 framing, which is
+     * added here so every reply site frames identically.
+     */
+    internal suspend fun sendCtcpReply(target: String, payload: String) {
+        sendNotice(target, "\u0001$payload\u0001", suppressEcho = true)
+    }
+
+    /** Send a NOTICE. With [suppressEcho], its echo is dropped, since the caller printed it. */
+    internal suspend fun sendNotice(target: String, text: String, suppressEcho: Boolean) {
+        val line = "NOTICE $target :$text"
+        sendTracked(line, newSendTrack(notice = true, target = target, text = text, label = null, suppress = suppressEcho))
     }
 
     /** Per-buffer "history expected until" timestamp, anything older than this is treated as
      *  history rather than live, so we don't re-notify for already-seen messages.
      *  Keyed by [casefold] - see [historyRequested] for why lowercase() is not enough. */
-    private val historyExpectUntil = mutableMapOf<String, Long>()
+    internal val historyExpectUntil = mutableMapOf<String, Long>()
 
     /** Server time of our latest live JOIN per channel, keyed by [casefold]. */
-    private val selfJoinServerMs = mutableMapOf<String, Long>()
+    internal val selfJoinServerMs = mutableMapOf<String, Long>()
 
     /** znc.in/playback last-seen timestamps. Key = [casefold]ed buffer name. Value = epoch seconds. */
-    private val zncLastSeen = mutableMapOf<String, Long>()
+    internal val zncLastSeen = mutableMapOf<String, Long>()
 
     /** Open IRCv3 znc.in/playback batch IDs — messages tagged with these are historical. */
     private val openPlaybackBatches = mutableSetOf<String>()
@@ -2259,7 +1049,7 @@ class IrcClient(val config: IrcConfig) {
     private val playbackBatchTargets = mutableMapOf<String, String>()
 
     /** Channel of the innermost open playback batch this message belongs to, if any. */
-    private fun playbackChannelFor(tags: Map<String, String?>): String? =
+    internal fun playbackChannelFor(tags: Map<String, String?>): String? =
         tags["batch"]?.let { playbackBatchTargets[it] }
 
     /**
@@ -2274,18 +1064,24 @@ class IrcClient(val config: IrcConfig) {
      */
     private val batchLabels = mutableMapOf<String, String>()
 
+    /** soju.im/search requests in the order they went out. See [searchMessages]. */
+    internal val pendingSearches = ArrayDeque<PendingSearch>()
+
+    /** Open soju.im/search batches by id. Their lines are collected, not shown. */
+    internal val searchBatches = mutableMapOf<String, SearchBatch>()
+
     /** Open netsplit/netjoin batch IDs → "netsplit" / "netjoin". */
-    private val openNetsplitBatches = mutableMapOf<String, String>()
+    internal val openNetsplitBatches = mutableMapOf<String, String>()
 
     /** Buffered JOIN/QUIT lines per netsplit batch ID, used to collapse the events on close. */
-    private val netsplitBuffer = mutableMapOf<String, MutableList<IrcMessage>>()
+    internal val netsplitBuffer = mutableMapOf<String, MutableList<IrcMessage>>()
 
     /**
      * An open multiline batch: its target, the BATCH command's tags (authoritative for the merged
      * message), and the accumulated lines as (text, concat) pairs, where concat means no newline
      * before that line.
      */
-    private data class MultilineBatchState(
+    internal data class MultilineBatchState(
         val target: String,
         val command: String,        // PRIVMSG or NOTICE - inferred from the first inner line
         val openTags: Map<String, String?>,
@@ -2295,7 +1091,7 @@ class IrcClient(val config: IrcConfig) {
         var bytes: Int = 0,
         var truncated: Boolean = false,
     )
-    private val openMultilineBatches = mutableMapOf<String, MultilineBatchState>()
+    internal val openMultilineBatches = mutableMapOf<String, MultilineBatchState>()
 
     /** Hard ceilings on inbound batch state; a server that never closes a batch can't grow us without bound. */
     private val multilineMaxParts = 8192
@@ -2303,14 +1099,14 @@ class IrcClient(val config: IrcConfig) {
     private val multilineMaxOpenBatches = 64
 
     /** Accept the tag with or without the client-only '+' and with or without the draft/ prefix. */
-    private fun hasConcatTag(tags: Map<String, String?>): Boolean =
+    internal fun hasConcatTag(tags: Map<String, String?>): Boolean =
         tags.keys.any {
             val k = it.removePrefix("+")
             k == "draft/multiline-concat" || k == "multiline-concat"
         }
 
     /** Append one inner line, enforcing the ceilings above. Silently stops once the batch is full. */
-    private fun appendMultilinePart(state: MultilineBatchState, text: String, concat: Boolean) {
+    internal fun appendMultilinePart(state: MultilineBatchState, text: String, concat: Boolean) {
         if (state.truncated) return
         if (state.parts.size >= multilineMaxParts || state.bytes + text.length > multilineMaxBytes) {
             state.truncated = true
@@ -2322,7 +1118,7 @@ class IrcClient(val config: IrcConfig) {
 
     /** Heuristic: a message in [target] with [timeMs] should be treated as history if we're
      *  currently expecting history for that target and the message is older than ~now. */
-    private fun isHeuristicHistory(target: String?, timeMs: Long?, nowMs: Long): Boolean {
+    internal fun isHeuristicHistory(target: String?, timeMs: Long?, nowMs: Long): Boolean {
         if (target.isNullOrBlank() || timeMs == null) return false
         val key = casefold(target)
         val until = historyExpectUntil[key] ?: 0L
@@ -2334,7 +1130,7 @@ class IrcClient(val config: IrcConfig) {
 
     /** Parse server-time tag from IRCv3 tags (legacy `t` from znc.in/server-time-iso, or
      *  modern `time` from server-time). Returns null if absent or malformed. */
-    private fun parseServerTimeMs(tags: Map<String, String?>): Long? {
+    internal fun parseServerTimeMs(tags: Map<String, String?>): Long? {
         val raw = tags["time"] ?: tags["t"] ?: return null
         return runCatching { Instant.parse(raw).toEpochMilli() }.getOrNull()
     }
@@ -2349,7 +1145,7 @@ class IrcClient(val config: IrcConfig) {
      * True when this line is being replayed rather than happening now: either inside a
      * chathistory batch, or inside a znc.in/playback one.
      */
-    private fun isReplayedLine(tags: Map<String, String?>): Boolean {
+    internal fun isReplayedLine(tags: Map<String, String?>): Boolean {
         val batch = tags["batch"]
         return isPlaybackHistory(tags) || (batch != null && chathistoryBatchTargets.containsKey(batch))
     }
@@ -2393,7 +1189,7 @@ class IrcClient(val config: IrcConfig) {
      * A parsed `/cmd [#channel] <target> [args...]`: [chan] is the explicit channel or the current
      * channel buffer, [target] the nick or mask, [tail] the remaining tokens.
      */
-    private data class ParsedChanTarget(
+    internal data class ParsedChanTarget(
         val chan: String,
         val target: String?,
         val tail: List<String>,
@@ -2406,7 +1202,7 @@ class IrcClient(val config: IrcConfig) {
      * needs-a-channel notice via [commandEvents] and returns null; otherwise
      * [ParsedChanTarget.chan] satisfies [isChannelName].
      */
-    private suspend fun parseChanTargetCommand(
+    internal suspend fun parseChanTargetCommand(
         parts: List<String>,
         cmd: String,
         usageHint: String,
@@ -2459,7 +1255,7 @@ class IrcClient(val config: IrcConfig) {
      * and send WHOIS. [nickOrMask] that already looks like a mask is used as-is. [quiet] uses +q,
      * falling back to +b where unsupported; [alsoKick] kicks after the mode.
      */
-    private suspend fun applyBanOrQueue(
+    internal suspend fun applyBanOrQueue(
         channel: String,
         nickOrMask: String,
         type: BanMaskType,
@@ -2523,7 +1319,7 @@ class IrcClient(val config: IrcConfig) {
      * [applyBanOrQueue] to fall back to +b. Ircds known to support +q include
      * InspIRCd, UnrealIRCd, Charybdis/Solanum, ircd-seven (freenode/libera).
      */
-    private fun supportsQuietMode(): Boolean {
+    internal fun supportsQuietMode(): Boolean {
         // CHANMODES is parsed into chanModes; its first segment lists type-A (list) modes.
         val cm = chanModes ?: return false
         val typeA = cm.substringBefore(',', cm)
@@ -2613,1154 +1409,14 @@ class IrcClient(val config: IrcConfig) {
         }
     }
 
-    /**
-     * Per-message dispatcher for non-numeric IRC commands. Extracted from the events()
-     * channelFlow body to keep its compiled invokeSuspend method under the JVM 64KB
-     * size limit. Numeric replies are still dispatched by the numericHandlers map further
-     * up; this method only handles letter-keyed commands (PRIVMSG, NOTICE, JOIN, etc).
-     */
-    private suspend fun ProducerScope<IrcEvent>.handleMessageCommand(
-        msg: IrcMessage,
-        irc: IrcSession,
-        serverTimeMs: Long?,
-        playbackHistory: Boolean,
-        nowMs: Long,
-    ) {
-				when (msg.command.uppercase(Locale.ROOT)) {
-					"NICK" -> {
-						val old = msg.prefixNick()
-						val newNick = (msg.trailing ?: msg.params.firstOrNull())
-						if (old != null && newNick != null) {
-							send(IrcEvent.NickChanged(old, newNick, timeMs = serverTimeMs, isHistory = playbackHistory, historyChannel = playbackChannelFor(msg.tags)))
-						}
-						if (old != null && newNick != null && nickEquals(old, currentNick)) {
-							currentNick = newNick
-						}
-					}
+    internal fun casefold(s: String): String = ircCasefold(s, caseMapping)
 
-					"PRIVMSG" -> {
-						val from = msg.prefixNick() ?: "?"
-						val rawTarget = msg.params.getOrNull(0) ?: return
-						val target = normalizeMsgTarget(rawTarget)
-						// The text is the last parameter, sent without a colon when it is one word.
-						val textRaw = msg.trailing ?: msg.params.getOrNull(1) ?: ""
-
-						// IRCv3 multiline: if this line is part of an open multiline batch
-						// for our session, accumulate its body into the batch state instead
-						// of emitting normally. The flush happens on BATCH -<id> close, which
-						// emits a single ChatMessage with the joined text. Per spec, any
-						// PRIVMSG line in the batch MUST target the same recipient as the
-						// batch open; we trust the server here rather than re-validating.
-						val multilineBatchIdPm = msg.tags["batch"]
-						if (multilineBatchIdPm != null) {
-							val mlState = openMultilineBatches[multilineBatchIdPm]
-							if (mlState != null) {
-								// Lock in the inner-line command (PRIVMSG vs NOTICE) AND
-								// capture the inner-line sender on the first inner line.
-								// Per spec the BATCH open MAY have a prefix, but the
-								// authoritative sender is on the inner lines. Subsequent
-								// lines must match the same sender (mixing is forbidden);
-								// we don't try to handle that case.
-								if (mlState.parts.isEmpty()) {
-									openMultilineBatches[multilineBatchIdPm] =
-										mlState.copy(
-											command = "PRIVMSG",
-											innerSenderPrefix = msg.prefix,
-										)
-								}
-								openMultilineBatches[multilineBatchIdPm]?.let {
-									appendMultilinePart(it, textRaw, hasConcatTag(msg.tags))
-								}
-								return  // Don't emit individually - flushed on BATCH -<id>.
-							}
-						}
-
-						// znc.in/playback: *playback module sends TIMESTAMP <buffer> <epoch>
-						// so we know when we were last seen and can request only missed messages.
-						// Only consume TIMESTAMP messages here; other messages from *playback
-						// (e.g. "Module not loaded") fall through to the generic pseudo-user
-						// routing below and surface in the server buffer.
-						if (config.isBouncer && from.equals("*playback", ignoreCase = true)) {
-							val parts = textRaw.trim().split(" ")
-							if (parts.size >= 2 && parts[0].equals("TIMESTAMP", ignoreCase = true)) {
-								val bufName = parts[1]
-								val epochSecs = parts.getOrNull(2)?.toLongOrNull()
-								if (epochSecs != null) zncLastSeen[casefold(bufName)] = epochSecs
-								return  // Internal plumbing only — never shown.
-							}
-							// Non-TIMESTAMP: fall through.
-						}
-
-						// echo-message for messages we sent to a bouncer pseudo-user. `*playback`
-						// echoes (PLAY commands) are dropped; any other pseudo-user (`*status`,
-						// `*controlpanel`, BouncerServ) is shown in *server* as `<self> ...`, next
-						// to its reply, instead of opening a query buffer.
-						if (config.isBouncer
-							&& !isChannelName(target)
-							&& nickEquals(from, currentNick)
-							&& isBouncerPseudoUser(target)
-						) {
-							if (target.equals("*playback", ignoreCase = true)) return
-							send(IrcEvent.Notice(
-								from = from,
-								target = "*server*",
-								text = "→ $target: $textRaw",
-								isPrivate = false,
-								isServer = true,
-								timeMs = serverTimeMs,
-								isHistory = (playbackHistory || isHeuristicHistory("*server*", serverTimeMs, nowMs))
-							))
-							return
-						}
-
-						// Bouncer pseudo-users (ZNC modules, whose nicks start with '*', and soju's
-						// BouncerServ) go to the server buffer rather than opening a query.
-						if (config.isBouncer && !isChannelName(target) && isBouncerPseudoUser(from)) {
-							// ZNC discover-and-clone: opportunistically scrape any `*status` reply
-							// for ListNetworks rows.
-							if (config.bouncerKind == BouncerKind.ZNC && from.equals("*status", ignoreCase = true)) {
-								parseZncListNetworksLine(textRaw)?.let { send(it) }
-							}
-							// Show the message but route it to the server buffer.
-							send(IrcEvent.Notice(
-								from = from,
-								target = "*server*",
-								text = textRaw,
-								isPrivate = false,
-								isServer = true,
-								timeMs = serverTimeMs,
-								isHistory = (playbackHistory || isHeuristicHistory("*server*", serverTimeMs, nowMs))
-							))
-							return
-						}
-
-						val isChannel = isChannelName(target)
-						val isPrivate = !isChannel
-
-						// Echo of a /msg we already printed into the origin buffer.
-						if (isPrivate && nickEquals(from, currentNick) && !playbackHistory &&
-							consumeOutgoingEcho(notice = false, target = target, text = textRaw)
-						) {
-							return
-						}
-
-						// If this PRIVMSG comes from a server prefix (no '!'), route it to *server*.
-						// Some networks replay our OWN historical PMs (via CHATHISTORY) with a bare
-						// nick prefix and no !user@host - identical in shape to a real server prefix.
-						// Check nickEquals() first so that case routes to the PM buffer instead of
-						// being misclassified as a server message (our own nick is never a server name).
-						val isServerPrefix = (msg.prefix != null && !msg.prefix.contains('!') && !msg.prefix.contains('@')
-							&& !nickEquals(from, currentNick))
-
-						// For private messages, use the *other party* as the buffer name.
-						val buf = if (isPrivate) {
-							when {
-								isServerPrefix -> "*server*"
-								nickEquals(from, currentNick) -> target
-								else -> from
-							}
-						} else {
-							target
-						}
-
-						// Handle CTCP requests
-						val trimmedText = textRaw.trim()
-						if (trimmedText.startsWith("\u0001") && !nickEquals(from, currentNick)) {
-							// Strip leading \x01 and optional trailing \x01
-							val ctcpContent = trimmedText.removePrefix("\u0001").removeSuffix("\u0001").trim()
-							if (ctcpContent.isNotEmpty()) {
-								val spaceIdx = ctcpContent.indexOf(' ')
-								val ctcpCmd = (if (spaceIdx > 0) ctcpContent.substring(0, spaceIdx) else ctcpContent).uppercase()
-								val ctcpArgs = if (spaceIdx > 0) ctcpContent.substring(spaceIdx + 1) else ""
-								if (ctcpCmd != "ACTION") {
-									send(IrcEvent.CtcpRequest(from, target, ctcpCmd, ctcpArgs, isHistory = playbackHistory))
-								}
-
-								// Sanitise the sender nick used in outgoing NOTICE targets: strip
-								// CR/LF/NUL so a malicious server prefix cannot inject IRC commands.
-								val safeSender = from.replace(Regex("[\r\n\u0000]"), "")
-
-								// Rate-limit replies to at most one per CTCP_RATE_LIMIT_MS per nick
-								// so a flood of CTCP requests cannot get us K-lined.
-								// ACTION and DCC are never rate-limited (they don't generate replies).
-								val now = System.currentTimeMillis()
-								pruneCtcpReplyTimes(now)
-								val senderKey = safeSender.lowercase()
-								val lastReply = ctcpLastReplyMs[senderKey] ?: 0L
-								val answerable = ctcpCmd != "ACTION" && ctcpCmd != "DCC"
-								val rateLimited = answerable && (now - lastReply) < CTCP_RATE_LIMIT_MS
-								if (rateLimited) {
-									send(IrcEvent.Status(tr(R.string.core_ctcp_ratelimited, ctcpCmd, safeSender)))
-									return
-								}
-								// The request is still reported, so the user sees who asked.
-								if (answerable && !config.ctcpRepliesEnabled) {
-									send(IrcEvent.Status(tr(R.string.core_ctcp_reply_disabled, ctcpCmd, safeSender)))
-									return
-								}
-
-								when (ctcpCmd) {
-									"VERSION" -> {
-										// Build the reply at call time so it always reflects the
-										// installed app version - never stale from a saved config.
-										ctcpLastReplyMs[senderKey] = now
-										val reply = "VERSION HexDroid v${BuildConfig.VERSION_NAME} - https://hexdroid.org"
-										sendCtcpReply(safeSender, reply)
-										send(IrcEvent.CtcpExchange(fromNick = safeSender, request = ctcpContent, reply = reply))
-										return
-									}
-									"PING" -> {
-										// Strip CR/LF/NUL from the echoed payload to prevent IRC
-										// command injection via a crafted CTCP PING argument.
-										val safeArgs = ctcpArgs.replace(Regex("[\r\n\u0000\u0001]"), "").take(200)
-										ctcpLastReplyMs[senderKey] = now
-										val reply = "PING $safeArgs"
-										sendCtcpReply(safeSender, reply)
-										send(IrcEvent.CtcpExchange(fromNick = safeSender, request = ctcpContent, reply = reply))
-										return
-									}
-									"TIME" -> {
-										val timeStr = java.text.SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy", java.util.Locale.US).format(java.util.Date())
-										ctcpLastReplyMs[senderKey] = now
-										val reply = "TIME $timeStr"
-										sendCtcpReply(safeSender, reply)
-										send(IrcEvent.CtcpExchange(fromNick = safeSender, request = ctcpContent, reply = reply))
-										return
-									}
-									"FINGER", "USERINFO" -> {
-										val safeRealname = config.realname.take(100)
-										ctcpLastReplyMs[senderKey] = now
-										val reply = "$ctcpCmd $safeRealname"
-										sendCtcpReply(safeSender, reply)
-										send(IrcEvent.CtcpExchange(fromNick = safeSender, request = ctcpContent, reply = reply))
-										return
-									}
-									"CLIENTINFO" -> {
-										ctcpLastReplyMs[senderKey] = now
-										val reply = "CLIENTINFO ACTION PING VERSION TIME FINGER USERINFO CLIENTINFO SOURCE DCC"
-										sendCtcpReply(safeSender, reply)
-										send(IrcEvent.CtcpExchange(fromNick = safeSender, request = ctcpContent, reply = reply))
-										return
-									}
-									"SOURCE" -> {
-										ctcpLastReplyMs[senderKey] = now
-										val reply = "SOURCE https://hexdroid.org"
-										sendCtcpReply(safeSender, reply)
-										send(IrcEvent.CtcpExchange(fromNick = safeSender, request = ctcpContent, reply = reply))
-										return
-									}
-									"ACTION" -> {
-										// ACTION is handled below as a message
-									}
-									"DCC" -> {
-										// DCC is handled below
-									}
-									else -> {
-										// Unknown CTCP — log but don't reply (no reply = no flood risk).
-										// Shown with a null reply so the request is still visible without
-										// implying we answered it.
-										send(IrcEvent.CtcpExchange(fromNick = safeSender, request = ctcpContent, reply = null))
-										return
-									}
-								}
-							}
-						}
-
-						// CTCP DCC: consume offers so the raw CTCP line doesn't show in chat.
-						val dccSend = parseDccSend(textRaw)
-						if (dccSend != null) {
-							if (!nickEquals(from, currentNick)) {
-								send(IrcEvent.DccOfferEvent(dccSend.copy(from = from)))
-							}
-							return
-						}
-
-						val dccChat = parseDccChat(textRaw)
-						if (dccChat != null) {
-							if (!nickEquals(from, currentNick)) {
-								send(IrcEvent.DccChatOfferEvent(dccChat.copy(from = from)))
-							}
-							return
-						}
-
-						// DCC RESUME (peer wants to resume one of our outgoing sends).
-						val dccResume = parseDccResume(textRaw)
-						if (dccResume != null) {
-							if (!nickEquals(from, currentNick)) {
-								send(IrcEvent.DccResumeRequest(from = from, resume = dccResume))
-							}
-							return
-						}
-
-						// DCC ACCEPT (the sender confirmed our RESUME request).
-						val dccAccept = parseDccAccept(textRaw)
-						if (dccAccept != null) {
-							if (!nickEquals(from, currentNick)) {
-								send(IrcEvent.DccAcceptResponse(from = from, accept = dccAccept))
-							}
-							return
-						}
-
-						val isAction = textRaw.startsWith("\u0001ACTION ") && textRaw.endsWith("\u0001")
-						val rawText = if (isAction) {
-							textRaw.removePrefix("\u0001ACTION ").removeSuffix("\u0001")
-						} else {
-							textRaw
-						}
-
-						// Decrypt after CTCP unwrapping, so an encrypted /me arrives here without
-						// its ACTION framing. A failed decrypt keeps the wire text visible for
-						// diagnosis.
-						val codecResult = e2eCodec?.decryptIncoming(buf, rawText, currentNick)
-						val text = codecResult?.text ?: rawText
-						val encryption: com.boxlabs.hexdroid.crypto.E2eScheme? = codecResult?.let { r ->
-							when (r.outcome) {
-								com.boxlabs.hexdroid.crypto.E2eCodec.Outcome.PASSTHROUGH -> null
-								com.boxlabs.hexdroid.crypto.E2eCodec.Outcome.DECRYPTED -> r.scheme
-								com.boxlabs.hexdroid.crypto.E2eCodec.Outcome.FAILED -> null
-							}
-						}
-
-						// Suppress messages whose body is literally empty (e.g. an empty
-						// PRIVMSG trailing, or a stray "\u0001ACTION \u0001" with no payload
-						// whose ACTION unwrap leaves "" behind). Otherwise the UI renders a
-						// bare "<nick> " line. We do NOT filter messages that merely look
-						// blank because of encoding misdecoding - that text is real content
-						// and the user needs to see it to know to fix their encoding setting.
-						if (text.isEmpty()) return
-
-						// Keep raw formatting codes. UI chooses to strip or render them.
-                        //  FOR DEBUGGING ONLY android.util.Log.w("AGMDUP", "EMIT core=${System.identityHashCode(this)} from=$from ts=$serverTimeMs text=${text.take(24)}")
-						send(
-							IrcEvent.ChatMessage(
-								from = from,
-								target = buf,
-								text = text,
-								isPrivate = isPrivate,
-								isAction = isAction,
-								timeMs = serverTimeMs,
-								isHistory = (playbackHistory || isHeuristicHistory(buf, serverTimeMs, nowMs)),
-								isChathistoryContext = msg.tags.containsKey("draft/chathistory-context"),
-								msgId = msg.tags["msgid"],
-								// IRCv3 +draft/reply / +reply tag: msgid of message being replied to.
-								replyToMsgId = msg.tags["+draft/reply"] ?: msg.tags["+reply"],
-								// IRCv3 account-tag: services account of the sender.
-								senderAccount = msg.tags["account"]?.takeIf { it.isNotBlank() && it != "*" },
-								encryption = encryption,
-								// draft/oper-tag: server-attached tag marking the sender as an oper.
-								// Accept the draft name and the eventual ratified bare name.
-								fromOper = msg.tags.containsKey("draft/oper") || msg.tags.containsKey("oper"),
-								fromBot = msg.tags.containsKey("bot"),
-								// +draft/channel-context: for PMs, which channel the message relates to.
-								channelContext = (msg.tags["+draft/channel-context"] ?: msg.tags["+channel-context"])
-									?.takeIf { isPrivate && isChannelName(it) },
-								// labeled-response echo correlation (our own messages only, in practice).
-								label = msg.tags["label"],
-							)
-						)
-					}
-
-					"NOTICE" -> {
-						val from = msg.prefixNick() ?: (msg.prefix ?: "?")
-						val rawTarget = msg.params.getOrNull(0) ?: "*server*"
-						val target = normalizeMsgTarget(rawTarget)
-						val text = msg.trailing ?: msg.params.getOrNull(1) ?: ""
-
-						// IRCv3 multiline: same buffering path as PRIVMSG above. Multiline
-						// batches can carry NOTICE rather than PRIVMSG (per spec - lines
-						// must be all the same kind), so the flush at BATCH -<id> picks
-						// the right event type from mlState.command.
-						val multilineBatchIdN = msg.tags["batch"]
-						if (multilineBatchIdN != null) {
-							val mlState = openMultilineBatches[multilineBatchIdN]
-							if (mlState != null) {
-								if (mlState.parts.isEmpty()) {
-									openMultilineBatches[multilineBatchIdN] =
-										mlState.copy(
-											command = "NOTICE",
-											innerSenderPrefix = msg.prefix,
-										)
-								}
-								openMultilineBatches[multilineBatchIdN]?.let {
-									appendMultilinePart(it, text, hasConcatTag(msg.tags))
-								}
-								return
-							}
-						}
-
-						// Echo of a notice we sent and already displayed
-						if (!isChannelName(target) && nickEquals(from, currentNick) && !playbackHistory &&
-							consumeOutgoingEcho(notice = true, target = target, text = text)
-						) {
-							return
-						}
-
-						// Check for CTCP reply (wrapped in \x01)
-						// Only process if it's from someone else, not our own echoed reply
-						if (text.startsWith("\u0001") && text.endsWith("\u0001") && !nickEquals(from, currentNick)) {
-							val ctcpContent = text.trim('\u0001')
-							val spaceIdx = ctcpContent.indexOf(' ')
-							val ctcpCmd = if (spaceIdx > 0) ctcpContent.substring(0, spaceIdx) else ctcpContent
-							val ctcpArgs = if (spaceIdx > 0) ctcpContent.substring(spaceIdx + 1) else ""
-							send(
-								IrcEvent.CtcpReply(
-									from = from,
-									command = ctcpCmd,
-									args = ctcpArgs,
-									timeMs = serverTimeMs
-								)
-							)
-							return
-						}
-
-						val isChannel = isChannelName(target)
-						val isServerPrefix = (msg.prefix != null && !msg.prefix.contains('!') && !msg.prefix.contains('@')
-							&& !nickEquals(from, currentNick))
-
-						// Bouncer pseudo-user NOTICEs (ZNC replies to /msg *status and /znc by
-						// NOTICE) render in the server log rather than a query buffer; see
-						// [isBouncerPseudoUser].
-						if (config.isBouncer && !isChannel && isBouncerPseudoUser(from)) {
-							// ZNC discover-and-clone: also scrape NOTICE bodies. *status itself
-							// almost always sends PRIVMSG (the primary hook is in that handler),
-							// but a handful of modules and configurations route their replies
-							// through NOTICE — keep the duplicate hook so neither delivery path
-							// silently misses upstream rows.
-							if (config.bouncerKind == BouncerKind.ZNC && from.equals("*status", ignoreCase = true)) {
-								parseZncListNetworksLine(text)?.let { send(it) }
-							}
-							send(IrcEvent.Notice(
-								from = from,
-								target = "*server*",
-								text = text,
-								isPrivate = false,
-								isServer = true,
-								timeMs = serverTimeMs,
-								isHistory = (playbackHistory || isHeuristicHistory("*server*", serverTimeMs, nowMs)),
-								msgId = msg.tags["msgid"],
-								replyToMsgId = msg.tags["+draft/reply"] ?: msg.tags["+reply"]
-							))
-							return
-						}
-
-						// Keep the IRC target intact and let the UI decide routing.
-						// Use a stable buffer name for history heuristics.
-						val histBuf = if (isChannel) target else "*server*"
-						// E2E decrypt hook for NOTICE. Same pattern as PRIVMSG above: the
-						// decrypted text replaces the wire text so downstream routing
-						// (notice-to-channel rules, etc.) sees the plaintext content.
-						// For non-channel NOTICE targets the key lookup uses the SENDER's
-						// nick (since per-target keys for queries are keyed by remote
-						// nick), so a NickServ NOTICE is never accidentally decrypted
-						// against a #channel's key.
-						val rawNoticeText = text
-						val noticeLookupTarget = if (isChannel) target else from
-						val noticeCodecResult = e2eCodec?.decryptIncoming(noticeLookupTarget, rawNoticeText, currentNick)
-						val noticeText = noticeCodecResult?.text ?: rawNoticeText
-						val noticeEncryption: com.boxlabs.hexdroid.crypto.E2eScheme? = noticeCodecResult?.let { r ->
-							when (r.outcome) {
-								com.boxlabs.hexdroid.crypto.E2eCodec.Outcome.PASSTHROUGH -> null
-								com.boxlabs.hexdroid.crypto.E2eCodec.Outcome.DECRYPTED -> r.scheme
-								com.boxlabs.hexdroid.crypto.E2eCodec.Outcome.FAILED -> null
-							}
-						}
-						// Drop notices with an empty body, matching the PRIVMSG check above.
-						if (noticeText.isEmpty()) return
-						send(
-							IrcEvent.Notice(
-								from = from,
-								target = target,
-								text = noticeText,
-								isPrivate = !isChannel && !isServerPrefix,
-								isServer = isServerPrefix,
-								timeMs = serverTimeMs,
-								isHistory = (playbackHistory || isHeuristicHistory(histBuf, serverTimeMs, nowMs)),
-								msgId = msg.tags["msgid"],
-								replyToMsgId = msg.tags["+draft/reply"] ?: msg.tags["+reply"],
-								encryption = noticeEncryption,
-								fromOper = msg.tags.containsKey("draft/oper") || msg.tags.containsKey("oper"),
-								fromBot = msg.tags.containsKey("bot"),
-							)
-						)
-					}
-
-					"JOIN" -> {
-						val nick = msg.prefixNick() ?: return
-						// JOIN can be "JOIN :#chan" or, with extended-join, "JOIN #chan account :realname".
-						// Prefer the first param when it looks like a channel; otherwise fall back to trailing.
-						val chanRaw = msg.params.firstOrNull()?.takeIf { isChannelName(it) }
-							?: msg.trailing?.takeIf { isChannelName(it) }
-							?: return
-
-						// Suppress JOIN events that are part of a netjoin batch - emit one collapsed line instead.
-						val batchId = msg.tags["batch"]
-						if (batchId != null && openNetsplitBatches[batchId] == "netjoin") {
-							netsplitBuffer.getOrPut(batchId) { mutableListOf() }.add(msg)
-							return
-						}
-
-						// JOIN may include a comma-separated list (JOIN #a,#b). Emit one event per channel.
-						val chans = chanRaw
-							.split(',')
-							.map { it.trim() }
-							.filter { isChannelName(it) }
-							.ifEmpty { listOf(chanRaw) }
-
-						val userHost = msg.prefix?.substringAfter('!', missingDelimiterValue = "")
-							?.takeIf { it.isNotBlank() }
-
-						// IRCv3 extended-join: params[1] = services account ("*" = not logged in),
-						// trailing = realname (gecos). Standard JOIN has no params[1].
-						val extAccount = if (irc.hasCap("extended-join")) {
-							msg.params.getOrNull(1)?.takeIf { it.isNotBlank() && it != "*" }
-						} else null
-						val extRealname = if (irc.hasCap("extended-join")) msg.trailing else null
-						if (irc.hasCap("extended-join")) noteUser(nick, account = extAccount ?: "*")
-
-						for (chan in chans) {
-							val chanHist = playbackHistory || isHeuristicHistory(chan, serverTimeMs, nowMs)
-							if (nickEquals(nick, currentNick) && !chanHist && serverTimeMs != null) {
-								selfJoinServerMs[casefold(chan)] = serverTimeMs
-							}
-							val joinKey = if (nickEquals(nick, currentNick) && !chanHist) joinKeys.remove(casefold(chan)) else null
-							send(
-								IrcEvent.Joined(
-									channel = chan,
-									nick = nick,
-									userHost = userHost,
-									timeMs = serverTimeMs,
-									isHistory = chanHist,
-									account = extAccount,
-									realname = extRealname,
-									key = joinKey,
-								)
-							)
-							if (nickEquals(nick, currentNick) && !chanHist) {
-								val fold = casefold(chan)
-								joinedChannelCases[fold] = chan
-							}
-
-							// soju.im/no-implicit-names and draft/no-implicit-names
-							// the server won't send an automatic 353/366 NAMES list on JOIN when this cap is negotiated
-							if (nickEquals(nick, currentNick)
-								&& !chanHist
-								&& (hasCap("soju.im/no-implicit-names") || hasCap("draft/no-implicit-names"))
-								&& namesRequested.add(casefold(chan))
-							) {
-								sendRaw("NAMES $chan")
-							}
-
-							// IRCv3 chathistory: request recent messages when we (re)join.
-							// Supports both the graduated "chathistory" and legacy "draft/chathistory" cap.
-							//
-							// Skip when chanHist is true: a JOIN arriving as part of buffer playback
-							// represents our PRIOR session, not the current one. Firing CHATHISTORY
-							// LATEST against it re-requests history we're already in the middle of
-							// receiving — same rationale as the znc.in/playback guard below.
-							if (nickEquals(nick, currentNick)
-								&& config.capPrefs.draftChathistory
-								&& hasChathistoryCap()
-								&& !chanHist
-								&& historyRequested.add(casefold(chan))
-							) {
-								val lim = clampHistoryLimit(config.historyLimit.coerceIn(0, 500))
-								if (lim > 0) {
-									send(IrcEvent.JoinHistoryWanted(chan, lim))
-									// Long enough to cover the wait for the buffer's saved log.
-									historyExpectUntil[casefold(chan)] = nowMs + 20_000L
-								}
-							}
-
-							// znc.in/playback: request only messages we missed since last seen.
-							// Sends: PRIVMSG *playback :PLAY <buffer> <lastSeen> <now>
-							//
-							// Skip when chanHist is true: a JOIN arriving as part of the bouncer's
-							// own buffer playback represents our PRIOR session, not the current one.
-							// Firing PLAY against it re-requests history we're already in the middle
-							// of receiving and produces duplicate lines.
-							if (nickEquals(nick, currentNick)
-								&& config.isBouncer
-								&& irc.hasCap("znc.in/playback")
-								&& !chanHist
-							) {
-								val lastSeen = zncLastSeen[casefold(chan)] ?: 0L
-								val nowSecs = nowMs / 1000L
-								sendRaw("PRIVMSG *playback :PLAY $chan $lastSeen $nowSecs")
-								historyExpectUntil[casefold(chan)] = nowMs + 15_000L
-							}
-
-							// WHOX: on joining a channel, query the full user/host/account info
-							// for all members using WHO #chan %tuhsnfar,42. The query type "42"
-							// is an arbitrary cookie used to identify WHOX replies (354) vs
-							// regular WHO replies (352).  We only do this if the server advertises
-							// WHOX in ISUPPORT(005) to avoid sending a WHO that returns nothing
-							// useful on non-WHOX servers.
-							if (nickEquals(nick, currentNick) && whoxSupported && config.capPrefs.whox && !chanHist) {
-								// %u=ident %h=host %s=server %n=nick %f=flags %a=account %r=realname
-								trackWho(chan, null)
-								sendRaw("WHO $chan %tuhsnfar,42")
-							}
-						}
-					}
-
-					"PART" -> {
-						val nick = msg.prefixNick() ?: return
-
-						// Most servers send:  PART <channel>[,<channel>...] [:reason]
-						// But some bouncers/bridges send malformed variants
-						// where the channel list lands in the trailing field (with no params).
-						// Accept both so we still update nicklists.
-
-						val trailing0 = msg.trailing?.trim()
-						val chanRaw = when {
-							msg.params.isNotEmpty() -> msg.params[0]
-							// Only treat trailing as channel list if it's a single token and looks like a channel.
-							trailing0 != null && !trailing0.contains(' ') && (trailing0.startsWith('#') || trailing0.startsWith('&')) -> trailing0
-							else -> return
-						}
-
-						// PART may include a comma-separated list (PART #a,#b :reason). Emit one event per channel.
-						val chans = chanRaw
-							.split(',')
-							.map { it.trim() }
-							.filter { it.isNotBlank() }
-							.ifEmpty { listOf(chanRaw) }
-
-						val userHost = msg.prefix?.substringAfter('!', missingDelimiterValue = "")
-							?.takeIf { it.isNotBlank() }
-						// Reason can be the IRC trailing parameter, or a second param without ':'
-						// e.g. "PART #chan goodbye".
-						val reason = when {
-							msg.params.size >= 2 && msg.trailing == null -> msg.params[1]
-							// If we had to read the channel from trailing (malformed form), don't reuse it as reason.
-							msg.params.isEmpty() -> null
-							else -> msg.trailing
-						}
-
-						for (chan in chans) {
-							val chanHist = playbackHistory || isHeuristicHistory(chan, serverTimeMs, nowMs)
-							send(
-								IrcEvent.Parted(
-									channel = chan,
-									nick = nick,
-									userHost = userHost,
-									reason = reason,
-									timeMs = serverTimeMs,
-									isHistory = chanHist
-								)
-							)
-							if (nickEquals(nick, currentNick) && !chanHist) {
-								joinedChannelCases.remove(casefold(chan))
-								// A rejoin fetches what was missed while away.
-								historyRequested.remove(casefold(chan))
-							}
-						}
-					}
-
-					"KICK" -> {
-						val kicker = msg.prefixNick() ?: return
-						val kickerHost = msg.prefix?.substringAfter('!', missingDelimiterValue = "")
-							?.takeIf { it.isNotBlank() }
-						val chan = msg.params.getOrNull(0) ?: return
-						// KICK is "<channel> <user> [<comment>]". The comment is normally the
-						// trailing parameter, but a server may send the user itself as
-						// the trailing parameter when there's no comment (KICK #chan :user).
-						val victim = msg.params.getOrNull(1) ?: msg.trailing ?: return
-						val reason = msg.params.getOrNull(2) ?: if (msg.params.size >= 2) msg.trailing else null
-						val chanHist = playbackHistory || isHeuristicHistory(chan, serverTimeMs, nowMs)
-						send(
-							IrcEvent.Kicked(
-								channel = chan,
-								victim = victim,
-								byNick = kicker,
-								byHost = kickerHost,
-								reason = reason,
-								timeMs = serverTimeMs,
-								isHistory = chanHist
-							)
-						)
-						if (nickEquals(victim, currentNick) && !chanHist) {
-							joinedChannelCases.remove(casefold(chan))
-							historyRequested.remove(casefold(chan))
-						}
-					}
-
-					"QUIT" -> {
-						val nick = msg.prefixNick() ?: return
-						// Suppress QUIT events that are part of a netsplit batch - emit one collapsed line instead.
-						val batchId = msg.tags["batch"]
-						if (batchId != null && openNetsplitBatches[batchId] == "netsplit") {
-							netsplitBuffer.getOrPut(batchId) { mutableListOf() }.add(msg)
-							return
-						}
-						val userHost = msg.prefix?.substringAfter('!', missingDelimiterValue = "")
-							?.takeIf { it.isNotBlank() }
-						val reason = msg.trailing ?: msg.params.getOrNull(0)
-						send(IrcEvent.Quit(nick = nick, userHost = userHost, reason = reason, timeMs = serverTimeMs, isHistory = playbackHistory, historyChannel = playbackChannelFor(msg.tags)))
-					}
-
-
-					"WALLOPS", "GLOBOPS", "LOCOPS", "OPERWALL", "SNOTICE" -> {
-						val sender = msg.prefixNick() ?: (msg.prefix ?: "server")
-						val txt = (msg.trailing ?: msg.params.drop(0).joinToString(" ")).let { stripIrcFormatting(it) }
-						if (txt.isNotBlank()) {
-							send(IrcEvent.ServerText(tr(R.string.core_ctcp_generic_from, msg.command.uppercase(Locale.ROOT), sender, txt), code = msg.command.uppercase(Locale.ROOT)))
-						}
-					}
-
-					"TOPIC" -> {
-						val chan = msg.params.firstOrNull() ?: return
-						val topic = msg.trailing ?: msg.params.getOrNull(1)
-						val setter = msg.prefixNick()
-						send(IrcEvent.Topic(chan, topic, setter = setter, timeMs = serverTimeMs, isHistory = (playbackHistory || isHeuristicHistory(chan, serverTimeMs, nowMs))))
-					}
-
-
-					"MODE" -> {
-						val rawTarget = msg.params.getOrNull(0) ?: return
-						val target = normalizeMsgTarget(rawTarget)
-						if (!isChannelName(target)) {
-							// User MODE change (target is a nick, not a channel).
-							// Detect +o/+O on our own nick - covers auto-oper via services,
-							// not just explicit /OPER (which triggers 381 RPL_YOUREOPER).
-							if (nickEquals(target, currentNick)) {
-								// Strict RFC2812 IRCd's send the final MODE parameter
-								// as a trailing parameter, e.g.  :nick!u@h MODE #chan -v :target
-								// the target nick then lives in msg.trailing, not msg.params. Fold trailing
-								// back in as the last positional parameter so mode arguments stay aligned.
-								val modeStr = msg.params.getOrNull(1) ?: msg.trailing ?: ""
-								var adding = true
-								for (ch in modeStr) {
-									when (ch) {
-										'+' -> adding = true
-										'-' -> adding = false
-										'o', 'O' -> {
-											if (adding) {
-												send(IrcEvent.YoureOper(tr(R.string.core_youre_oper)))
-											} else {
-												send(IrcEvent.YoureDeOpered)
-											}
-										}
-									}
-								}
-							}
-							return
-						}
-
-						val modeParams = msg.params + listOfNotNull(msg.trailing)
-						val modeStr = modeParams.getOrNull(1) ?: return
-						val args = modeParams.drop(2)
-
-						val isHistoryMode = playbackHistory || isHeuristicHistory(target, serverTimeMs, nowMs)
-
-						// Update nick prefixes for rank modes (op/voice/etc).
-						parseChannelUserModes(target, modeStr, args).forEach { (nick, prefix, adding) ->
-							send(IrcEvent.ChannelUserMode(target, nick, prefix, adding, timeMs = serverTimeMs, isHistory = isHistoryMode, byNick = msg.prefixNick()))
-						}
-						send(IrcEvent.ChannelModeChanges(
-							target, msg.prefixNick(), (listOf(modeStr) + args).joinToString(" "),
-							parseModeChanges(modeStr, args), isHistory = isHistoryMode,
-						))
-
-						// Surface the simple-mode delta so the ViewModel can keep the channel's
-						// stored mode string current (drives the Channel Tools toggles).
-						if (!isHistoryMode) {
-							send(IrcEvent.ChannelModeChanged(target, modeStr))
-						}
-
-						// Also surface the mode change as a readable line in the channel buffer.
-						val setter = msg.prefixNick() ?: (msg.prefix ?: "server")
-						val extra = if (args.isEmpty()) "" else " " + args.joinToString(" ")
-						send(IrcEvent.ChannelModeLine(target, "*** " + tr(R.string.core_sets_mode, setter, modeStr, extra), timeMs = serverTimeMs, isHistory = isHistoryMode))
-					}
-
-					// IRCv3 CHGHOST: ident or hostname changed (requires chghost CAP)
-					// CHGHOST is "<user> <host>"; the host is the last param, so accept it from
-					// the trailing parameter too (CHGHOST user :host) instead of dropping the event.
-					"CHGHOST" -> {
-						val nick = msg.prefixNick() ?: return
-						val newUser = msg.params.getOrNull(0) ?: return
-						val newHost = msg.params.getOrNull(1) ?: msg.trailing ?: return
-						noteUser(nick, newUser, newHost)
-						send(IrcEvent.Chghost(nick, newUser, newHost, timeMs = serverTimeMs, isHistory = playbackHistory))
-					}
-
-					// IRCv3 ACCOUNT: services account changed (requires account-notify CAP)
-					// account name is params[0]; "*" means logged out
-					// account-notify carries the account as a single param; accept it from the
-					// trailing parameter too (ACCOUNT :name) so it isn't misread as a logout ("*").
-					"ACCOUNT" -> {
-						val nick = msg.prefixNick() ?: return
-						val account = msg.params.getOrNull(0) ?: msg.trailing ?: "*"
-						send(IrcEvent.AccountChanged(nick, account, timeMs = serverTimeMs, isHistory = playbackHistory))
-					}
-
-					// IRCv3 SETNAME: realname changed (requires setname CAP)
-					"SETNAME" -> {
-						val nick = msg.prefixNick() ?: return
-						val newRealname = msg.trailing ?: msg.params.getOrNull(0) ?: return
-						send(IrcEvent.Setname(nick, newRealname, timeMs = serverTimeMs, isHistory = playbackHistory))
-					}
-
-					// INVITE: received an invite to a channel
-					"INVITE" -> {
-						// :inviter INVITE targetNick #channel
-						val from = msg.prefixNick() ?: return
-						val targetNick = msg.params.getOrNull(0) ?: return
-						val channel = msg.trailing ?: msg.params.getOrNull(1) ?: return
-						if (nickEquals(targetNick, currentNick)) {
-							// This invite is for us.
-							send(IrcEvent.InviteReceived(from, channel, timeMs = serverTimeMs))
-						} else if (irc.hasCap("invite-notify")) {
-							// IRCv3 invite-notify: server broadcasts invites to others in shared channels.
-							// Surface as a status line in the channel buffer (and server buffer as fallback).
-							val bufTarget = if (isChannelName(channel)) channel else "*server*"
-							send(IrcEvent.ServerText(
-								"*** " + tr(R.string.core_invited_to, from, targetNick, channel),
-								code = "INVITE",
-								bufferName = bufTarget
-							))
-						}
-					}
-
-					// ERROR: fatal server message, always followed by connection close
-					"ERROR" -> {
-						val message = msg.trailing ?: msg.params.joinToString(" ")
-						send(IrcEvent.ServerError(message))
-						// Emit Disconnected immediately so the reconnect loop doesn't wait for EOF.
-						sendDisconnectedOnce(
-							tr(R.string.core_disconnect_server_error, message),
-							DisconnectCode.SERVER_ERROR,
-						)
-					}
-
-					// AWAY: another user's away status changed (requires away-notify CAP).
-					// No trailing = returned from away; trailing = new away message.
-					"AWAY" -> {
-						val nick = msg.prefixNick() ?: return
-						if (nickEquals(nick, currentNick)) return  // skip our own reflected echo
-						send(IrcEvent.AwayChanged(nick, msg.trailing ?: msg.params.getOrNull(0), timeMs = serverTimeMs))
-					}
-
-					// draft/relaymsg: relay bot forwarded a message on behalf of another user.
-					// Format: ":relaybot!u@h RELAYMSG #channel relayednick :message"
-					// params[0] = channel/target, params[1] = relayed nick, trailing = message text.
-					// Surface as a regular chat message attributed to the relayed nick so the UI
-					// renders it identically to a direct PRIVMSG from that nick.
-					"RELAYMSG" -> {
-						if (!config.capPrefs.draftRelaymsg) return
-						val target    = msg.params.getOrNull(0) ?: return
-						val relayNick = msg.params.getOrNull(1) ?: return
-						val text      = msg.trailing ?: msg.params.getOrNull(2) ?: return
-						val isAction  = text.startsWith("\u0001ACTION ") && text.endsWith("\u0001")
-						val body      = if (isAction) text.removePrefix("\u0001ACTION ").removeSuffix("\u0001") else text
-						send(IrcEvent.ChatMessage(
-							from          = relayNick,
-							target        = target,
-							text          = body,
-							isPrivate     = !isChannelName(target),
-							isAction      = isAction,
-							timeMs        = serverTimeMs,
-							isHistory     = false,
-							msgId         = msg.tags["msgid"],
-							replyToMsgId  = msg.tags["+draft/reply"] ?: msg.tags["+reply"],
-							senderAccount = null   // relay bots don't expose the relayed user's account
-						))
-					}
-
-					// TAGMSG: message-tags-only (no body text).
-					// Used for typing indicators (draft/typing), reactions, and other tag-only events.
-					"TAGMSG" -> {
-						val fromNick = msg.prefixNick() ?: return
-						val rawTarget = msg.params.getOrNull(0) ?: return
-						val rawConvo = normalizeMsgTarget(rawTarget)
-						// As with PRIVMSG, a PM names whoever received it, so an incoming one is
-						// addressed to us. Report the conversation instead, or a reaction or a
-						// typing notice on a PM lands in our own nick's buffer.
-						val target = when {
-							isChannelName(rawConvo) -> rawConvo
-							nickEquals(fromNick, currentNick) -> rawConvo
-							else -> fromNick
-						}
-						// draft/typing: +typing tag indicates composing status.
-						// Values: "active" (typing), "paused" (stopped briefly), "done" (cleared/sent).
-						// typing is a client-only tag
-						// Libera permits it via CLIENTTAGDENY=*,-typing using message-tags.
-						val typingState = msg.tags["+typing"] ?: msg.tags["typing"]
-						if (typingState != null &&
-							(irc.hasCap("draft/typing") || irc.hasCap("typing") || irc.hasCap("message-tags"))) {
-							send(IrcEvent.TypingStatus(
-								target = target,
-								nick = fromNick,
-								state = typingState,
-								timeMs = serverTimeMs
-							))
-						}
-						// Read receipt: only meaningful in a private message to us.
-						msg.tags["+$READ_RECEIPT_TAG"]?.takeIf { it.isNotBlank() }?.let { readId ->
-							if (!isChannelName(rawConvo) && !nickEquals(fromNick, currentNick)) {
-								send(IrcEvent.ReadReceipt(nick = fromNick, msgId = readId))
-							}
-						}
-						// draft/message-reactions: +draft/react tag carries the emoji.
-						// Format: TAGMSG <target> with tags +draft/react=<emoji> +draft/reply=<msgid-of-original>
-						// Removal uses +draft/unreact (react client-tag spec, Feb 2026) or the
-						// older +draft/react-removed (message-reactions); accept both.
-						val reactEmoji = msg.tags["+draft/react"]
-						val reactRemoved = msg.tags["+draft/unreact"] ?: msg.tags["+draft/react-removed"]
-						if ((reactEmoji != null || reactRemoved != null) &&
-							(irc.hasCap("draft/message-reactions") || irc.hasCap("message-tags"))) {
-							val emoji = reactEmoji ?: reactRemoved!!
-							val adding = reactEmoji != null
-							// The target message's msgid is in "+draft/reply" (or "+reply" for the
-							// graduated tag name), NOT in "msgid" which is the TAGMSG's own ID.
-							val replyMsgId = msg.tags["+draft/reply"] ?: msg.tags["+reply"]
-							send(IrcEvent.MessageReaction(
-								fromNick = fromNick,
-								target = target,
-								reaction = emoji,
-								msgId = replyMsgId,
-								adding = adding,
-								timeMs = serverTimeMs,
-								isHistory = isReplayedLine(msg.tags),
-							))
-						}
-					}
-
-					// IRCv3 MARKREAD (draft/read-marker) and READ (soju.im/read):
-					// server confirms updated read pointer for a buffer.
-					// Format: MARKREAD <target> [timestamp=<ISO8601>]
-					//         READ <target> timestamp=<ISO8601>   (soju.im/read)
-					// draft/metadata-2 server notification:
-					//   METADATA <Target> <Key> <Visibility> <Value>
-					"METADATA" -> {
-						val ap = msg.allParams
-						val mdTarget = ap.getOrNull(0) ?: return
-						val mdKey = ap.getOrNull(1)?.takeIf { it.isNotBlank() } ?: return
-						send(IrcEvent.MetadataChanged(
-							target = mdTarget,
-							key = mdKey.lowercase(Locale.ROOT),
-							visibility = ap.getOrNull(2),
-							value = ap.getOrNull(3),
-						))
-					}
-
-					// draft/account-registration server responses:
-					//   REGISTER SUCCESS <account> <message>
-					//   REGISTER VERIFICATION_REQUIRED <account> <message>
-					//   VERIFY SUCCESS <account> <message>
-					// Failures arrive as FAIL REGISTER/VERIFY <code> via standard-replies.
-					"REGISTER", "VERIFY" -> {
-						val stage = msg.params.getOrNull(0) ?: return
-						val account = msg.params.getOrNull(1)?.takeIf { it.isNotBlank() && it != "*" }
-						val message = msg.allParams.getOrNull(2)?.takeIf { it.isNotBlank() }
-						val line = when (stage.uppercase(Locale.ROOT)) {
-							"SUCCESS" -> {
-								pendingVerifyAccount = null
-								val who = account ?: currentNick
-								val done = if (msg.command == "VERIFY") tr(R.string.core_account_verified, who)
-										   else tr(R.string.core_account_registered, who)
-								"*** " + done + (message?.let { " ($it)" } ?: "")
-							}
-							"VERIFICATION_REQUIRED" -> {
-								pendingVerifyAccount = account
-								"*** " + tr(R.string.core_verification_required, account ?: currentNick, message ?: tr(R.string.core_check_your_email))
-							}
-							else -> "*** ${msg.command} $stage ${account ?: ""} ${message ?: ""}".trimEnd()
-						}
-						send(IrcEvent.ServerText(line, code = msg.command))
-						send(IrcEvent.AccountRegUpdate(
-							command = msg.command,
-							stage = stage.uppercase(Locale.ROOT),
-							account = account,
-							message = message,
-						))
-					}
-
-					// IRCv3 draft/message-redaction: a message was deleted.
-					// Format: :nick!u@h REDACT <target> <msgid> [:reason]
-					"REDACT" -> {
-						val ap = msg.allParams
-						val target = ap.getOrNull(0) ?: return
-						val redactId = ap.getOrNull(1) ?: return
-						val reason = ap.getOrNull(2)?.takeIf { it.isNotBlank() }
-						send(IrcEvent.MessageRedacted(
-							fromNick = msg.prefixNick() ?: (msg.prefix ?: "?"),
-							target = target,
-							msgId = redactId,
-							reason = reason,
-							timeMs = serverTimeMs,
-							isHistory = isReplayedLine(msg.tags),
-						))
-					}
-
-					// Server confirmation of a subscription change.
-					// Format: WEBPUSH REGISTER <endpoint> | WEBPUSH UNREGISTER <endpoint>
-					"WEBPUSH" -> {
-						val ap = msg.allParams
-						val sub = ap.getOrNull(0)?.uppercase(Locale.ROOT) ?: return
-						val wpEndpoint = ap.getOrNull(1)?.takeIf { it.isNotBlank() } ?: return
-						when (sub) {
-							"REGISTER" -> send(IrcEvent.WebPushRegistered(wpEndpoint))
-							"UNREGISTER" -> send(IrcEvent.WebPushUnregistered(wpEndpoint))
-						}
-					}
-
-					// CHATHISTORY TARGETS reply: one line per buffer the server stores
-					// history for, delivered inside a draft/chathistory-targets batch.
-					// Format: CHATHISTORY TARGETS <target> <timestamp>
-					"CHATHISTORY" -> {
-						val ap = msg.allParams
-						if (!ap.getOrNull(0).equals("TARGETS", ignoreCase = true)) return
-						val histTarget = ap.getOrNull(1)?.takeIf { it.isNotBlank() } ?: return
-						val histTs = ap.getOrNull(2)
-							?.removePrefix("timestamp=")
-							?.takeIf { it.isNotBlank() } ?: return
-						send(IrcEvent.HistoryTarget(target = histTarget, timestamp = histTs))
-					}
-
-					"MARKREAD", "READ" -> {
-						val target = msg.params.getOrNull(0) ?: return
-						val tsParam = (msg.params.drop(1) + listOfNotNull(msg.trailing))
-							.firstOrNull { it.startsWith("timestamp=") }
-							?.removePrefix("timestamp=")
-						if (tsParam != null) {
-							send(IrcEvent.ReadMarker(target = target, timestamp = tsParam))
-						}
-					}
-
-					// soju/pounce BOUNCER sub-protocol: upstream network info
-					"BOUNCER" -> {
-						val subCmd = msg.params.getOrNull(0)?.uppercase(Locale.ROOT) ?: return
-						when (subCmd) {
-							"NETWORK" -> {
-								// BOUNCER NETWORK <id> <attrs> | BOUNCER NETWORK <id> *
-								// Per the soju.im/bouncer-networks spec, <attrs> is a single field of
-								// semicolon-separated key=value pairs (message-tag escaping rules apply
-								// to each value) NOT space-separated tokens.
-								val networkId = msg.params.getOrNull(1) ?: return
-								val attrTokens = (msg.params.drop(2) + listOfNotNull(msg.trailing))
-									.flatMap { it.split(';') }
-								send(parseBouncerNetworkAttrs(networkId, attrTokens))
-							}
-							// BOUNCER ADDNETWORK / DELNETWORK / CHANGENETWORK: soju bouncer management commands.
-							// Surface them as status text so the user can see the result in the server buffer.
-							"ADDNETWORK", "DELNETWORK", "CHANGENETWORK" -> {
-								val detail = (msg.params.drop(1) + listOfNotNull(msg.trailing)).joinToString(" ")
-								val text = "BOUNCER $subCmd${if (detail.isNotBlank()) " $detail" else ""}"
-								send(IrcEvent.ServerText(text, code = "BOUNCER"))
-							}
-							"ERROR" -> {
-								val detail = msg.params.drop(1).joinToString(" ") + (msg.trailing?.let { " :$it" } ?: "")
-								send(IrcEvent.Error(tr(R.string.core_bouncer_error, detail)))
-							}
-						}
-					}
-
-					// draft/channel-rename: server renamed a channel we're in.
-					// Format: RENAME <old> <new> [:<reason>]
-					// The client must update its buffer key and membership records.
-					"RENAME" -> {
-						if (!config.capPrefs.channelRename) return
-						val oldName = msg.params.getOrNull(0) ?: return
-						val newName = msg.params.getOrNull(1) ?: return
-						send(IrcEvent.ChannelRenamed(oldName = oldName, newName = newName, timeMs = serverTimeMs))
-						// Also emit a status line so the rename appears in the buffer history.
-						val reason = msg.trailing ?: msg.params.getOrNull(2)
-						val text = if (reason.isNullOrBlank()) tr(R.string.core_channel_renamed, oldName, newName)
-						          else tr(R.string.core_channel_renamed_reason, oldName, newName, reason)
-						send(IrcEvent.ServerText(text, code = "RENAME"))
-					}
-
-					// standard-replies: FAIL/WARN/NOTE <command> <code> [<context>...]
-					// :<description>.
-					"FAIL", "WARN", "NOTE" -> {
-						val srCmd = msg.params.getOrNull(0) ?: "?"
-						val srCode = msg.params.getOrNull(1) ?: "?"
-						// Context tokens are params[2..n-1] when trailing carries the description;
-						// when there is no trailing, the last param IS the description (no context).
-						val contextTokens = if (msg.trailing != null) msg.params.drop(2) else emptyList()
-						val srDesc = msg.trailing ?: msg.params.lastOrNull() ?: "?"
-						// soju.im/webpush echoes the push endpoint back as a context token.
-						if (srCmd.equals("WEBPUSH", true)) {
-							if (msg.command == "FAIL") {
-								send(IrcEvent.WebPushFailed(
-									subcommand = contextTokens.firstOrNull() ?: "?",
-									code = srCode,
-									message = srDesc,
-								))
-							} else {
-								send(IrcEvent.ServerText(
-									"${msg.command} WEBPUSH $srCode: $srDesc", code = msg.command))
-							}
-							return
-						}
-						val srContextStr = if (contextTokens.isNotEmpty()) " [${contextTokens.joinToString(" ")}]" else ""
-						val srText = "${msg.command} $srCmd $srCode$srContextStr: $srDesc"
-						// draft/account-registration failures: append an actionable hint so the
-						// user knows what to do next instead of just seeing the raw code.
-						val srHint = if (msg.command == "FAIL" && (srCmd == "REGISTER" || srCmd == "VERIFY")) {
-							when (srCode) {
-								"ACCOUNT_EXISTS" -> " " + tr(R.string.core_reg_hint_account_exists)
-								"WEAK_PASSWORD", "UNACCEPTABLE_PASSWORD" -> " " + tr(R.string.core_reg_hint_weak_password)
-								"INVALID_EMAIL", "UNACCEPTABLE_EMAIL" -> " " + tr(R.string.core_reg_hint_invalid_email)
-								"INVALID_CODE" -> " " + tr(R.string.core_reg_hint_invalid_code)
-								"COMPLETE_CONNECTION_REQUIRED" -> " " + tr(R.string.core_reg_hint_not_connected)
-								"TEMPORARILY_UNAVAILABLE" -> " " + tr(R.string.core_reg_hint_temp_unavailable)
-								else -> ""
-							}
-						} else ""
-						if (msg.command == "FAIL") send(IrcEvent.Error(srText + srHint))
-						else send(IrcEvent.ServerText(srText, code = msg.command))
-						// A rejected multiline BATCH means the message never landed. Attribute it to
-						// the most recent multiline target (the FAIL carries no batch id) so the
-						// optimistic echo can be un-marked rather than left looking delivered.
-						if (msg.command == "FAIL" && srCmd.equals("BATCH", true) &&
-							srCode.uppercase(Locale.ROOT).startsWith("MULTILINE_")
-						) {
-							val recent = lastMultilineSend
-								?.takeIf { System.currentTimeMillis() - it.second < 60_000L }
-							send(IrcEvent.MultilineSendFailed(recent?.first, srCode, srDesc))
-						}
-						// A rejected CHATHISTORY gets no reply batch, so close the request here
-						// rather than waiting for its watchdog. The target is the second context
-						// item, after the subcommand, for every code that names one; INVALID_PARAMS
-						// carries none.
-						if (msg.command == "FAIL" && srCmd.equals("CHATHISTORY", true)) {
-							val code = srCode.uppercase(Locale.ROOT)
-							// FAIL <command> <code> <the_given_command> [<the_given_target>] :<desc>
-							val target = if (code == "INVALID_PARAMS") null else msg.params.getOrNull(3)
-							// The server does not take the reference type we used, so record it and
-							// let the next request fall through to the other one.
-							if (code == "INVALID_MSGREFTYPE") {
-								lastHistoryRefType?.let { bad -> refusedRefTypes = refusedRefTypes + bad }
-							}
-							send(IrcEvent.HistoryRequestFailed(target, code, srDesc, label = msg.tags["label"]))
-						}
-						// Feed account-registration failures to the guided dialog too, so it
-						// can show the error inline instead of only in the server buffer.
-						if (msg.command == "FAIL" && (srCmd == "REGISTER" || srCmd == "VERIFY")) {
-							send(IrcEvent.AccountRegUpdate(
-								command = srCmd,
-								stage = "FAIL:$srCode",
-								account = null,
-								message = (srDesc + srHint).trim(),
-							))
-						}
-					}
-
-
-				}
-    }
-
-    private fun casefold(s: String): String = ircCasefold(s, caseMapping)
-
-    private fun nickEquals(a: String?, b: String?): Boolean {
+    internal fun nickEquals(a: String?, b: String?): Boolean {
         if (a == null || b == null) return false
         return casefold(a) == casefold(b)
     }
 
-    @Volatile private var userClosing: Boolean = false
+    @Volatile internal var userClosing: Boolean = false
     /**
      * One-shot guard against emitting [IrcEvent.Disconnected] more than once per
      * IrcClient lifecycle. ERROR :Closing Link triggers an explicit Disconnected
@@ -3769,7 +1425,7 @@ class IrcClient(val config: IrcConfig) {
      * post-loop send fires a second Disconnected for the same logical disconnect.
      */
     @Volatile private var disconnectedEmitted: Boolean = false
-    @Volatile private var lastTlsInfo: String? = null
+    @Volatile internal var lastTlsInfo: String? = null
 
     /**
      * TOFU: the fingerprint we learned during THIS connection's TLS handshake when no prior
@@ -3777,13 +1433,13 @@ class IrcClient(val config: IrcConfig) {
      * so the caller can persist it. Cleared after emission to avoid re-firing on reconnect
      * within the same [IrcClient] instance.
      */
-    @Volatile private var learnedFingerprint: String? = null
+    @Volatile internal var learnedFingerprint: String? = null
 
     /**
      * Emit [IrcEvent.Disconnected] only if no Disconnected has been emitted yet
      * for this IrcClient instance. Subsequent calls are no-ops.
      */
-    private suspend fun ProducerScope<IrcEvent>.sendDisconnectedOnce(
+    internal suspend fun ProducerScope<IrcEvent>.sendDisconnectedOnce(
         reason: String,
         code: DisconnectCode,
     ) {
@@ -3791,7 +1447,6 @@ class IrcClient(val config: IrcConfig) {
         disconnectedEmitted = true
         send(IrcEvent.Disconnected(reason, code))
     }
-
 
     fun tlsInfo(): String? = lastTlsInfo
 
@@ -3844,9 +1499,16 @@ class IrcClient(val config: IrcConfig) {
 		socket = null
 		runCatching { s?.close() }
 		runCatching { outbound.close() }
+		runCatching { outboundBackground.close() }
 	}
 
-    suspend fun sendRaw(line: String) {
+    suspend fun sendRaw(line: String) = sendLine(line)
+
+    /** [sendRaw] for a message the server will echo, recorded as [track] when written. */
+    private suspend fun sendTracked(line: String, track: SendTrack?) =
+        sendLine(line, sends = listOfNotNull(track))
+
+    internal suspend fun sendLine(line: String, who: WhoRequest? = null, sends: List<SendTrack> = emptyList()) {
         // Sanitize: Remove any embedded CR/LF to prevent protocol injection.
         // IRC uses CRLF as line delimiter; embedded newlines would be interpreted
         // as separate commands, causing "Unknown command" errors.
@@ -3854,8 +1516,19 @@ class IrcClient(val config: IrcConfig) {
         rememberJoinKeys(sanitized)
         if (sanitized.isNotEmpty()) {
             // Dropped if the outbound channel is closed or full; see [enqueue].
-            enqueue(OutboundUnit(listOf(sanitized)))
+            enqueue(OutboundUnit(listOf(sanitized), who = who, sends = sends))
         }
+    }
+
+    /**
+     * Send [line] in the background lane, after anything the user has typed. For automatic
+     * queries and refreshes, which can wait.
+     */
+    suspend fun sendBackground(line: String) = sendBackground(line, who = null)
+
+    private suspend fun sendBackground(line: String, who: WhoRequest?) {
+        val sanitized = line.replace("\r", "").replace("\n", " ").trim()
+        if (sanitized.isNotEmpty()) enqueue(OutboundUnit(listOf(sanitized), background = true, who = who))
     }
 
     /**
@@ -3864,23 +1537,28 @@ class IrcClient(val config: IrcConfig) {
      * own flood penalty for the duration of the batch (Ergo does), so skipping our pacing
      * inside the unit does not risk an excess-flood kill.
      */
-    suspend fun sendRawAtomic(lines: List<String>) {
-        val sanitized = lines
-            .map { it.replace("\r", "").replace("\n", " ").trim() }
-            .filter { it.isNotEmpty() }
-        if (sanitized.isNotEmpty()) enqueue(OutboundUnit(sanitized, paced = false))
+    suspend fun sendRawAtomic(lines: List<String>) = sendAtomic(sanitizeAtomic(lines))
+
+    private fun sanitizeAtomic(lines: List<String>): List<String> = lines
+        .map { it.replace("\r", "").replace("\n", " ").trim() }
+        .filter { it.isNotEmpty() }
+
+    private suspend fun sendAtomic(sanitized: List<String>, sends: List<SendTrack> = emptyList()) {
+        if (sanitized.isNotEmpty()) enqueue(OutboundUnit(sanitized, paced = false, sends = sends))
     }
 
     private suspend fun enqueue(unit: OutboundUnit) {
+        noteQueued(unit)
+        val lane = if (unit.background) outboundBackground else outbound
         // trySend rather than send: forceClose() may already have closed the channel on a
         // disconnecting client. A line that can't be queued is dropped, since the connection is
         // gone or saturated.
-        val result = outbound.trySend(unit)
+        val result = lane.trySend(unit)
         if (result.isFailure && !result.isClosed) {
             // Channel is full (capacity=300) but still open - fall back to a
             // suspending send so legitimate bursts are not silently discarded.
             // This path is rare; the capacity guard above handles the common cases.
-            runCatching { outbound.send(unit) }
+            runCatching { lane.send(unit) }
         }
     }
 
@@ -3897,14 +1575,17 @@ class IrcClient(val config: IrcConfig) {
      */
     data class HistoryRequest(val label: String?, val limit: Int)
 
+    /** True when a WHO can fetch every member's host and account in one WHOX reply. */
+    fun whoxAvailable(): Boolean = whoxSupported && config.capPrefs.whox
+
     /**
      * Re-query the member list of [target] for away status and account changes. WHOX where
      * the server has it, plain WHO otherwise; the away flag is in the flags field of both.
      */
     suspend fun refreshChannelWho(target: String) {
-        trackWho(target, null)
-        if (whoxSupported && config.capPrefs.whox) sendRaw("WHO $target %tuhsnfar,42")
-        else sendRaw("WHO $target")
+        val who = whoFor(target, null)
+        if (whoxSupported && config.capPrefs.whox) sendBackground("WHO $target %tuhsnfar,42", who)
+        else sendBackground("WHO $target", who)
     }
 
     /**
@@ -3952,7 +1633,7 @@ class IrcClient(val config: IrcConfig) {
         val label = if (hasCap("labeled-response")) nextLabel() else null
         val tag = if (label != null) "@label=$label " else ""
         val mid = if (second != null) "$first $second" else first
-        sendRaw("${tag}CHATHISTORY $sub $target $mid $effective")
+        sendBackground("${tag}CHATHISTORY $sub $target $mid $effective")
         return HistoryRequest(label, effective)
     }
 
@@ -3993,8 +1674,6 @@ class IrcClient(val config: IrcConfig) {
         val b = historySelector(toTimestamp, toMsgId) ?: return null
         return sendHistory("BETWEEN", target, a, b, limit)
     }
-
-
 
     /**
      * Request the unread history for [target] using CHATHISTORY AFTER, anchored on
@@ -4054,11 +1733,17 @@ class IrcClient(val config: IrcConfig) {
     }
 
     /**
-     * Send a PRIVMSG, encrypted and labeled as configured. Returns the label attached (with
-     * echo-message and labeled-response), so the echo can be matched to the local copy exactly;
-     * null otherwise.
+     * Send a PRIVMSG, encrypted and labeled as configured. With echo-message, returns the id its
+     * echo ([IrcEvent.ChatMessage.ownSendId]) or refusal ([IrcEvent.SendResolved]) will carry;
+     * null when no answer is coming or nothing was sent. With [suppressEcho] the echo is dropped
+     * here, for a message the caller has printed itself.
      */
-    suspend fun privmsg(target: String, text: String, replyToMsgId: String? = null): String? {
+    suspend fun privmsg(
+        target: String,
+        text: String,
+        replyToMsgId: String? = null,
+        suppressEcho: Boolean = false,
+    ): Long? {
         // This is a safeguard in case callers don't pre-split multiline messages.
         val sanitizedText = text.replace("\r", "").replace("\n", " ")
 
@@ -4074,7 +1759,8 @@ class IrcClient(val config: IrcConfig) {
                 // encrypts ACTION but not VERSION" fingerprint would be.
                 val inner = sanitizedText.substring(1, sanitizedText.length - 1)
                 val spaceIdx = inner.indexOf(' ')
-                if (spaceIdx > 0) {
+                // DCC offers stay clear: peers parse them before any decryption.
+                if (spaceIdx > 0 && !inner.startsWith("DCC ", ignoreCase = true)) {
                     val cmd = inner.substring(0, spaceIdx)
                     val args = inner.substring(spaceIdx + 1)
                     val encArgs = codec.encryptOutgoing(target, args, currentNick)
@@ -4112,12 +1798,13 @@ class IrcClient(val config: IrcConfig) {
                 tr(R.string.core_age_plaintext_refused, target)))
             return null
         }
-        sendRaw("${tag}PRIVMSG $target :$payload")
-        return label
+        val track = newSendTrack(notice = false, target = target, text = payload, label = label, suppress = suppressEcho)
+        sendTracked("${tag}PRIVMSG $target :$payload", track)
+        return track?.id
     }
 
-    /** Target + time of the last multiline BATCH we sent, for attributing a FAIL BATCH MULTILINE_*. */
-    @Volatile private var lastMultilineSend: Pair<String, Long>? = null
+    /** Target of the last multiline BATCH sent, for a FAIL BATCH MULTILINE_* without echo-message. */
+    @Volatile internal var lastMultilineTarget: String? = null
 
     /**
      * True when [target] can take a multiline BATCH: the capabilities are negotiated and the
@@ -4136,10 +1823,10 @@ class IrcClient(val config: IrcConfig) {
     /**
      * Send [lines] to [target] as one message using a multiline BATCH. Null when the capabilities
      * are missing, the target is encrypted or nothing is sendable; the caller then sends line by
-     * line. Otherwise one label per batch (empty without echo-message and labeled-response), as
-     * [privmsg] returns for one line.
+     * line. Otherwise one send id per batch (empty without echo-message), as [privmsg] returns
+     * for one line.
      */
-    suspend fun privmsgMultiline(target: String, lines: List<String>, replyToMsgId: String? = null): List<String>? {
+    suspend fun privmsgMultiline(target: String, lines: List<String>, replyToMsgId: String? = null): List<Long>? {
         if (lines.isEmpty()) return null
         if (!multilineSendAvailable(target)) return null
 
@@ -4151,7 +1838,6 @@ class IrcClient(val config: IrcConfig) {
         val concatTag = if (draft) "draft/multiline-concat" else "multiline-concat"
 
         val labelled = hasCap("echo-message") && hasCap("labeled-response")
-        val labels = mutableListOf<String>()
 
         // "@batch=<id>;<concatTag> PRIVMSG <target> :" plus CRLF.
         val lineOverhead = 18 + concatTag.length + 10 + target.length + 4
@@ -4170,11 +1856,7 @@ class IrcClient(val config: IrcConfig) {
             // needs its own label or the echoes of batches 2..n can't be correlated.
             openTagsFor = {
                 buildList {
-                    if (labelled) {
-                        val l = nextLabel()
-                        labels += l
-                        add("label=$l")
-                    }
+                    if (labelled) add("label=${nextLabel()}")
                     if (replyToMsgId != null && hasCap("message-tags")) {
                         add("+draft/reply=${escapeIrcTagValue(replyToMsgId)}")
                         add("+reply=${escapeIrcTagValue(replyToMsgId)}")
@@ -4183,9 +1865,13 @@ class IrcClient(val config: IrcConfig) {
             },
         )
         if (wire.isEmpty()) return null
-        lastMultilineSend = target to System.currentTimeMillis()
-        sendRawAtomic(wire)
-        return labels
+        val sanitized = sanitizeAtomic(wire)
+        val tracks = multilineBatchTexts(sanitized).mapNotNull { (label, text) ->
+            newSendTrack(notice = false, target = target, text = text, label = label, multiline = true)
+        }
+        lastMultilineTarget = target
+        sendAtomic(sanitized, tracks)
+        return tracks.map { it.id }
     }
 
     /** Send a typing TAGMSG to [target]; [state] is "active", "paused" or "done". */
@@ -4194,13 +1880,15 @@ class IrcClient(val config: IrcConfig) {
         if (!hasCap("message-tags")) return
         // A server that denies the tag strips it, leaving an empty TAGMSG the server then rejects.
         if (!clientTagAllowed("typing")) return
+        // Behind flood pacing it would arrive stale and hold up the message being typed.
+        if (sendBacklogMs() > 0) return
         sendRaw("@+typing=$state TAGMSG $target")
     }
 
     /** Tells [target] we have read their messages up to [msgId]. */
     suspend fun sendReadReceipt(target: String, msgId: String) {
         if (!hasCap("message-tags") || !clientTagAllowed(READ_RECEIPT_TAG)) return
-        sendRaw("@+$READ_RECEIPT_TAG=${escapeIrcTagValue(msgId)} TAGMSG $target")
+        sendBackground("@+$READ_RECEIPT_TAG=${escapeIrcTagValue(msgId)} TAGMSG $target")
     }
     /**
      * Send a draft/message-reactions emoji reaction to [msgId] in [target].
@@ -4236,8 +1924,6 @@ class IrcClient(val config: IrcConfig) {
     }
 
     /**
-     * draft/message-redaction: ask the server to delete [msgId] in [target].
-     *
      * draft/metadata-2 command helper. [target] is a nick or channel; "*" means
      * ourselves and is the required form before registration completes.
      */
@@ -4294,713 +1980,11 @@ class IrcClient(val config: IrcConfig) {
         sendRaw("${labelTag()}CHATHISTORY TARGETS timestamp=$from timestamp=$now ${clampHistoryLimit(limit)}")
     }
 
-    suspend fun ctcp(target: String, payload: String): String? {
-        // CTCP wrapped with 0x01. Returns the labeled-response label (if any) so /me actions get
-        // the same exact echo correlation as normal messages.
-        return privmsg(target, "\u0001$payload\u0001")
-    }
+    /** Send a CTCP request, framed in \u0001. Returns the send id as [privmsg] does. */
+    suspend fun ctcp(target: String, payload: String): Long? = privmsg(target, "\u0001$payload\u0001")
 
-    suspend fun handleSlashCommand(cmdLine: String, currentBuffer: String) {
-        val parts = cmdLine.trim().split(Regex("\\s+"))
-        if (parts.isEmpty()) return
-        val cmd = parts[0].lowercase()
-
-        when (cmd) {
-            "join" -> parts.getOrNull(1)?.let { chan ->
-                val key = parts.getOrNull(2)
-                sendRaw(if (key.isNullOrBlank()) "JOIN $chan" else "JOIN $chan $key")
-            }
-            "part" -> {
-                val arg1 = parts.getOrNull(1)
-                val hasChan = arg1 != null && isChannelName(arg1)
-                val chan = when {
-                    hasChan -> arg1
-                    currentBuffer != "*server*" -> currentBuffer
-                    else -> arg1 ?: return
-                }
-                val reason = (if (hasChan) parts.drop(2) else parts.drop(1)).joinToString(" ").trim()
-                sendRaw(if (reason.isBlank()) "PART $chan" else "PART $chan :$reason")
-            }
-            "cycle" -> {
-                val arg1 = parts.getOrNull(1)
-                val hasChan = arg1 != null && isChannelName(arg1)
-                val chan = when {
-                    hasChan -> arg1
-                    currentBuffer != "*server*" -> currentBuffer
-                    else -> arg1 ?: return
-                }
-                val key = if (hasChan) parts.getOrNull(2) else parts.getOrNull(1)
-                sendRaw("PART $chan :Rejoining")
-                // Small delay so servers process PART before JOIN
-                delay(300)
-                sendRaw(if (key.isNullOrBlank()) "JOIN $chan" else "JOIN $chan $key")
-            }
-            "msg" -> {
-                val target = parts.getOrNull(1)
-                val msg = parts.drop(2).joinToString(" ")
-                if (target.isNullOrBlank() || msg.isBlank()) {
-                    commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-                        text = tr(R.string.core_usage_msg), isPrivate = true))
-                    return
-                }
-                val origin = currentBuffer
-                privmsg(target, msg)
-                // Print where the user typed, and remember the line so the server's
-                // echo-message copy is dropped rather than opening a query buffer.
-                registerOutgoingEcho(notice = false, target = target, text = msg)
-                commandEvents.send(IrcEvent.OutgoingEcho(originBuffer = origin, target = target, text = msg))
-            }
-            // /query <nick> [message] - open a PM buffer with a user (buffer switching handled in ViewModel)
-            // /query with no message just opens the buffer; with a message it sends it too.
-            "query" -> {
-                val target = parts.getOrNull(1)
-                if (target.isNullOrBlank()) {
-                    commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-                        text = tr(R.string.core_usage_query), isPrivate = true))
-                    return
-                }
-                val msg = parts.drop(2).joinToString(" ").trim()
-                if (msg.isNotBlank()) privmsg(target, msg)
-                // Signal the ViewModel to open/focus the query buffer via a fake incoming event.
-                commandEvents.trySend(IrcEvent.OpenQueryBuffer(target))
-            }
-            // Services shorthands: /ns, /cs, /as, /hs, /ms, /bs, /x3
-            "ns" -> {
-                val rest = parts.drop(1).joinToString(" ").trim()
-                if (rest.isNotBlank()) privmsg("NickServ", rest)
-            }
-            "cs" -> {
-                val rest = parts.drop(1).joinToString(" ").trim()
-                if (rest.isNotBlank()) privmsg("ChanServ", rest)
-            }
-            "as" -> {
-                val rest = parts.drop(1).joinToString(" ").trim()
-                if (rest.isNotBlank()) privmsg("AuthServ", rest)
-            }
-            "x3" -> {
-                val rest = parts.drop(1).joinToString(" ").trim()
-                if (rest.isNotBlank()) privmsg("X3", rest)
-            }
-            "hs" -> {
-                val rest = parts.drop(1).joinToString(" ").trim()
-                if (rest.isNotBlank()) privmsg("HostServ", rest)
-            }
-            "ms" -> {
-                val rest = parts.drop(1).joinToString(" ").trim()
-                if (rest.isNotBlank()) privmsg("MemoServ", rest)
-            }
-            "bs" -> {
-                val rest = parts.drop(1).joinToString(" ").trim()
-                if (rest.isNotBlank()) privmsg("BotServ", rest)
-            }
-            // ZNC bouncer control: /znc <command> → PRIVMSG *status :<command>
-            // ZNC's own clients have used this shorthand for years; supporting it keeps muscle
-            // memory from HexChat / Quassel etc. working. Modules can be addressed with their
-            // own pseudo-user (/msg *clientbuffer ..., /msg *playback ...) the long way.
-            "znc" -> {
-                val rest = parts.drop(1).joinToString(" ").trim()
-                if (rest.isNotBlank()) privmsg("*status", rest)
-            }
-            // soju bouncer control: /bouncerserv <command> → PRIVMSG BouncerServ :<command>
-            // BouncerServ is soju's equivalent of *status. Note BouncerServ is a normal nick
-            // (not a *-prefixed pseudo-user) so it routes through the regular PRIVMSG path;
-            // the routing-to-*server* logic in the PRIVMSG handler still folds replies into
-            // the server buffer for cleanliness.
-            "bouncerserv", "bnc" -> {
-                val rest = parts.drop(1).joinToString(" ").trim()
-                if (rest.isNotBlank()) privmsg("BouncerServ", rest)
-            }
-            "me" -> {
-                val msg = parts.drop(1).joinToString(" ")
-                val target = if (currentBuffer == "*server*") return else currentBuffer
-                sendRaw("PRIVMSG $target :\u0001ACTION $msg\u0001")
-            }
-			"amsg" -> {
-				val msg = parts.drop(1).joinToString(" ").trim()
-				if (msg.isBlank()) {
-					// Give feedback in current buffer
-					// Option A: raw status
-					// send(IrcEvent.Status("Usage: /amsg <message>"))
-
-					// Option B: send a fake notice to current buffer
-					commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer, text = tr(R.string.core_no_text_to_send), isPrivate = true))
-					return
-				}
-				for (chan in joinedChannelCases.values) {
-					privmsg(chan, msg)
-                    // Echo locally only if the server won't reflect it back via echo-message.
-                    if (!hasCap("echo-message")) {
-                        commandEvents.send(
-                            IrcEvent.ChatMessage(
-                                from = currentNick,
-                                target = chan,
-                                text = msg,
-                                isPrivate = false,
-                                timeMs = System.currentTimeMillis()
-                            )
-                        )
-                    }
-				}
-			}
-			"ame" -> {
-				val msg = parts.drop(1).joinToString(" ").trim()
-				if (msg.isBlank()) {
-					commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer, text = tr(R.string.core_no_text_to_send), isPrivate = true))
-					return
-				}
-				for (chan in joinedChannelCases.values) {
-					ctcp(chan, "ACTION $msg")
-                    // Echo locally only if the server won't reflect it back via echo-message.
-                    if (!hasCap("echo-message")) {
-                        commandEvents.send(
-                            IrcEvent.ChatMessage(
-                                from = currentNick,
-                                target = chan,
-                                text = msg,
-                                isPrivate = false,
-                                isAction = true,
-                                timeMs = System.currentTimeMillis()
-                            )
-                        )
-                    }
-				}
-			}
-            "list" -> {
-                // Forward any arguments so ELIST filters work directly, e.g. "/list >50" to
-                // list channels with more than 50 users on servers that advertise ELIST=...U.
-                val args = parts.drop(1).joinToString(" ").trim()
-                sendRaw(if (args.isBlank()) "LIST" else "LIST $args")
-            }
-            "motd" -> {
-                val arg = parts.drop(1).joinToString(" ")
-                sendRaw(if (arg.isBlank()) "MOTD" else "MOTD $arg")
-            }
-            "knock" -> {
-                // KNOCK <channel> [reason]: ask for an invite to an invite-only channel.
-                val chan = parts.getOrNull(1)
-                if (chan.isNullOrBlank()) {
-                    commandEvents.trySend(IrcEvent.ServerText(tr(R.string.core_usage_knock)))
-                } else if (!knockSupported) {
-                    commandEvents.trySend(IrcEvent.ServerText(tr(R.string.core_no_knock)))
-                } else {
-                    val reason = parts.drop(2).joinToString(" ").trim()
-                    sendRaw(if (reason.isBlank()) "KNOCK $chan" else "KNOCK $chan :$reason")
-                }
-            }
-            "whois" -> {
-                val arg = parts.drop(1).joinToString(" ").trim()
-                // WHOIS [<server>] <nick>[,<nick>...]: the nicks are the last argument.
-                val nicks = parts.drop(1).lastOrNull { it.isNotBlank() }?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
-                if (arg.isBlank() || nicks.isNullOrEmpty()) return
-                for (n in nicks) rememberWhoisBuffer(casefold(n), currentBuffer)
-                sendRaw("WHOIS $arg")
-            }
-            "who" -> {
-                val arg = parts.drop(1).joinToString(" ")
-                trackWho(parts.getOrNull(1)?.takeIf { it.isNotBlank() } ?: "*", currentBuffer)
-                sendRaw(if (arg.isBlank()) "WHO" else "WHO $arg")
-            }
-            "nick" -> parts.getOrNull(1)?.let { sendRaw("NICK $it") }
-            "topic" -> {
-                // /topic                         query the current channel's topic
-                // /topic <new topic>             set the current channel's topic
-                // /topic <#channel>              query that channel's topic
-                // /topic <#channel> <new topic>  set that channel's topic
-                val firstArg = parts.getOrNull(1)
-                val target = when {
-                    firstArg != null && isChannelName(firstArg) -> firstArg
-                    currentBuffer != "*server*" -> currentBuffer
-                    firstArg != null -> firstArg  // last-resort: send as-is, server will 403
-                    else -> return
-                }
-                // Re-derive whether we consumed parts[1] as the channel: if the chosen
-                // target equals firstArg AND firstArg looked like a channel, drop the
-                // first arg from the topic text. Otherwise the whole tail is the topic.
-                val firstWasChannel = firstArg != null && isChannelName(firstArg) && target == firstArg
-                val newTopic = (if (firstWasChannel) parts.drop(2) else parts.drop(1))
-                    .joinToString(" ")
-                    .takeIf { it.isNotBlank() }
-                sendRaw(if (newTopic == null) "TOPIC $target" else "TOPIC $target :${clampLen(newTopic, "TOPICLEN")}")
-            }
-            "mode" -> {
-                val arg = parts.drop(1).joinToString(" ")
-                if (arg.isNotBlank()) sendRaw("MODE $arg")
-            }
-            "kick" -> {
-                // /kick <nick> [reason]      — kick from current channel
-                // /kick <#chan> <nick> [reason] — kick from a different channel
-                val parsed = parseChanTargetCommand(parts, cmd, "<nick>", needsTarget = true, currentBuffer = currentBuffer) ?: return
-                val reason = parsed.tail.joinToString(" ").trim()
-                sendRaw(if (reason.isBlank()) "KICK ${parsed.chan} ${parsed.target}"
-                        else "KICK ${parsed.chan} ${parsed.target} :${clampLen(reason, "KICKLEN")}")
-            }
-            "ban" -> {
-                // /ban <nick-or-mask> [type]      — ban in current channel
-                // /ban <#chan> <nick-or-mask> [type] — ban in a different channel
-                // [type] is one of: nick (default), user, host, domain, account
-                // If <nick-or-mask> contains !, @, or starts with $, it's treated as a raw mask.
-                val parsed = parseChanTargetCommand(parts, cmd, "<nick|mask> [type]", needsTarget = true, currentBuffer = currentBuffer) ?: return
-                val type = parseMaskType(parsed.tail.firstOrNull()) ?: BanMaskType.HOST
-                applyBanOrQueue(parsed.chan, parsed.target!!, type, quiet = false, alsoKick = false, kickReason = "")
-            }
-            "unban" -> {
-                // /unban <nick-or-mask>      — remove ban in current channel
-                // /unban <#chan> <nick-or-mask> — remove ban in a different channel
-                // Plain nicks are expanded to nick!*@*; raw masks pass through. To remove a
-                // host/account ban, paste the exact mask shown by /banlist.
-                val parsed = parseChanTargetCommand(parts, cmd, "<nick|mask>", needsTarget = true, currentBuffer = currentBuffer) ?: return
-                val mask = if (looksLikeRawMask(parsed.target!!)) parsed.target else "${parsed.target}!*@*"
-                sendRaw("MODE ${parsed.chan} -b $mask")
-            }
-            "kb", "kickban" -> {
-                // /kb <nick-or-mask> [type] [reason...]
-                // /kb <#chan> <nick-or-mask> [type] [reason...]
-                // type, if present, is the same keyword as /ban. When the target is a raw
-                // mask, the kick step is skipped (no single nick to kick).
-                val parsed = parseChanTargetCommand(parts, cmd, "<nick|mask> [type] [reason...]", needsTarget = true, currentBuffer = currentBuffer) ?: return
-                // Distinguish "/kb nick host with extra reason words" from "/kb nick reason words"
-                // by checking whether the next word is a recognised type keyword. If it is,
-                // it's the type; otherwise it's the start of the reason.
-                val maybeType = parseMaskType(parsed.tail.firstOrNull())
-                val (type, reasonStartIdx) = if (maybeType != null) maybeType to 1 else BanMaskType.HOST to 0
-                val reason = parsed.tail.drop(reasonStartIdx).joinToString(" ").trim()
-                applyBanOrQueue(parsed.chan, parsed.target!!, type, quiet = false, alsoKick = true, kickReason = reason)
-            }
-            "mute", "quiet" -> {
-                // /mute <nick-or-mask> [type]      — set +q (quiet) in current channel
-                // /mute <#chan> <nick-or-mask> [type] — same in a different channel
-                // Same syntax as /ban. Falls back to +b on ircds without quiet support.
-                val parsed = parseChanTargetCommand(parts, cmd, "<nick|mask> [type]", needsTarget = true, currentBuffer = currentBuffer) ?: return
-                val type = parseMaskType(parsed.tail.firstOrNull()) ?: BanMaskType.HOST
-                applyBanOrQueue(parsed.chan, parsed.target!!, type, quiet = true, alsoKick = false, kickReason = "")
-            }
-            "unmute", "unquiet" -> {
-                val parsed = parseChanTargetCommand(parts, cmd, "<nick|mask>", needsTarget = true, currentBuffer = currentBuffer) ?: return
-                val mask = if (looksLikeRawMask(parsed.target!!)) parsed.target else "${parsed.target}!*@*"
-                val modeChar = if (supportsQuietMode()) 'q' else 'b'
-                sendRaw("MODE ${parsed.chan} -$modeChar $mask")
-            }
-			"sajoin" -> {
-				// Services/admin forced join: SAJOIN <nick> <#channel>
-				val a1 = parts.getOrNull(1) ?: return
-				val a2 = parts.getOrNull(2) ?: return
-				val (nick, chan) = if (isChannelName(a1) && !isChannelName(a2)) (a2 to a1) else (a1 to a2)
-				sendRaw("SAJOIN $nick $chan")
-			}
-			"sapart" -> {
-				// Services/admin forced part: SAPART <nick> <#channel> [:reason]
-				val a1 = parts.getOrNull(1) ?: return
-				val a2 = parts.getOrNull(2) ?: return
-				val (nick, chan) = if (isChannelName(a1) && !isChannelName(a2)) (a2 to a1) else (a1 to a2)
-				val reason = parts.drop(3).joinToString(" ").trim()
-				sendRaw(if (reason.isBlank()) "SAPART $nick $chan" else "SAPART $nick $chan :$reason")
-			}
-			"gline", "zline", "kline", "dline", "eline", "qline", "shun" -> {
-				// Server ban/line commands take <mask> <duration> [reason]; prefix ':' on the
-				// reason so spaces are preserved. The first two tokens (mask, duration) stay
-				// bare so the server parses the duration correctly.
-				// Examples:
-				//   /gline *!*@bad.host 1d no spam pls
-				//   /zline 203.0.113.0/24 2h scanning
-				val raw = cmd.uppercase(Locale.ROOT)
-				if (parts.size >= 4) {
-					val head = parts.subList(1, 3).joinToString(" ")
-					val reason = parts.drop(3).joinToString(" ").trim()
-					sendRaw(if (reason.isBlank()) "$raw $head" else "$raw $head :$reason")
-				} else {
-					val rest = parts.drop(1).joinToString(" ").trim()
-					sendRaw(if (rest.isBlank()) raw else "$raw $rest")
-				}
-			}
-			"kill" -> {
-				// KILL takes <nick> <comment>
-				val nick = parts.getOrNull(1)
-				if (nick.isNullOrBlank()) {
-					commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-						text = tr(R.string.core_usage_kill), isPrivate = true))
-					return
-				}
-				val reason = parts.drop(2).joinToString(" ").trim()
-				sendRaw(if (reason.isBlank()) "KILL $nick" else "KILL $nick :$reason")
-			}
-            "wallops", "globops", "locops", "operwall" -> {
-                val msg = parts.drop(1).joinToString(" ").trim()
-                if (msg.isNotBlank()) sendRaw("${cmd.uppercase(Locale.ROOT)} :$msg")
-            }
-
-            "ctcp" -> {
-                val target = parts.getOrNull(1) ?: return
-                // Only the CTCP command is case-insensitive; its arguments are sent as typed.
-                val rawPayload = parts.drop(2).joinToString(" ").trim()
-                if (rawPayload.isBlank()) return
-                val payload = rawPayload.substringBefore(' ').uppercase() +
-                    rawPayload.substringAfter(' ', "").let { if (it.isEmpty()) "" else " $it" }
-
-                // For PING, add timestamp if not provided
-                val actualPayload = if (payload == "PING") {
-                    "PING ${System.currentTimeMillis()}"
-                } else {
-                    payload
-                }
-                ctcp(target, actualPayload)
-                commandEvents.send(IrcEvent.Status(tr(R.string.core_ctcp_sent, payload, target)))
-            }
-            "finger" -> {
-                val target = parts.getOrNull(1) ?: return
-                ctcp(target, "FINGER")
-                commandEvents.send(IrcEvent.Status(tr(R.string.core_ctcp_finger_sent, target)))
-            }
-            "userinfo" -> {
-                val target = parts.getOrNull(1) ?: return
-                ctcp(target, "USERINFO")
-                commandEvents.send(IrcEvent.Status(tr(R.string.core_ctcp_userinfo_sent, target)))
-            }
-            "clientinfo" -> {
-                val target = parts.getOrNull(1) ?: return
-                ctcp(target, "CLIENTINFO")
-                commandEvents.send(IrcEvent.Status(tr(R.string.core_ctcp_clientinfo_sent, target)))
-            }
-            "away" -> {
-                // Always sets away; /back is how to return.
-                val msg = parts.drop(1).joinToString(" ").trim()
-                    .ifBlank { tr(R.string.core_away_default) }
-                sendRaw("AWAY :${clampLen(msg, "AWAYLEN")}")
-                // Reported so it can be restored next connection.
-                commandEvents.trySend(IrcEvent.SelfAwayChanged(msg))
-            }
-            "back" -> {
-                sendRaw("AWAY")
-                commandEvents.trySend(IrcEvent.SelfAwayChanged(null))
-            }
-			"setname" -> {
-				// IRCv3 SETNAME: change your own realname (requires setname CAP).
-				val newRealname = parts.drop(1).joinToString(" ").trim()
-				if (newRealname.isBlank()) {
-					commandEvents.trySend(IrcEvent.ServerText(tr(R.string.core_usage_setname)))
-				} else if (!hasCap("setname")) {
-					commandEvents.trySend(IrcEvent.ServerText(tr(R.string.core_no_setname)))
-				} else {
-					sendRaw("SETNAME :$newRealname")
-				}
-			}
-			"quit" -> {
-				val reason = parts.drop(1).joinToString(" ").trim()
-				sendRaw(if (reason.isBlank()) "QUIT" else "QUIT :${clampLen(reason, "QUITLEN")}")
-				delay(500)
-				// Give time for QUIT to send before disconnect
-				disconnect(reason.ifBlank { "Quitting" })
-			}
-			"notice" -> {
-				val target = parts.getOrNull(1)
-				val msg = parts.drop(2).joinToString(" ")
-				if (target.isNullOrBlank() || msg.isBlank()) {
-					commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-						text = tr(R.string.core_usage_notice), isPrivate = true))
-					return
-				}
-				val origin = currentBuffer
-				sendRaw("NOTICE $target :$msg")
-				registerOutgoingEcho(notice = true, target = target, text = msg)
-				commandEvents.send(IrcEvent.OutgoingEcho(originBuffer = origin, target = target, text = msg))
-			}
-			"invite" -> {
-				val nick = parts.getOrNull(1)
-				if (nick.isNullOrBlank()) {
-					commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-						text = tr(R.string.core_usage_invite), isPrivate = true))
-					return
-				}
-				val chan = parts.getOrNull(2)
-					?: if (currentBuffer != "*server*" && isChannelName(currentBuffer)) currentBuffer
-					   else {
-						commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-							text = tr(R.string.core_invite_needs_channel),
-							isPrivate = true))
-						return
-					   }
-				sendRaw("INVITE $nick $chan")
-			}
-			"op", "deop", "voice", "devoice" -> {
-				val nick = parts.getOrNull(1)
-				if (nick.isNullOrBlank()) {
-					commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-						text = tr(R.string.core_usage_mode_target, cmd), isPrivate = true))
-					return
-				}
-				val chan = parts.getOrNull(2)
-					?: if (currentBuffer != "*server*" && isChannelName(currentBuffer)) currentBuffer
-					   else {
-						commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-							text = tr(R.string.core_needs_channel_second_arg, cmd),
-							isPrivate = true))
-						return
-					   }
-				val mode = when (cmd) {
-					"op" -> "+o"; "deop" -> "-o"; "voice" -> "+v"; "devoice" -> "-v"
-					else -> return  // unreachable; satisfies the when-expression exhaustiveness check
-				}
-				sendRaw("MODE $chan $mode $nick")
-			}
-			"ctcpping", "ping" -> {
-				val target = parts.getOrNull(1) ?: return
-				ctcp(target, "PING ${System.currentTimeMillis()}")
-				commandEvents.send(IrcEvent.Status(tr(R.string.core_ctcp_ping_sent, target)))
-			}
-			"time" -> {
-				val arg = parts.drop(1).joinToString(" ")
-				sendRaw(if (arg.isBlank()) "TIME" else "TIME $arg")
-			}
-			"version" -> {
-				val arg = parts.drop(1).joinToString(" ").trim()
-				if (arg.isBlank()) {
-					// No argument: query server version
-					sendRaw("VERSION")
-				} else {
-					// Argument provided: send CTCP VERSION to target
-					ctcp(arg, "VERSION")
-				}
-			}
-			"admin" -> {
-				val arg = parts.drop(1).joinToString(" ")
-				sendRaw(if (arg.isBlank()) "ADMIN" else "ADMIN $arg")
-			}
-			"info" -> {
-				val arg = parts.drop(1).joinToString(" ")
-				sendRaw(if (arg.isBlank()) "INFO" else "INFO $arg")
-			}
-			"oper" -> {
-				val args = parts.drop(1).joinToString(" ")
-				if (args.isNotBlank()) sendRaw("OPER $args")
-			}
-			// Account registration and message redaction:
-			//   /register <password> | <email> <password> | <account> <email> <password>
-			//   /verify [account] <code>
-			//   /redact [<target>] <msgid> [reason]
-			// Omitted account and email slots are sent as "*".
-			"redact" -> {
-				suspend fun note(text: String) = commandEvents.send(IrcEvent.Notice(
-					from = "*", target = currentBuffer, text = text, isPrivate = true,
-				))
-				if (!hasCap("draft/message-redaction") && !hasCap("message-redaction")) {
-					note(tr(R.string.core_no_redact))
-					return
-				}
-				val a = parts.drop(1)
-				if (a.isEmpty()) { note(tr(R.string.core_usage_redact)); return }
-				// A leading argument counts as an explicit target only when it is a
-				// CHANNEL name and something follows it. Guessing "nick vs msgid" for a
-				// bare first word is unsafe: msgids are opaque and can look like anything,
-				// so a heuristic would silently redact against the wrong target. For a PM,
-				// run the command from that query buffer.
-				val hasTarget = a.size >= 2 && isChannelName(a[0])
-				val t = if (hasTarget) a[0] else currentBuffer
-				val rest = if (hasTarget) a.drop(1) else a
-				val msgId = rest.firstOrNull() ?: run { note(tr(R.string.core_usage_redact)); return }
-				val reason = rest.drop(1).joinToString(" ").takeIf { it.isNotBlank() }
-				if (t.isBlank() || t == "*server*") { note(tr(R.string.core_redact_wrong_buffer)); return }
-				sendRedact(t, msgId, reason)
-			}
-
-			// draft/metadata-2: user and channel key-value metadata.
-			//   /metadata                              - list your own metadata
-			//   /metadata <key> <value>                - set one of your keys
-			//   /metadata <key>                        - clear one of your keys
-			//   /metadata <target> get|list|sync|clear - operate on a nick or channel
-			//   /metadata sub|unsub <key...>           - manage key subscriptions
-			"metadata" -> {
-				suspend fun note(text: String) = commandEvents.send(IrcEvent.Notice(
-					from = "*", target = currentBuffer, text = text, isPrivate = true,
-				))
-				if (!hasCap("draft/metadata-2")) {
-					note(tr(R.string.core_no_metadata))
-					return
-				}
-				val a = parts.drop(1)
-				val sub = a.getOrNull(0)?.lowercase(Locale.ROOT)
-				when {
-					a.isEmpty() -> sendRaw("METADATA * LIST")
-					sub == "sub" || sub == "unsub" -> {
-						val keys = a.drop(1).joinToString(" ")
-						if (keys.isBlank()) note(tr(R.string.core_usage_metadata_sub, sub))
-						else sendRaw("METADATA * ${sub.uppercase(Locale.ROOT)} $keys")
-					}
-					sub == "subs" -> sendRaw("METADATA * SUBS")
-					// Second word is a subcommand: the first word is the target.
-					a.size >= 2 && a[1].lowercase(Locale.ROOT) in setOf("get", "list", "sync", "clear") -> {
-						val t = a[0]
-						val s2 = a[1].uppercase(Locale.ROOT)
-						val rest = a.drop(2).joinToString(" ")
-						sendRaw("METADATA $t $s2" + if (rest.isBlank()) "" else " $rest")
-					}
-					// Otherwise: set or clear one of our own keys.
-					a.size == 1 -> sendRaw("METADATA * SET ${a[0]}")
-					else -> sendRaw("METADATA * SET ${a[0]} :${a.drop(1).joinToString(" ")}")
-				}
-			}
-			"register" -> {
-				suspend fun note(text: String) = commandEvents.send(IrcEvent.Notice(
-					from = "*", target = currentBuffer, text = text, isPrivate = true,
-				))
-				if (!hasCap("draft/account-registration")) {
-					note(tr(R.string.core_no_registration))
-					return
-				}
-				val flags = (capValue("draft/account-registration") ?: "")
-					.split(',').map { it.trim().lowercase(Locale.ROOT) }
-				val emailRequired = flags.contains("email-required")
-				val customName = flags.contains("custom-account-name")
-				// Command syntax stays in English (it is what the user types); only the
-				// "Usage:" label and the trailing note are translated.
-				val syntax = buildString {
-					append("/register ")
-					if (customName) append("[account] ")
-					append(if (emailRequired) "<email> " else "[email] ")
-					append("<password>")
-				}
-				val usage = tr(R.string.core_usage_syntax, syntax) +
-					if (emailRequired) tr(R.string.core_register_email_required) else ""
-				val args = parts.drop(1)
-				if (args.isEmpty()) { note(usage); return }
-				val account: String
-				val email: String
-				val password: String
-				when {
-					args.size == 1 -> { account = "*"; email = "*"; password = args[0] }
-					args.size == 2 -> { account = "*"; email = args[0]; password = args[1] }
-					else -> { account = args[0]; email = args[1]; password = args.drop(2).joinToString(" ") }
-				}
-				if (emailRequired && email == "*") { note(usage); return }
-				if (account != "*" && !customName) {
-					note(tr(R.string.core_register_nick_is_account, usage))
-					return
-				}
-				sendRaw("REGISTER $account $email :$password")
-			}
-			"verify" -> {
-				suspend fun note(text: String) = commandEvents.send(IrcEvent.Notice(
-					from = "*", target = currentBuffer, text = text, isPrivate = true,
-				))
-				if (!hasCap("draft/account-registration")) {
-					note(tr(R.string.core_no_verify))
-					return
-				}
-				val args = parts.drop(1)
-				if (args.isEmpty()) { note(tr(R.string.core_usage_verify)); return }
-				val account: String
-				val code: String
-				if (args.size >= 2) { account = args[0]; code = args.drop(1).joinToString(" ") }
-				else {
-					// Prefer the account the server named in VERIFICATION_REQUIRED so a
-					// bare /verify <code> just works; fall back to the current nick.
-					account = pendingVerifyAccount ?: currentNick
-					code = args[0]
-				}
-				sendRaw("VERIFY $account :$code")
-			}
-			"raw", "quote" -> {
-				// /raw and /quote are aliases — both send the rest of the line verbatim to
-				// the server. /quote is the more traditional IRC name (mIRC, irssi, weechat
-				// all use it); /raw is the descriptive variant some clients prefer. Both
-				// are supported so muscle memory from any other client works here.
-				val line = parts.drop(1).joinToString(" ")
-				if (line.isNotBlank()) {
-					val words = line.trim().split(' ').filter { it.isNotEmpty() }
-					if (words.first().equals("WHO", ignoreCase = true)) {
-						trackWho(words.getOrNull(1) ?: "*", currentBuffer)
-					}
-					sendRaw(line)
-				}
-			}
-			// IRCv3 MONITOR: watch list management
-			// /monitor + nick[,nick...]   - add to watch list  (or /monitor +nick)
-			// /monitor - nick[,nick...]   - remove from watch list
-			// /monitor C                  - clear watch list
-			// /monitor L                  - list current watch list
-			// /monitor S                  - request status of all watched nicks
-			"monitor" -> {
-				// Surface unsupported MONITOR up-front instead of letting the user discover
-				// it via a raw "421 Unknown command" line. monitorLimit stays at -1 until we
-				// see a MONITOR token in 005; if the server didn't advertise it after
-				// registration completed (RPL_WELCOME received) we treat it as unsupported.
-				// This is the common case on legacy IRCds (e.g. ircu without the
-				// watch-monitor patch).
-				if (registered && monitorLimit == -1) {
-					commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-						text = tr(R.string.core_no_monitor), isPrivate = false))
-					return
-				}
-				val arg = parts.drop(1).joinToString(" ").trim()
-				if (arg.isBlank()) {
-					val limitMsg = when {
-						monitorLimit == -1 -> ""
-						monitorLimit == Int.MAX_VALUE -> tr(R.string.core_monitor_no_limit)
-						else -> tr(R.string.core_monitor_limit, monitorLimit)
-					}
-					commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-						text = tr(R.string.core_usage_monitor, limitMsg), isPrivate = false))
-				} else {
-					sendRaw("MONITOR $arg")
-				}
-			}
-			// IRCv3 draft/read-marker: mark a buffer as read up to now (or a specific timestamp).
-			// /markread [#channel|nick] [timestamp]
-			"markread" -> {
-				val target = parts.getOrNull(1)
-					?: (if (currentBuffer != "*server*") currentBuffer else null)
-					?: return
-				val ts = parts.getOrNull(2)
-					?: historyTimestamp(java.time.Instant.now())
-				if (hasReadMarkerCap()) {
-                    // soju.im/read uses the "READ" command; draft/read-marker uses "MARKREAD".
-                    // Both carry the same "timestamp=<ISO8601>" argument.
-                    val readCmd = if (hasCap("soju.im/read") && !hasCap("draft/read-marker")) "READ" else "MARKREAD"
-					sendRaw("$readCmd $target timestamp=$ts")
-				} else {
-					commandEvents.send(IrcEvent.Notice(from = "*", target = currentBuffer,
-						text = tr(R.string.core_no_read_markers), isPrivate = false))
-				}
-			}
-			"dns" -> {
-				val arg = parts.getOrNull(1)?.trim() ?: return
-				if (arg.isBlank()) return
-
-				// /dns resolves on-device. With a proxy active that would leak the queried
-				// name to the local resolver, outside the tunnel the rest of the session
-				// Refuse rather than leak.
-				if (config.proxy.enabled) {
-					commandEvents.send(IrcEvent.ServerText(
-						tr(R.string.core_dns_proxy_disabled),
-						bufferName = currentBuffer))
-					return
-				}
-
-				coroutineScope {
-					launch {
-						try {
-							commandEvents.send(IrcEvent.ServerText(tr(R.string.core_looking_up, arg), bufferName = currentBuffer))
-							val resolved = resolveDns(arg)
-							if (resolved.isNotEmpty()) {
-								commandEvents.send(IrcEvent.ServerText(tr(R.string.core_resolved_to), bufferName = currentBuffer))
-								resolved.forEach { line ->
-									commandEvents.send(IrcEvent.ServerText("    $line", bufferName = currentBuffer))
-								}
-							} else {
-								commandEvents.send(IrcEvent.ServerText(tr(R.string.core_no_resolution, arg), bufferName = currentBuffer))
-							}
-						} catch (e: Exception) {
-							commandEvents.send(IrcEvent.ServerText(tr(R.string.core_dns_failed, e.message ?: tr(R.string.core_unknown_error)), bufferName = currentBuffer))
-						}
-					}
-				}
-			}
-            else -> {
-                // Pass through unknown commands
-                val rawCmd = parts[0].uppercase(Locale.ROOT)
-                val rest = cmdLine.trim().drop(parts[0].length).trimStart()
-                sendRaw(if (rest.isBlank()) rawCmd else "$rawCmd $rest")
-            }
-        }
-    }
+    /** Run the slash command [cmdLine], given without its slash, as typed in [currentBuffer]. */
+    suspend fun handleSlashCommand(cmdLine: String, currentBuffer: String) = runSlashCommand(cmdLine, currentBuffer)
 
     fun events(): Flow<IrcEvent> = channelFlow {
         send(IrcEvent.Status(tr(R.string.core_connecting)))
@@ -5081,7 +2065,9 @@ class IrcClient(val config: IrcConfig) {
         suspend fun writeLine(line: String) = withContext(Dispatchers.IO) {
             // Raw log, outgoing. Hooked here rather than in sendRaw so lines that bypass
             // the outbound queue (registration, PONG, the nick-reclaim retries) are logged
-            if (rawLogEnabled) trySend(IrcEvent.RawLine(true, redactRawLine(line)))
+            val redacted = redactRawLine(line)
+            if (rawLogEnabled) trySend(IrcEvent.RawLine(true, redacted))
+            noteRecentRaw(true, redacted)
             // UTF8ONLY (ISUPPORT) overrides the connection's encoding, so a legacy profile
             // encoding never sends non-UTF-8 bytes to a server that rejects them.
             val utf8Only = config.capPrefs.utf8Only && utf8OnlyServer
@@ -5109,26 +2095,55 @@ class IrcClient(val config: IrcConfig) {
             //
             // Bouncer connections are exempt.
             var floodClock = System.currentTimeMillis()
+            // A typed line that arrived while a background unit waited out its pacing, and that
+            // background unit, put back to go after it.
+            var jumped: OutboundUnit? = null
+            var heldBack: OutboundUnit? = null
             try {
-                for (unit in outbound) {
-                    if (registered && !config.isBouncer) {
+                while (true) {
+                    val unit = jumped?.also { jumped = null }
+                        ?: outbound.tryReceive().getOrNull()
+                        ?: heldBack?.also { heldBack = null }
+                        ?: select<OutboundUnit?> {
+                            // select favours the first clause, so typed lines go first.
+                            outbound.onReceiveCatching { it.getOrNull() }
+                            outboundBackground.onReceiveCatching { it.getOrNull() }
+                        }
+                        ?: break
+                    if (registered && !config.isBouncer && !safeRate) {
                         val now = System.currentTimeMillis()
                         if (floodClock < now) floodClock = now
-                        if (unit.paced) {
-                            // Charge the whole unit up front, then write its lines
-                            // back-to-back. Pacing between them would let other queued
-                            // commands interleave, which is fatal inside a BATCH.
-                            val chars = unit.lines.sumOf { it.length }
-                            floodClock += floodPenaltyMs * unit.lines.size + chars * floodPerCharMs
-                            val ahead = floodClock - now - floodBurstMs
-                            if (ahead > 0) delay(ahead)
-                        } else {
-                            // Charge one line's base penalty so an unpaced burst still costs
-                            // something against later traffic, but never delay this unit.
-                            floodClock += floodPenaltyMs
+                        // Charge the whole unit, then write its lines back-to-back. Pacing
+                        // between them would let other queued commands interleave, which is
+                        // fatal inside a BATCH. An unpaced unit (multiline) costs one line's
+                        // base penalty against later traffic but is never delayed.
+                        val cost = if (unit.paced) {
+                            floodPenaltyMs * unit.lines.size + unit.lines.sumOf { it.length } * floodPerCharMs
+                        } else floodPenaltyMs
+                        val ahead = if (unit.paced) floodClock + cost - now - floodBurstMs else 0L
+                        if (ahead > 0) {
+                            if (unit.background) {
+                                // Wait, but let a typed line that arrives meanwhile go first.
+                                val typed = withTimeoutOrNull(ahead) { outbound.receiveCatching() }
+                                if (typed != null) {
+                                    if (typed.isClosed) break
+                                    jumped = typed.getOrNull()
+                                    heldBack = unit
+                                    continue
+                                }
+                            } else {
+                                delay(ahead)
+                            }
                         }
+                        floodClock += cost
                     }
-                    for (line in unit.lines) writeLine(line)
+                    // Recorded before writing, so a reply can never arrive ahead of its record.
+                    unit.who?.let { trackWho(it) }
+                    noteSendsWritten(unit.sends)
+                    for (line in unit.lines) {
+                        noteModeQuery(line, unit.silentModeQuery)
+                        writeLine(line)
+                    }
                 }
             } catch (t: Throwable) {
                 // If writes start failing (common during network handovers or SSL close),
@@ -5206,13 +2221,9 @@ class IrcClient(val config: IrcConfig) {
 
         val irc = IrcSession(config, rng).also { it.strings = strings }
         sessionRef = irc
-        // Note: historyRequested, historyExpectUntil, zncLastSeen, openPlaybackBatches,
-        // openNetsplitBatches, netsplitBuffer are now class fields (see read-loop state
-        // section near pendingBansByNick). They were hoisted to allow the message
-        // dispatcher to be split into separate methods without exceeding the JVM 64KB
-        // method size limit on events()'s invokeSuspend.
-        // Reset per-session state on every events() invocation (one IrcClient may
-        // technically be reused, although in practice we create a fresh one per connect).
+        // Read-loop state lives in class fields so the handlers outside events() can reach it.
+        // Reset it on every events() invocation (one IrcClient may technically be reused,
+        // although in practice we create a fresh one per connect).
         historyRequested.clear()
         namesRequested.clear()
         historyExpectUntil.clear()
@@ -5228,6 +2239,8 @@ class IrcClient(val config: IrcConfig) {
         filehostUrl = null
         networkIconUrl = null
         botModeChar = null
+        bouncerNetId = null
+        safeRate = false
         extbanPrefix = null
         extbanTypes = null
         accountExtban = null
@@ -5241,619 +2254,30 @@ class IrcClient(val config: IrcConfig) {
         chathistoryBatchTargets.clear()
         batchLabels.clear()
         chathistoryBatchLines.clear()
+        synchronized(pendingSearches) { pendingSearches.clear() }
+        searchBatches.clear()
         lengthLimits.clear()
         knockSupported = false
         chanLimits.clear()
         pendingVerifyAccount = null
         openMultilineBatches.clear()
 
-// Numeric dispatch table (RFC + common de-facto numerics)
-//
-// Add/extend handlers here instead of growing a giant `when` block.
-// Unknown numerics will still be surfaced via formatNumeric()/fallback ServerText.
-
-/**
- * Helper that builds the item + end-of-list handler pair for channel list modes (ban, invex,
- * except, quiet).  All four use identical parameter layouts:
- *   <me> <#chan> <mask> [setBy] [setAt (epoch seconds)]
- * Extracted to eliminate ~60 lines of copy-paste across 367/368, 346/347, 348/349, 728/729.
- */
-fun listModeHandlers(
-    itemNumeric: String,
-    endNumeric: String,
-    makeItem: (chan: String, mask: String, setBy: String?, setAtMs: Long?, timeMs: Long?, isHistory: Boolean) -> IrcEvent,
-    makeEnd: (chan: String, code: String, timeMs: Long?, isHistory: Boolean) -> IrcEvent
-): List<Pair<String, suspend (IrcMessage, Long?, Boolean, Long) -> Unit>> = listOf(
-    itemNumeric to handler@{ msg, serverTimeMs, playbackHistory, nowMs ->
-        val p = msg.params + listOfNotNull(msg.trailing)
-        val chan = p.getOrNull(1) ?: return@handler
-        val mask = p.getOrNull(2) ?: return@handler
-        val setBy = p.getOrNull(3)
-        val setAtMs = p.getOrNull(4)?.toLongOrNull()?.let { it * 1000L }
-        val hist = playbackHistory || isHeuristicHistory(chan, serverTimeMs, nowMs)
-        send(makeItem(chan, mask, setBy, setAtMs, serverTimeMs, hist))
-    },
-    endNumeric to handler@{ msg, serverTimeMs, playbackHistory, nowMs ->
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val hist = playbackHistory || isHeuristicHistory(chan, serverTimeMs, nowMs)
-        send(makeEnd(chan, msg.command, serverTimeMs, hist))
-    }
-)
-
-// Reclaim the configured nick after reconnecting on a fallback. When the primary nick
-// was taken at registration, most often our own ghost session lingering after a
-// mobile/Wi-Fi reconnect; try once, then retry QUIETLY in the background until it
-// frees, the user takes manual control, or we hit the give-up window.
-suspend fun runNickReclaim() {
-	// Set once the server tells us a nick change can never succeed on this connection
-	// (account-locked nick). Cleared only by a reconnect, which rebuilds the client.
-	if (nickChangeRefused) return
-	val target = config.nick
-	val fallback = currentNick   // the nick the server registered us with
-	// Let SASL/services nick-reclaim and a fast ghost ping-timeout settle first.
-	delay(ConnectionConstants.NICK_RECLAIM_INITIAL_DELAY_MS)
-	if (userClosing || !nickRegainEnabled || !nickEquals(currentNick, fallback)) return
-		if (nickEquals(currentNick, target)) {
-			send(IrcEvent.ServerText("*** " + tr(R.string.core_regained_nick, target), code = "NICK"))
-			return
-		}
-
-		// First attempt
-		send(IrcEvent.ServerText("*** " + tr(R.string.core_regaining_nick, target), code = "NICK"))
-		runCatching { writeLine("NICK $target") }
-		delay(ConnectionConstants.NICK_RECLAIM_RESPONSE_GRACE_MS)
-		if (nickChangeRefused) return
-		if (nickEquals(currentNick, target)) {
-			send(IrcEvent.ServerText("*** " + tr(R.string.core_regained_nick, target), code = "NICK"))
-			return
-		}
-		if (userClosing || !nickEquals(currentNick, fallback)) return
-
-			// Didn't free up immediately, almost always our own lingering session, which won't
-			// release the nick until the server times it out (~180s).
-			send(IrcEvent.ServerText(
-				"*** " + tr(R.string.core_nick_still_in_use, target), code = "NICK"))
-
-			val deadline = System.currentTimeMillis() + ConnectionConstants.NICK_RECLAIM_TOTAL_WINDOW_MS
-			while (System.currentTimeMillis() < deadline) {
-				delay(ConnectionConstants.NICK_RECLAIM_RETRY_INTERVAL_MS)
-				if (userClosing || nickChangeRefused || !nickRegainEnabled) return
-					if (nickEquals(currentNick, target)) {
-						send(IrcEvent.ServerText("*** " + tr(R.string.core_regained_nick, target), code = "NICK"))
-						return
-					}
-					// Don't fight a deliberate /nick or a server-forced rename.
-					if (!nickEquals(currentNick, fallback)) return
-						runCatching { writeLine("NICK $target") }
-						delay(ConnectionConstants.NICK_RECLAIM_RESPONSE_GRACE_MS)
-						if (nickEquals(currentNick, target)) {
-							send(IrcEvent.ServerText("*** " + tr(R.string.core_regained_nick, target), code = "NICK"))
-							return
-						}
-			}
-			send(IrcEvent.ServerText(
-				"*** " + tr(R.string.core_nick_gave_up, target),
-				code = "NICK"))
-}
-
-val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> Unit> = mapOf(
-    "001" to handler@{ msg, _, _, _ ->
-        // Welcome: <me> ...
-        val me = msg.params.getOrNull(0) ?: config.nick
-        currentNick = me
-        registered = true
-        registrationWatchdogJob.cancel()  // 001 received — connection is live
-        send(IrcEvent.Registered(me))
-        if (netCertUnavailable) send(IrcEvent.ServerText(tr(R.string.core_netcert_unavailable)))
-        if (netCertCreated) send(IrcEvent.ServerText(tr(R.string.core_netcert_created)))
-        // draft/metadata-2: subscribe now if it wasn't already done during registration
-        // (only servers advertising `before-connect` accept METADATA that early).
-        // takeMetadataSubLine() self-guards, so this is a no-op when it already went out.
-        sessionRef?.markRegistered()
-        sessionRef?.takeMetadataSubLine()?.let { writeLine(it) }
-        // Stored away message: already sent during registration under draft/pre-away, else now.
-        if (sessionRef?.preAwaySent != true) {
-            config.initialAwayMessage?.takeIf { it.isNotBlank() }?.let {
-                writeLine("AWAY :${clampLen(it, "AWAYLEN")}")
-            }
-        }
-        // If the server handed us a fallback nick (the configured nick was taken,
-        // often our own ghost session lingering after a reconnect), try to reclaim it.
-        if (nickRegainEnabled && !nickEquals(me, config.nick)) {
-            launch { runNickReclaim() }
-        }
-    },
-
-    "005" to handler@{ msg, _, _, _ ->
-        // ISUPPORT: drive channel detection, prefix rank mapping, and casemapping.
-        // Example: PREFIX=(qaohv)~&@%+ CHANTYPES=#& CASEMAPPING=rfc1459 STATUSMSG=@+
-        val tokens = msg.params.drop(1)
-        var chant = chantypes
-        var cm = caseMapping
-        var pm = prefixModes
-        var ps = prefixSymbols
-        var sm: String? = statusMsg
-        var chm: String? = chanModes
-        var ll: Int? = serverLinelen
-
-        for (tok in tokens) {
-            if (tok.isBlank()) continue
-            val parts = tok.split("=", limit = 2)
-            val k = parts[0].trim().uppercase(Locale.ROOT)
-            val v = parts.getOrNull(1)?.trim()?.let(::unescapeIsupportValue)
-            // RPL_ISUPPORT negation ("-KEY"): the server withdraws a previously
-            // advertised key (used by extended-isupport updates, legal in plain 005
-            // too). Reset the tracked keys to their defaults. CHANTYPES, CASEMAPPING
-            // and PREFIX deliberately keep their current values - reverting those to
-            // RFC defaults mid-session would re-key existing buffers and nicklists.
-            if (k.startsWith("-")) {
-                when (k.drop(1)) {
-                    "STATUSMSG" -> sm = null
-                    "CHANMODES" -> chm = null
-                    "LINELEN" -> ll = null
-                    "WHOX" -> whoxSupported = false
-                    "CLIENTTAGDENY" -> clientTagDeny = null
-                    "ELIST" -> elistTokens = null
-                    "MONITOR" -> monitorLimit = -1
-                    "SOJU.IM/FILEHOST", "DRAFT/FILEHOST", "FILEHOST" -> filehostUrl = null
-                    "DRAFT/ICON", "ICON" -> networkIconUrl = null
-                    "BOT" -> botModeChar = null
-                    "EXTBAN" -> { extbanPrefix = null; extbanTypes = null }
-                    "ACCOUNTEXTBAN" -> accountExtban = null
-                    "CHATHISTORY" -> chatHistoryLimit = 0
-                    "UTF8ONLY" -> utf8OnlyServer = false
-                    "MSGREFTYPES" -> msgRefTypes = emptyList()
-                    "VAPID" -> vapidPublicKey = null
-                    "TOPICLEN", "KICKLEN", "AWAYLEN", "QUITLEN", "NICKLEN", "MAXNICKLEN",
-                    "CHANNELLEN", "NAMELEN" -> lengthLimits.remove(k.drop(1))
-                    "KNOCK" -> knockSupported = false
-                    "CHANLIMIT" -> chanLimits.clear()
-                }
-                continue
-            }
-            when (k) {
-                "CHANTYPES" -> if (!v.isNullOrBlank()) chant = v
-                "CASEMAPPING" -> if (!v.isNullOrBlank()) cm = v
-                "STATUSMSG" -> if (!v.isNullOrBlank()) sm = v
-                "CHANMODES" -> if (!v.isNullOrBlank()) chm = v
-                "PREFIX" -> if (!v.isNullOrBlank()) {
-                    val m0 = Regex("^\\(([^)]+)\\)(.+)$").find(v)
-                    if (m0 != null) {
-                        pm = m0.groupValues[1]
-                        ps = m0.groupValues[2]
-                    }
-                }
-                // parse LINELEN so the ViewModel can use the server's actual limit
-                "LINELEN" -> v?.toIntOrNull()?.takeIf { it in 512..65535 }?.let { ll = it }
-                // WHOX is a flag token (no value): server supports extended WHO %fields,querytype
-                "WHOX" -> whoxSupported = true
-                // BOT=<char>: the user-mode letter that marks a bot; also the flag shown
-                // in WHO/WHOX replies for bots (Bot Mode spec).
-                "BOT" -> botModeChar = v?.trim()?.firstOrNull()
-                // EXTBAN=<prefix>,<letters>: extended ban syntax. Prefix may be empty.
-                "EXTBAN" -> {
-                    val parts = v?.split(",", limit = 2)
-                    extbanPrefix = parts?.getOrNull(0) ?: ""
-                    extbanTypes = parts?.getOrNull(1)?.takeIf { it.isNotBlank() }
-                }
-                // ACCOUNTEXTBAN=<name>,<letter> (draft/account-extban): prefer the short letter.
-                "ACCOUNTEXTBAN" -> accountExtban =
-                    v?.split(",")?.mapNotNull { it.trim().takeIf { t -> t.isNotEmpty() } }?.lastOrNull()
-                // CHATHISTORY=<n>: max messages returned per CHATHISTORY request.
-                "CHATHISTORY" -> chatHistoryLimit = v?.trim()?.toIntOrNull()?.coerceAtLeast(0) ?: 0
-                // UTF8ONLY: outgoing text must be UTF-8 whatever encoding the profile sets.
-                "UTF8ONLY" -> utf8OnlyServer = true
-                // VAPID=<key>: application-server public key for draft/webpush notifications.
-                // A transition from "no key" to a key is the cue to subscribe.
-                "VAPID" -> {
-                    val newKey = v?.trim()?.takeIf { it.isNotEmpty() }
-                    val changed = newKey != null && newKey != vapidPublicKey
-                    vapidPublicKey = newKey
-                    if (changed) vapidBecameReady = true
-                }
-                // MSGREFTYPES=<csv>: which reference types CHATHISTORY selectors may use.
-                // Order matters: the spec lists these "in order of decreasing preference".
-                "MSGREFTYPES" -> msgRefTypes =
-                    v?.split(',')?.map { it.trim().lowercase() }?.filter { it.isNotEmpty() }
-                        ?: emptyList()
-                // Server-advertised length limits; stored for input validation and for
-                // clamping free-text command payloads before they're sent.
-                "TOPICLEN", "KICKLEN", "AWAYLEN", "QUITLEN", "NICKLEN", "MAXNICKLEN",
-                "CHANNELLEN", "NAMELEN" ->
-                    v?.trim()?.toIntOrNull()?.takeIf { it > 0 }?.let { lengthLimits[k] = it }
-                // KNOCK: server supports /knock on invite-only channels (valueless token).
-                "KNOCK" -> knockSupported = true
-                // CHANLIMIT=<pfx>:<n>[,...]: max channels per type prefix.
-                "CHANLIMIT" -> {
-                    chanLimits.clear()
-                    v?.split(',')?.forEach { grp ->
-                        val idx = grp.lastIndexOf(':')
-                        if (idx > 0) {
-                            val n = grp.substring(idx + 1).toIntOrNull()?.takeIf { it > 0 }
-                            if (n != null) grp.substring(0, idx).forEach { pfx -> chanLimits[pfx] = n }
-                        }
-                    }
-                }
-                "CLIENTTAGDENY" -> clientTagDeny = v?.takeIf { it.isNotBlank() }
-                // soju.im/FILEHOST / draft/FILEHOST: HTTP file-upload endpoint URL.
-                // Keys arrive uppercased by the tokenizer above; the value keeps its case.
-                "SOJU.IM/FILEHOST", "DRAFT/FILEHOST", "FILEHOST" -> filehostUrl = v?.takeIf { it.isNotBlank() }
-                // ICON / draft/ICON ISUPPORT token: ICON=<url> (draft/ICON in the wild, e.g. UnrealIRCd)
-                // advertises a server icon; may contain a literal {size} template the client
-                // substitutes with a pixel size. Keys arrive uppercased by the tokenizer.
-                "DRAFT/ICON", "ICON" -> networkIconUrl = v?.takeIf { it.isNotBlank() }
-                // ELIST=<chars>: server-side LIST search extensions (U = user-count filtering, etc).
-                "ELIST" -> if (!v.isNullOrBlank()) elistTokens = v.uppercase(Locale.ROOT)
-                // MONITOR=<n>: the maximum watch list size per client; empty means no limit. Used
-                // by /monitor to report when the limit is reached.
-                "MONITOR" -> {
-                    monitorLimit = if (v.isNullOrBlank()) Int.MAX_VALUE
-                                   else v.toIntOrNull()?.takeIf { it >= 0 } ?: Int.MAX_VALUE
-                }
-            }
-        }
-
-        chantypes = chant
-        caseMapping = cm
-        statusMsg = sm
-        chanModes = chm
-        prefixModes = pm
-        prefixSymbols = ps
-        serverLinelen = ll
-
-        val mp = mutableMapOf<Char, Char>()
-        val n = minOf(pm.length, ps.length)
-        for (i in 0 until n) mp[pm[i]] = ps[i]
-        if (mp.isNotEmpty()) prefixModeToSymbol = mp
-
-        send(IrcEvent.ISupport(chantypes, caseMapping, prefixModes, prefixSymbols, statusMsg, chanModes, ll, elistTokens, filehostUrl, networkIconUrl, extbanPrefix, extbanTypes, accountExtban))
-        if (vapidBecameReady) {
-            vapidBecameReady = false
-            vapidPublicKey?.let { send(IrcEvent.WebPushVapidReady(it)) }
-        }
-    },
-
-    // LIST output
-    // draft/metadata-2 numerics. Params are shifted by one because params[0] is
-    // always our own nick (or "*" before registration completes).
-    //   761 RPL_KEYVALUE <Target> <Key> <Visibility> :<Value>
-    // The value is the last parameter, so read it through allParams. 760
-    // RPL_WHOISKEYVALUE is handled separately via formatNumeric + WHOIS buffer
-    // routing, because it is display-only (WHOIS) and not a metadata-store update.
-    "761" to handler@{ msg, _, _, _ ->
-        val ap = msg.allParams
-        val t = ap.getOrNull(1) ?: return@handler
-        val k = ap.getOrNull(2) ?: return@handler
-        send(IrcEvent.MetadataChanged(t, k.lowercase(Locale.ROOT), ap.getOrNull(3), ap.getOrNull(4)))
-    },
-    // 766 RPL_KEYNOTSET <Target> <Key> :key not set - the key is absent, so clear it
-    // locally. (Also the reply to CLEAR, one per cleared key.)
-    "766" to handler@{ msg, _, _, _ ->
-        val t = msg.params.getOrNull(1) ?: return@handler
-        val k = msg.params.getOrNull(2) ?: return@handler
-        send(IrcEvent.MetadataChanged(t, k.lowercase(Locale.ROOT), null, null))
-    },
-    // 770/771/772: subscription acknowledgements. Keys are individual parameters in
-    // metadata-2 (they were a space-separated trailing in the old metadata-notify),
-    // so allParams covers both shapes.
-    "770" to handler@{ _, _, _, _ ->
-        // RPL_METADATASUBOK: our SUB was accepted. Internal plumbing - no user-facing
-        // message (some servers reply with one 770 per key, which spammed the buffer,
-        // and the raw form was redundant with this). /metadata subs (772) still reports.
-    },
-    "771" to handler@{ msg, _, _, _ ->
-        val keys = msg.allParams.drop(1).filter { it.isNotBlank() }
-        if (keys.isNotEmpty()) send(IrcEvent.Status(tr(R.string.core_metadata_unsub, keys.joinToString(" "))))
-    },
-    "772" to handler@{ msg, _, _, _ ->
-        val keys = msg.allParams.drop(1).filter { it.isNotBlank() }
-        send(IrcEvent.ServerText("*** " + tr(R.string.core_metadata_subs, keys.joinToString(" ").ifBlank { tr(R.string.core_metadata_subs_none) }), code = "772"))
-    },
-    // 774 RPL_METADATASYNCLATER <Target> [<RetryAfter>]: the server deferred the sync.
-    // Re-request after the advertised delay (default 10s, clamped so a hostile or
-    // buggy value can't park a coroutine for hours).
-    "774" to handler@{ msg, _, _, _ ->
-        val t = msg.params.getOrNull(1) ?: return@handler
-        val retryAfter = msg.params.getOrNull(2)?.toLongOrNull()?.coerceIn(1L, 300L) ?: 10L
-        launch {
-            delay(retryAfter * 1000L)
-            runCatching { sendRaw("METADATA $t SYNC") }
-        }
-    },
-
-    "321" to handler@{ _, _, _, _ -> send(IrcEvent.ChannelListStart) },
-    "322" to handler@{ msg, _, _, _ ->
-        // RPL_LIST: <me> <#chan> <visible> :topic
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val users = msg.params.getOrNull(2)?.toIntOrNull() ?: 0
-        val topic = (msg.trailing ?: msg.params.getOrNull(3) ?: "").let { stripIrcFormatting(it) }
-        send(IrcEvent.ChannelListItem(chan, users, topic))
-    },
-    "323" to handler@{ _, _, _, _ -> send(IrcEvent.ChannelListEnd) },
-    // RPL_TRYAGAIN: the server rejected a command (usually LIST) due to rate limiting
-    // or SECURELIST (list disabled for the first N seconds after connect). Format:
-    // <me> <command> :<message>. End any in-progress list so the UI stops spinning, and
-    // surface an actionable message. Emitted as a distinct event so the ViewModel can
-    // tell the LIST screen to show a retry affordance rather than an empty result.
-    "263" to handler@{ msg, _, _, _ ->
-        val command = msg.params.getOrNull(1) ?: ""
-        val detail = (msg.trailing ?: msg.params.getOrNull(2))?.takeIf { it.isNotBlank() }
-        send(IrcEvent.ChannelListEnd)
-        send(IrcEvent.TryAgain(command = command.uppercase(Locale.ROOT), message = detail))
-    },
-
-    // Topic numerics
-    "332" to handler@{ msg, serverTimeMs, playbackHistory, nowMs ->
-        // RPL_TOPIC: <me> <#chan> :topic
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val topic = msg.trailing ?: msg.params.getOrNull(2)
-        val hist = playbackHistory || isHeuristicHistory(chan, serverTimeMs, nowMs)
-        send(IrcEvent.TopicReply(chan, topic, timeMs = serverTimeMs, isHistory = hist))
-    },
-    "333" to handler@{ msg, serverTimeMs, playbackHistory, nowMs ->
-        // RPL_TOPICWHOTIME: <me> <#chan> <setter> <time>
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val setter = msg.params.getOrNull(2) ?: return@handler
-        // InspIRCd 4 sends the set-time as a trailing parameter; fall back to it.
-        val secs = (msg.params.getOrNull(3) ?: msg.trailing)?.toLongOrNull()
-        val setAtMs = secs?.let { it * 1000L }
-        val hist = playbackHistory || isHeuristicHistory(chan, serverTimeMs, nowMs)
-        send(IrcEvent.TopicWhoTime(chan, setter, setAtMs, timeMs = serverTimeMs, isHistory = hist))
-    },
-
-    "324" to handler@{ msg, _, _, _ ->
-        // RPL_CHANNELMODEIS: <me> <#chan> <modes> [mode params...]
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val modes = (msg.params.drop(2) + listOfNotNull(msg.trailing)).joinToString(" ").trim()
-        if (modes.isNotBlank()) {
-            send(IrcEvent.ChannelModeIs(
-                chan, modes, code = msg.command,
-                silent = isSilentModeQuery(chan, consume = false),
-            ))
-        }
-    },
-    "900" to handler@{ msg, _, _, _ ->
-        // RPL_LOGGEDIN: <nick> <mask> <account> :You are now logged in as <account>.
-        // Track our own account so the UI can reflect being identified.
-        val account = msg.params.getOrNull(2)?.takeIf { it.isNotBlank() && it != "*" }
-        if (account != null) send(IrcEvent.AccountChanged(currentNick, account))
-    },
-    "901" to handler@{ msg, _, _, _ ->
-        // RPL_LOGGEDOUT.
-        send(IrcEvent.AccountChanged(currentNick, "*"))
-    },
-    "381" to handler@{ msg, _, _, _ ->
-        // RPL_YOUREOPER
-        val text = msg.trailing ?: msg.params.drop(1).joinToString(" ").trim().ifBlank { tr(R.string.core_youre_oper) }
-        send(IrcEvent.YoureOper(text))
-    },
-
-    // Names list
-    "353" to handler@{ msg, _, _, _ ->
-        // RPL_NAMREPLY: <me> <symbol> <#chan> :[prefix]nick ...
-        // With userhost-in-names CAP, entries are [prefix]nick!user@host - strip the
-        // user@host so channel tracking, nick colouring, and case-folding work correctly.
-        val chan = msg.params.getOrNull(2) ?: return@handler
-        val names = (msg.trailing ?: msg.params.getOrNull(3) ?: "").split(Regex("\\s+")).filter { it.isNotBlank() }
-            .map { raw ->
-                // Find where prefixes end and the nick!user@host begins.
-                // Use server-negotiated prefixSymbols (updated from 005 PREFIX) so non-standard
-                // rank symbols (e.g. '!' or '~' on custom IRCd configs) are stripped correctly.
-                val validPrefixes = prefixSymbols
-                val prefixEnd = raw.indexOfFirst { it !in validPrefixes }
-                if (prefixEnd < 0) return@map raw  // only prefixes? keep as-is
-                val prefixes = raw.substring(0, prefixEnd)
-                val rest = raw.substring(prefixEnd)
-                // Strip !user@host if present (userhost-in-names CAP)
-                val nick = rest.substringBefore('!')
-                prefixes + nick
-            }
-        if (names.isNotEmpty()) send(IrcEvent.Names(chan, names))
-    },
-    "366" to handler@{ msg, _, _, _ ->
-        // RPL_ENDOFNAMES: <me> <#chan> :End of /NAMES list.
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        send(IrcEvent.NamesEnd(chan))
-    },
-
-    // WHOX reply (354): response to WHO #chan %tuhsnfar,42
-    // Params depend on the %fields requested. With %tuhsnfar,42:
-    //   <me> 42 <ident> <host> <server> <nick> <flags> <account> :<realname>
-    //   The query type (42) is in params[1]; we skip this numeric if it doesn't match ours.
-    "354" to handler@{ msg, _, _, _ ->
-        val req = currentWho()
-        if (req?.buffer != null) {
-            val fields = msg.allParams.drop(1).joinToString(" ") { stripIrcFormatting(it) }
-            send(IrcEvent.ServerText(fields, code = "354", bufferName = req.buffer))
-            return@handler
-        }
-        // Verify this is our WHOX query (query type 42)
-        if (msg.params.getOrNull(1) != "42") return@handler
-        val ident   = msg.params.getOrNull(2) ?: return@handler
-        val host    = msg.params.getOrNull(3) ?: return@handler
-        val nick    = msg.params.getOrNull(5) ?: return@handler
-        // flags field (params[6]): 'H'=Here (present), 'G'=Gone (away). May have extra flags like '*'=oper.
-        val flags   = msg.params.getOrNull(6)
-        val isAway  = flags?.firstOrNull { it == 'H' || it == 'G' }?.let { it == 'G' }
-        val account = msg.params.getOrNull(7)?.takeIf { it != "0" }  // "0" = not logged in
-        // Bot Mode: the flags field also carries the BOT mode letter for bots.
-        val isBot = botModeChar?.let { bc -> flags?.contains(bc) == true } ?: false
-        noteUser(nick, ident, host, account ?: "*")
-        send(IrcEvent.WhoxReply(nick = nick, ident = ident, host = host, account = account, isAway = isAway, isBot = isBot))
-    },
-
-    // RPL_WHOREPLY (352): the plain WHO reply, for servers without WHOX.
-    //   <me> <channel> <username> <host> <server> <nick> <flags> :<hopcount> <realname>
-    // Per the modern spec's WHO section. Flags carry 'H' (here) or 'G' (gone/away), and may
-    // be followed by '*' for an operator and channel membership prefixes. No account field,
-    // so account stays null and only away and bot status come from this.
-    "352" to handler@{ msg, _, _, _ ->
-        val ident = msg.params.getOrNull(2) ?: return@handler
-        val host  = msg.params.getOrNull(3) ?: return@handler
-        val nick  = msg.params.getOrNull(5) ?: return@handler
-        val flags = msg.params.getOrNull(6)
-        val isAway = flags?.firstOrNull { it == 'H' || it == 'G' }?.let { it == 'G' }
-        val isBot = botModeChar?.let { bc -> flags?.contains(bc) == true } ?: false
-        noteUser(nick, ident, host)
-        send(IrcEvent.WhoxReply(nick = nick, ident = ident, host = host, account = null, isAway = isAway, isBot = isBot))
-        val buffer = currentWho()?.buffer ?: return@handler
-        val chan = msg.params.getOrNull(1) ?: "*"
-        val server = msg.params.getOrNull(4)?.let { " ($it)" } ?: ""
-        val realname = msg.trailing?.let { stripIrcFormatting(it.substringAfter(' ', "")) }.orEmpty()
-        send(IrcEvent.ServerText(
-            "$chan $nick ${flags.orEmpty()} $ident@$host$server $realname".trimEnd(),
-            code = "352",
-            bufferName = buffer,
-        ))
-    },
-
-    // RPL_ENDOFWHO (315): <me> <mask> :End of WHO list. Printed only for a WHO the user typed.
-    "315" to handler@{ msg, _, _, _ ->
-        val mask = msg.params.getOrNull(1) ?: "*"
-        val buffer = finishWho(mask)?.buffer ?: return@handler
-        val text = msg.trailing?.let { stripIrcFormatting(it) }
-        send(IrcEvent.ServerText(if (text != null) "$mask: $text" else mask, code = "315", bufferName = buffer))
-    },
-
-    // ERR_NOTONCHANNEL
-    "442" to handler@{ msg, _, _, _ ->
-        // <me> <#chan> :You're not on that channel
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val reason = msg.trailing?.let { stripIrcFormatting(it) } ?: tr(R.string.core_not_on_channel)
-        send(IrcEvent.NotOnChannel(chan, reason, code = msg.command))
-    },
-
-    // Ban / invex / except / quiet list modes - all use identical param layouts:
-    // <me> <#chan> <mask> [setBy] [setAt(epoch)]. Delegated to listModeHandlers().
-    *listModeHandlers("367", "368",
-        makeItem = { c, m, by, at, ts, hist -> IrcEvent.BanListItem(c, m, by, at, timeMs = ts, isHistory = hist) },
-        makeEnd  = { c, code, ts, hist -> IrcEvent.BanListEnd(c, code = code, timeMs = ts, isHistory = hist) }
-    ).toTypedArray(),
-    *listModeHandlers("346", "347",
-        makeItem = { c, m, by, at, ts, hist -> IrcEvent.InvexListItem(c, m, by, at, timeMs = ts, isHistory = hist) },
-        makeEnd  = { c, code, ts, hist -> IrcEvent.InvexListEnd(c, code = code, timeMs = ts, isHistory = hist) }
-    ).toTypedArray(),
-    *listModeHandlers("348", "349",
-        makeItem = { c, m, by, at, ts, hist -> IrcEvent.ExceptListItem(c, m, by, at, timeMs = ts, isHistory = hist) },
-        makeEnd  = { c, code, ts, hist -> IrcEvent.ExceptListEnd(c, code = code, timeMs = ts, isHistory = hist) }
-    ).toTypedArray(),
-    *listModeHandlers("728", "729",
-        makeItem = { c, m, by, at, ts, hist -> IrcEvent.QuietListItem(c, m, by, at, timeMs = ts, isHistory = hist) },
-        makeEnd  = { c, code, ts, hist -> IrcEvent.QuietListEnd(c, code = code, timeMs = ts, isHistory = hist) }
-    ).toTypedArray(),
-
-    // Join failures (ircu/unreal/inspircd/nefarious all use these)
-    // ERR_TOOMANYCHANNELS: joined too many channels. Enrich with the CHANLIMIT figure
-    // when we know it, mirroring the friendly 471-477 join-error handlers.
-    "405" to handler@{ msg, _, _, _ ->
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val limit = channelLimitFor(chan)
-        val reason = if (limit > 0) tr(R.string.core_channel_limit_reached, limit)
-                     else (msg.trailing ?: tr(R.string.core_too_many_channels))
-        send(IrcEvent.JoinError(chan, reason, code = msg.command))
-    },
-    "471" to handler@{ msg, _, _, _ ->
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val reason = msg.trailing ?: tr(R.string.core_cannot_join_full)
-        send(IrcEvent.JoinError(chan, reason, code = msg.command))
-    },
-    "472" to handler@{ msg, _, _, _ ->
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val reason = msg.trailing ?: tr(R.string.core_cannot_join)
-        send(IrcEvent.JoinError(chan, reason, code = msg.command))
-    },
-    "473" to handler@{ msg, _, _, _ ->
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val reason = msg.trailing ?: tr(R.string.core_cannot_join_invite)
-        send(IrcEvent.JoinError(chan, reason, code = msg.command))
-    },
-    "474" to handler@{ msg, _, _, _ ->
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val reason = msg.trailing ?: tr(R.string.core_cannot_join_banned)
-        send(IrcEvent.JoinError(chan, reason, code = msg.command))
-    },
-    "475" to handler@{ msg, _, _, _ ->
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val reason = msg.trailing ?: tr(R.string.core_cannot_join_key)
-        send(IrcEvent.JoinError(chan, reason, code = msg.command))
-    },
-    "476" to handler@{ msg, _, _, _ ->
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val reason = msg.trailing ?: tr(R.string.core_cannot_join)
-        send(IrcEvent.JoinError(chan, reason, code = msg.command))
-    },
-    "477" to handler@{ msg, _, _, _ ->
-        val chan = msg.params.getOrNull(1) ?: return@handler
-        val reason = msg.trailing ?: tr(R.string.core_cannot_join)
-        send(IrcEvent.JoinError(chan, reason, code = msg.command))
-    },
-
-    // MONITOR numerics: 730 online (target[!user@host] [account], comma-separated), 731 offline,
-    // 732 list page, 733 end of list, 734 list full (with the targets that could not be added).
-    "730" to handler@{ msg, serverTime, _, _ ->
-        val raw = (msg.trailing ?: msg.params.drop(1).joinToString(","))
-        for (entry in raw.split(",").map { it.trim() }.filter { it.isNotBlank() }) {
-            // extended-monitor: "nick!user@host" or "nick!user@host account"
-            val spaceIdx = entry.indexOf(' ')
-            val hostPart = if (spaceIdx > 0) entry.substring(0, spaceIdx) else entry
-            val accountPart = if (spaceIdx > 0) entry.substring(spaceIdx + 1).trim().takeIf { it.isNotBlank() && it != "*" } else null
-            val bangIdx = hostPart.indexOf('!')
-            val nick = if (bangIdx > 0) hostPart.substring(0, bangIdx) else hostPart
-            val ident = if (bangIdx > 0) hostPart.substring(bangIdx + 1).substringBefore('@').takeIf { it.isNotBlank() } else null
-            val host = if (bangIdx > 0) hostPart.substringAfter('@', "").takeIf { it.isNotBlank() } else null
-            send(IrcEvent.MonitorStatus(nick, online = true, timeMs = serverTime, ident = ident, host = host, account = accountPart))
-        }
-    },
-    "731" to handler@{ msg, serverTime, _, _ ->
-        val nicks = (msg.trailing ?: msg.params.drop(1).joinToString(","))
-            .split(",").map { it.trim().substringBefore("!") }.filter { it.isNotBlank() }
-        for (nick in nicks) send(IrcEvent.MonitorStatus(nick, online = false, timeMs = serverTime))
-    },
-    "732" to handler@{ msg, _, _, _ ->
-        // Accumulate entries across 732 lines; the terminating 733 prints them as one line rather
-        // than one line per page.
-        val nicks = (msg.trailing ?: msg.params.drop(1).joinToString(","))
-            .split(",").map { it.trim().substringBefore("!") }.filter { it.isNotBlank() }
-        if (nicks.isNotEmpty()) monitorListBuffer.addAll(nicks)
-    },
-    "733" to handler@{ _, _, _, _ ->
-        // RPL_ENDOFMONLIST: flush the accumulated 732 entries.
-        val collected = monitorListBuffer.toList()
-        monitorListBuffer.clear()
-        if (collected.isEmpty()) {
-            send(IrcEvent.ServerText(tr(R.string.core_monitor_empty)))
-        } else {
-            send(IrcEvent.ServerText(tr(R.string.core_monitor_list, collected.size, collected.joinToString(", "))))
-        }
-    },
-    "734" to handler@{ msg, _, _, _ ->
-        // ERR_MONLISTFULL: <client> <limit> <targets> :Monitor list is full.
-        // params[0] is our nick; params[1] is the numeric limit; params[2] is the
-        // CSV of nicks the server refused to add. Surface the limit AND the nicks so
-        // the user can see what got dropped, not just that "the list" is full.
-        val limit = msg.params.getOrNull(1) ?: "?"
-        val rejected = msg.params.getOrNull(2)?.takeIf { it.isNotBlank() }
-        val msgText = if (rejected != null) {
-            tr(R.string.core_monitor_list_full_rejected, limit, rejected)
-        } else {
-            tr(R.string.core_monitor_list_full, limit)
-        }
-        send(IrcEvent.ServerText(msgText))
-    },
-)
+        val numericHandlers = buildNumericHandlers(this, { writeLine(it) }, registrationWatchdogJob)
 
 		try {
 			send(IrcEvent.Status(tr(R.string.core_negotiating_caps)))
-			// PASS goes first and always as a trailing parameter, so a password with spaces
-			// survives. It is skipped for a bouncer when SASL is also configured, since the bouncer
-			// would treat it as a second login attempt.
+			// PASS goes first. The password gets a leading colon only when it contains a space or
+			// starts with one, as some bouncers don't strip it. It is skipped for a bouncer when SASL
+			// is also configured, since the bouncer would treat it as a second login attempt.
 			val skipPass = config.sasl is SaslConfig.Enabled && config.isBouncer
 			if (!skipPass) {
 				// effectivePassLine prepends the bouncer username + network selector when
 				// applicable (e.g. "alice/libera:secret") so the bouncer can route the
 				// connection to the right upstream. For non-bouncer profiles or already-
 				// hand-formatted passwords, this is a no-op pass-through.
-				config.effectivePassLine(config.serverPassword)?.let { writeLine("PASS :$it") }
+				config.effectivePassLine(config.serverPassword)?.let { pw ->
+					writeLine(if (pw.contains(' ') || pw.startsWith(':')) "PASS :$pw" else "PASS $pw")
+				}
 			}
 			writeLine("CAP LS 302")
 			writeLine("NICK ${config.nick}")
@@ -5880,6 +2304,7 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 
 				// Raw log, incoming. Before parsing, so a line we fail to parse is still visible.
 				if (rawLogEnabled && line.isNotEmpty()) send(IrcEvent.RawLine(false, redactRawLine(line)))
+				if (line.isNotEmpty()) noteRecentRaw(false, line)
 
 				// Any successful read proves the link is alive, stamp it before parsing so
 				// every kind of inbound line (PONG with or without our token, server PING,
@@ -5931,6 +2356,7 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 
 				send(IrcEvent.ServerLine(line))
 				val msg = parser.parse(line) ?: continue
+				if (searchBatches.isNotEmpty() && collectSearchLine(msg)) continue
 				noteSender(msg)
 				// A line a handler can't cope with is logged and skipped. It must not end the connection:
 				// a bouncer would replay it after reconnecting, and the client would loop.
@@ -5940,6 +2366,8 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 				// whether to display it. Whether a batch was empty is a fact about the wire,
 				// not about how many of its lines we chose to show.
 				countChathistoryLine(msg.tags)
+				closeModeReplyBefore(msg)
+				noteQueryAnswer(msg)
 
 				if (msg.command == "PING") {
 					val payload = msg.trailing ?: msg.params.firstOrNull() ?: ""
@@ -6055,6 +2483,7 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 							}
 							batchLabels[id] = batchLabel
 						}
+						if (type.equals("soju.im/search", ignoreCase = true)) openSearchBatch(id, batchLabel)
 						if (type.contains("chathistory", ignoreCase = true)) {
 							val histTarget = msg.allParams.getOrNull(2)?.takeIf { it.isNotBlank() }
 							if (histTarget != null) {
@@ -6118,6 +2547,7 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 						chathistoryBatchTargets.remove(id)?.let {
 							send(IrcEvent.HistoryBatchEnd(it, closingLabel, closingLines))
 						}
+						closeSearchBatch(this, id)
 						// Flush a closing multiline batch as a single ChatMessage / Notice
 						// event with the joined body. Per spec: lines without
 						// +draft/multiline-concat get a "\n" separator; lines WITH it get
@@ -6158,6 +2588,14 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 								// replayed via chathistory is still classified correctly.
 								val isHistMl = isPlaybackHistory(mlState.openTags) ||
 									isHeuristicHistory(mlState.target, tagsTime, nowMs2)
+								val ownMl = if (nickEquals(from, currentNick) && !isPlaybackHistory(mlState.openTags)) {
+									confirmEcho(
+										notice = mlState.command.equals("NOTICE", ignoreCase = true),
+										rawTarget = mlState.target,
+										text = joined,
+										label = closingLabel,
+									)
+								} else null
 								if (mlState.command.equals("NOTICE", ignoreCase = true)) {
 									send(IrcEvent.Notice(
 										from = from,
@@ -6183,7 +2621,7 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 										msgId = msgid,
 										replyToMsgId = replyTo,
 										senderAccount = account,
-										label = mlState.openTags["label"],
+										ownSendId = ownMl?.id,
 									))
 								}
 							}
@@ -6226,10 +2664,7 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 					))
 				}
 
-				// Pending-ban completion: extracted to keep the events() channelFlow body
-				// under the JVM 64KB method-size limit. The handler reads pendingBansByNick
-				// and pendingWhoisHostByNick (both class-level state) and calls
-				// completePendingBans, so it doesn't need the local read-loop variables.
+				// Bans waiting on a WHOIS for the target's user, host or account.
 				if (pendingBansByNick.isNotEmpty()) handlePendingBanReply(msg)
 
 				// Route WHOIS numerics back to the buffer where the WHOIS was invoked.
@@ -6264,18 +2699,20 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 					"728","729", // +q (quiet) list
 					"471","472","473","474","475","476","477"
 				)
-				// 329 RPL_CREATIONTIME follows every MODE <channel> query, including the one the
-				// channel-ops drawer fires on open. Drop it for those, and otherwise route it to
-				// the channel it describes rather than the status buffer.
+				// 324 and 329 answer a MODE <channel> query, including the one the channel-ops
+				// drawer fires on open. Drop them for those, and otherwise route them to the
+				// channel they describe rather than the status buffer.
 				var modeNumericBuffer: String? = null
 				if (msg.command == "329" || msg.command == "324") {
 					val chan = msg.allParams.getOrNull(1)
 					if (chan != null) {
-						// 329 is the last of the pair, so only it clears the marker.
-						if (isSilentModeQuery(chan, consume = msg.command == "329")) {
-							numericText = null
+						if (isSilentModeReply(chan)) numericText = null else modeNumericBuffer = chan
+						// 329 ends the reply; after a 324 it may still follow.
+						if (msg.command == "329") {
+							finishModeQuery(casefold(chan))
+							modeReplyOpen = null
 						} else {
-							modeNumericBuffer = chan
+							modeReplyOpen = casefold(chan)
 						}
 					}
 				}
@@ -6321,7 +2758,6 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 					}
 				}
 
-
 				if (msg.command.length == 3 && msg.command.all { it.isDigit() }) {
 					val h = numericHandlers[msg.command]
 					if (h != null) {
@@ -6330,7 +2766,7 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 					}
 				}
 
-				handleMessageCommand(msg, irc, serverTimeMs, playbackHistory, nowMs)
+				handleMessageCommand(this, msg, irc, serverTimeMs, playbackHistory, nowMs)
 				} catch (e: kotlinx.coroutines.CancellationException) {
 					throw e
 				} catch (e: kotlinx.coroutines.channels.ClosedSendChannelException) {
@@ -6372,6 +2808,11 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 		} finally {
 			joinedChannelCases.clear()
 			runCatching { writerJob.cancel() }
+			// Nothing written on this connection will be answered now.
+			synchronized(awaitingEchoes) { awaitingEchoes.clear() }
+			synchronized(modeQueries) { modeQueries.clear() }
+			synchronized(whoRequests) { whoRequests.clear() }
+			modeReplyOpen = null
 			runCatching { pingJob.cancel() }
 			runCatching { registrationWatchdogJob.cancel() }
 			// Attempt graceful SSL close_notify only when the connection ended cleanly
@@ -6392,1185 +2833,4 @@ val numericHandlers: Map<String, suspend (IrcMessage, Long?, Boolean, Long) -> U
 		}
 	}
 
-		private fun parseDccSend(textRaw: String): DccOffer? {
-		// CTCP wrapper: \u0001DCC SEND|TSEND <filename> <ip> <port> <size> [token]\u0001
-		if (!textRaw.startsWith("\u0001DCC ", ignoreCase = false) || !textRaw.endsWith("\u0001")) return null
-
-		val inner = textRaw.removePrefix("\u0001").removeSuffix("\u0001").trim()
-		if (!inner.startsWith("DCC ", ignoreCase = true)) return null
-
-		val afterDcc = inner.drop(3).trimStart() // remove "DCC"
-		val verbRaw = afterDcc.substringBefore(' ')
-		val verb = verbRaw.uppercase(Locale.ROOT)
-		if (verb != "SEND" && verb != "TSEND" && verb != "SSEND") return null
-		val rest = afterDcc.substring(verbRaw.length).trimStart()
-		if (rest.isBlank()) return null
-
-		// Filename
-		val (filename, afterName) = if (rest.startsWith('"')) {
-			val endQuote = rest.indexOf('"', startIndex = 1)
-			if (endQuote <= 0) return null
-			rest.substring(1, endQuote) to rest.substring(endQuote + 1).trim()
-		} else {
-			val firstSpace = rest.indexOf(' ')
-			if (firstSpace <= 0) return null
-			rest.substring(0, firstSpace) to rest.substring(firstSpace + 1).trim()
-		}
-
-		val parts = afterName.split(Regex("\\s+")).filter { it.isNotBlank() }
-		if (parts.size < 3) return null
-
-		val ipField = parts[0]
-		val port = parts[1].toIntOrNull()?.takeIf { it in 0..65535 } ?: return null
-		val size = parts[2].toLongOrNull()?.takeIf { it >= 0L } ?: 0L
-
-		// SSEND: TLS-wrapped transfer.
-		val secure = verb == "SSEND"
-
-		// Turbo DCC:
-		// - If TSEND, receiver SHOULD NOT send ACKs.
-		// - Some clients append 'T' to the reverse-DCC token to signal turbo.
-		var turbo = verb == "TSEND"
-		var token: Long? = null
-		parts.getOrNull(3)?.let { tokRaw ->
-			val t = tokRaw.trim()
-			val hasT = t.endsWith("T", ignoreCase = true)
-			val numeric = if (hasT) t.dropLast(1) else t
-			turbo = turbo || hasT
-			token = numeric.toLongOrNull()
-		}
-
-		val ip = parseDccAddress(ipField) ?: return null
-		// Reject malformed passive offers: a port=0 SEND is only meaningful with a token
-		// (reverse DCC handshake). Without one we'd dispatch it to receive() which immediately
-		// throws on the port>0 require(), surfacing a confusing error to the user. Drop them
-		// silently. the sender's client is misbehaving and the user can't do anything useful
-		// with a port=0/no-token offer anyway.
-		if (port == 0 && token == null) return null
-		return DccOffer(from = "?", filename = filename, ip = ip, port = port, size = size, token = token, turbo = turbo, secure = secure)
-	}
-
-	private fun parseDccResume(textRaw: String): DccResume? {
-		val p = parseDccResumeLike(textRaw, "RESUME") ?: return null
-		return DccResume(filename = p.filename, port = p.port, position = p.position, token = p.token)
-	}
-
-	private fun parseDccAccept(textRaw: String): DccAccept? {
-		val p = parseDccResumeLike(textRaw, "ACCEPT") ?: return null
-		return DccAccept(filename = p.filename, port = p.port, position = p.position, token = p.token)
-	}
-
-	private data class DccResumeLikePayload(val filename: String, val port: Int, val position: Long, val token: Long?)
-
-	/**
-	 * Parse DCC RESUME or DCC ACCEPT (same format: `<filename> <port> <position> [token]`, filename
-	 * optionally quoted; passive resume has port 0 and a token). Null unless the line is a
-	 * well-formed [expectedVerb].
-	 */
-	private fun parseDccResumeLike(textRaw: String, expectedVerb: String): DccResumeLikePayload? {
-		if (!textRaw.startsWith("\u0001DCC ", ignoreCase = false) || !textRaw.endsWith("\u0001")) return null
-
-		val inner = textRaw.removePrefix("\u0001").removeSuffix("\u0001").trim()
-		if (!inner.startsWith("DCC ", ignoreCase = true)) return null
-
-		val afterDcc = inner.drop(3).trimStart() // remove "DCC"
-		val verbRaw = afterDcc.substringBefore(' ')
-		if (!verbRaw.equals(expectedVerb, ignoreCase = true)) return null
-
-		val rest = afterDcc.substring(verbRaw.length).trimStart()
-		if (rest.isBlank()) return null
-
-		// Filename (quoted or unquoted) — same logic as parseDccSend.
-		val (filename, afterName) = if (rest.startsWith('"')) {
-			val endQuote = rest.indexOf('"', startIndex = 1)
-			if (endQuote <= 0) return null
-			rest.substring(1, endQuote) to rest.substring(endQuote + 1).trim()
-		} else {
-			val firstSpace = rest.indexOf(' ')
-			if (firstSpace <= 0) return null
-			rest.substring(0, firstSpace) to rest.substring(firstSpace + 1).trim()
-		}
-
-		val parts = afterName.split(Regex("\\s+")).filter { it.isNotBlank() }
-		if (parts.size < 2) return null
-
-		val port = parts[0].toIntOrNull() ?: return null
-		val position = parts[1].toLongOrNull() ?: return null
-		if (port < 0 || position < 0L) return null
-
-		val token: Long? = parts.getOrNull(2)?.toLongOrNull()
-		// Passive RESUME/ACCEPT (port==0) MUST carry a token. Active form (port>0) may or
-		// may not carry one — some clients echo the token even on active resume to be
-		// helpful. Either is fine.
-		if (port == 0 && token == null) return null
-
-		return DccResumeLikePayload(filename = filename, port = port, position = position, token = token)
-	}
-
-	private fun parseDccChat(textRaw: String): DccChatOffer? {
-		// CTCP wrapper: \u0001DCC CHAT|SCHAT <proto> <ip> <port>\u0001
-		if (!textRaw.startsWith("\u0001DCC ") || !textRaw.endsWith("\u0001")) return null
-
-		val inner = textRaw.removePrefix("\u0001").removeSuffix("\u0001").trim()
-		if (!inner.startsWith("DCC ", ignoreCase = true)) return null
-
-		val afterDcc = inner.drop(3).trimStart() // remove "DCC"
-		val verbRaw = afterDcc.substringBefore(' ')
-		val verb = verbRaw.uppercase(Locale.ROOT)
-		if (verb != "CHAT" && verb != "SCHAT") return null
-
-		// SCHAT: TLS-wrapped chat session.
-		val secure = verb == "SCHAT"
-
-		val rest = afterDcc.substring(verbRaw.length).trimStart()
-		val parts = rest.split(Regex("\\s+")).filter { it.isNotBlank() }
-		if (parts.size < 3) return null
-
-		val proto = parts[0]
-		val ipField = parts[1]
-		val port = parts[2].toIntOrNull() ?: return null
-		// Passive (port 0) chat is not supported.
-		if (port !in 1..65535) return null
-		val ip = parseDccAddress(ipField) ?: return null
-
-		return DccChatOffer(from = "?", protocol = proto, ip = ip, port = port, secure = secure)
-	}
-
-	private fun ipFromLong(v: Long): String {
-		val b1 = (v shr 24) and 255
-		val b2 = (v shr 16) and 255
-		val b3 = (v shr 8) and 255
-		val b4 = v and 255
-		return "$b1.$b2.$b3.$b4"
-	}
-
-	/**
-	 * Parse a DCC offer's address field: a 32-bit integer, a dotted IPv4 quad or an IPv6 literal.
-	 * Hostnames are rejected, so a crafted offer can't trigger a DNS lookup that would leak outside
-	 * a SOCKS/Tor tunnel.
-	 */
-	private fun parseDccAddress(ipField: String): String? {
-		val f = ipField.trim()
-		// IPv6 literal. May arrive bracketed (some clients wrap it in [ ]); strip those.
-		if (f.contains(':')) {
-			val literal = f.removePrefix("[").removeSuffix("]")
-			return if (isIpv6Literal(literal)) literal else null
-		}
-		if (f.contains('.')) {
-			// Dotted quad: exactly four octets of one to three ASCII digits, each 0..255.
-			val octets = f.split('.')
-			if (octets.size != 4) return null
-			if (octets.any { it.length !in 1..3 || !it.all { c -> c.isAsciiDigit() } || it.toInt() > 255 }) return null
-			return f
-		}
-		// Classic 32-bit integer form (IPv4 only).
-		if (f.isEmpty() || !f.all { it.isAsciiDigit() }) return null
-		val v = f.toLongOrNull() ?: return null
-		if (v !in 0L..0xFFFFFFFFL) return null
-		return ipFromLong(v)
-	}
-
-	/**
-	 * Syntactic IPv6 literal check with no name resolution. Accepts "::" compression and a trailing
-	 * dotted IPv4 part; rejects scope ids. [validateRemoteIp] still screens the address afterwards.
-	 */
-	private fun isIpv6Literal(s: String): Boolean {
-		if (s.isEmpty() || s.length > 45 || s.contains('%')) return false
-
-		// Detach an optional embedded IPv4 tail and validate it; replace with two synthetic
-		// hex groups so the remainder can be counted as plain 16-bit groups below.
-		var work = s
-		val lastColon = s.lastIndexOf(':')
-		if (lastColon >= 0 && s.substring(lastColon + 1).contains('.')) {
-			val v4 = s.substring(lastColon + 1)
-			val octets = v4.split('.')
-			if (octets.size != 4) return false
-			for (p in octets) {
-				if (p.isEmpty() || p.length > 3 || p.any { !it.isAsciiDigit() }) return false
-				if ((p.toIntOrNull() ?: -1) !in 0..255) return false
-			}
-			work = s.substring(0, lastColon) + ":0:0"
-		}
-
-		// At most one "::".
-		val dc = work.indexOf("::")
-		if (dc != work.lastIndexOf("::")) return false
-
-		fun countGroups(part: String): Int? {
-			if (part.isEmpty()) return 0
-			val groups = part.split(':')
-			for (g in groups) {
-				if (g.isEmpty() || g.length > 4 || g.any { it.lowercaseChar() !in "0123456789abcdef" }) return null
-			}
-			return groups.size
-		}
-
-		return if (dc >= 0) {
-			val l = countGroups(work.substring(0, dc)) ?: return false
-			val r = countGroups(work.substring(dc + 2)) ?: return false
-			// "::" stands in for >= 1 zero group, so the explicit groups must total < 8.
-			l + r <= 7
-		} else {
-			countGroups(work) == 8
-		}
-	}
-	private fun openSocket(): Socket {
-		// Sane socket defaults for mobile networks.
-		// - connect timeout avoids hanging forever on bad networks
-		// - read timeout helps detect half-open connections (ping loop also guards this)
-		fun baseSocket(): Socket = Socket().apply {
-			tcpNoDelay = config.tcpNoDelay
-			keepAlive = config.keepAlive
-			soTimeout = config.readTimeoutMs
-		}
-
-		// When proxying, the destination is NOT resolved on-device — the proxy resolves it
-		// remotely (mandatory for Tor `.onion`, and a DNS-leak guard for clearnet). So the
-		// whole Happy-Eyeballs local-resolution loop below is bypassed; SocksProxy returns a
-		// single already-connected raw socket that the TLS branch wraps just like a direct one.
-		val proxyEnabled = config.proxy.enabled
-
-		/**
-		 * Open the underlying (pre-TLS) TCP socket to the destination, either directly via
-		 * Happy-Eyeballs or through the configured SOCKS proxy. The TLS and plaintext paths
-		 * both build on this so the proxy logic lives in exactly one place.
-		 */
-		fun openRawSocket(): Socket {
-			if (proxyEnabled) {
-				// The handshake leaves soTimeout at readTimeoutMs; socket options are applied
-				// inside SocksProxy.connect to match baseSocket().
-				return SocksProxy.connect(
-					cfg = config.proxy,
-					destHost = config.host,
-					destPort = config.port,
-					connectTimeoutMs = config.connectTimeoutMs,
-					soTimeoutMs = config.readTimeoutMs,
-					tcpNoDelay = config.tcpNoDelay,
-					keepAlive = config.keepAlive,
-					pinnedNetwork = config.pinnedNetwork,
-				)
-			}
-			// FAIL CLOSED: if a proxy was selected but is misconfigured (e.g. blank host or
-			// out-of-range port), do NOT silently fall back to a direct connection — that
-			// would leak the real connection outside the tunnel the user explicitly asked
-			// for. Refuse instead, with a message pointing at the fix.
-			if (config.proxy.type != com.boxlabs.hexdroid.connection.ProxyType.NONE) {
-				throw java.io.IOException(
-					"Proxy is enabled for this network but misconfigured (host/port invalid). " +
-					"Refusing to connect directly. Check the proxy settings."
-				)
-			}
-			// Direct connection: resolve every A and AAAA address and try each in turn, taking the
-			// first that connects. When pinned to a network, resolve on that network too.
-			val resolved: Array<InetAddress> = try {
-				resolveAllWithTimeout(config.host, config.pinnedNetwork, config.connectTimeoutMs)
-			} catch (uhe: java.net.UnknownHostException) {
-				throw java.net.UnknownHostException("Unable to resolve ${config.host}: ${uhe.message ?: "no DNS record"}")
-			}
-			require(resolved.isNotEmpty()) { "No addresses resolved for ${config.host}" }
-			var lastError: Throwable? = null
-			for (addr in resolved) {
-				val s = baseSocket()
-				try {
-					// Pin to the chosen interface BEFORE connect (bindSocket requires an
-					// unconnected socket). runCatching: if the network vanished between
-					// selection and now, fall through to default routing. the connect will
-					// then fail on a dead network and auto-reconnect handles it.
-					config.pinnedNetwork?.let { net -> runCatching { net.bindSocket(s) } }
-					s.connect(InetSocketAddress(addr, config.port), config.connectTimeoutMs)
-					return s
-				} catch (t: Throwable) {
-					runCatching { s.close() }
-					lastError = t
-				}
-			}
-			throw lastError ?: java.net.ConnectException("All resolved addresses failed for ${config.host}")
-		}
-
-		return if (!config.useTls) {
-			// Plaintext IRC: just the raw socket (direct Happy-Eyeballs, or via the proxy).
-			openRawSocket()
-		} else {
-			// Shared SSLContext cache: reconnects to the same profile reuse the same context
-			// and therefore the same JSSE session cache, letting the platform perform TLS
-			// session resumption (abbreviated handshake). Cuts a round-trip on reconnects.
-			//
-			// SSLContext.init() may only be called ONCE per context instance, so the cache key
-			// must encode every aspect of the context's behaviour, see SslContextKey above.
-			val clientCert = config.clientCert
-			val cacheKey = SslContextKey(
-				allowInvalidCerts = config.allowInvalidCerts,
-				keystoreAlias = clientCert?.keystoreAlias,
-				pkcs12Sha256 = clientCert?.takeIf { it.keystoreAlias == null }?.let { sha256Hex(it.pkcs12) },
-				passwordSha256 = clientCert?.password?.let { sha256Hex(it.toByteArray(Charsets.UTF_8)) },
-				tlsTofuFingerprint = config.tlsTofuFingerprint,
-			)
-			// Pin mode follows allowInvalidCerts: off, the standard CA and hostname checks apply
-			// and any stored pin is ignored; on, a permissive trust manager is used and the pin is
-			// checked (or learned) after the handshake.
-			val pinMode = config.allowInvalidCerts
-			// A context built without the network's certificate (Keystore unavailable) is used for
-			// this connection only, so the next connect tries the Keystore again.
-			var cacheable = true
-			val sslContext = sslContextCache[cacheKey] ?: run {
-				val ctx = SSLContext.getInstance("TLS")
-				val tm = if (pinMode) arrayOf<TrustManager>(InsecureTrustManager()) else null
-				val km: Array<KeyManager>? = config.clientCert?.let { cert ->
-					try {
-						val alias = cert.keystoreAlias
-						if (alias != null) {
-							// A per-network certificate is made the first time it's needed. This
-							// runs on the connect thread, since Keystore generation is slow. If the
-							// Keystore can't make or read it, connect without one rather than not at all.
-							try {
-								if (NetworkCertificates.ensure(alias)) netCertCreated = true
-								arrayOf<KeyManager>(KeystoreKeyManager(alias))
-							} catch (t: Throwable) {
-								android.util.Log.w("IrcCore", "network certificate unavailable", t)
-								netCertUnavailable = true
-								cacheable = false
-								null
-							}
-						} else {
-							val ks = KeyStore.getInstance("PKCS12")
-							val pwdChars = cert.password?.toCharArray()
-							ByteArrayInputStream(cert.pkcs12).use { ks.load(it, pwdChars) }
-							val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
-							kmf.init(ks, pwdChars)
-							kmf.keyManagers
-						}
-					} catch (t: Throwable) {
-						throw IllegalStateException(
-							"Client certificate could not be loaded: " + (t.message ?: t::class.java.simpleName),
-							t
-						)
-					}
-				}
-				ctx.init(km, tm, SecureRandom())
-				if (cacheable) sslContextCache.putIfAbsent(cacheKey, ctx) ?: ctx else ctx
-			}
-
-			// Obtain the underlying TCP socket (direct Happy-Eyeballs, or through the SOCKS
-			// proxy). When proxying, resolution + connect happen at the proxy; otherwise we
-			// try each resolved address until one connects. The TLS handshake below is then
-			// attempted exactly once on that socket — a TLS failure is a configuration issue
-			// (cert/protocol mismatch) where retrying a different IP wouldn't help and would
-			// only obscure the real cause.
-			val rawSocket = openRawSocket()
-
-			val ss = sslContext.socketFactory.createSocket(rawSocket, config.host, config.port, true) as SSLSocket
-			val allowed = ss.supportedProtocols.filter { it == "TLSv1.3" || it == "TLSv1.2" }
-			if (allowed.isNotEmpty()) ss.enabledProtocols = allowed.toTypedArray()
-
-			// Hostname verification (RFC 6125) runs post-handshake rather than via
-			// setEndpointIdentificationAlgorithm, so a mismatch can be reported with the names the
-			// certificate actually carries and accepted per profile. It fails closed either way.
-
-			// Bound the TLS handshake so a stalled negotiation fails and reconnects instead of
-			// hanging; the read timeout is restored afterwards.
-			ss.soTimeout = ConnectionConstants.TLS_HANDSHAKE_TIMEOUT_MS
-			try {
-				ss.startHandshake()
-            } catch (e: Exception) {
-                runCatching { ss.close() }
-                runCatching { rawSocket.close() }
-                // Flush this context's client session cache now so the immediate retry performs a clean FULL handshake.
-                // Only runs on failure, so successful reconnects keep the resumption fast-path.
-                runCatching {
-                    val sessions = sslContext.clientSessionContext
-                    val ids = sessions.ids
-                    while (ids.hasMoreElements()) {
-                        sessions.getSession(ids.nextElement())?.invalidate()
-                    }
-                }
-                throw e
-            }
-            ss.soTimeout = config.readTimeoutMs  // restore post-handshake timeout
-
-			// Skipped in pin mode, where the stored fingerprint is the identity proof.
-			if (!pinMode) {
-				val leaf = runCatching { ss.session.peerCertificates.firstOrNull() }
-					.getOrNull() as? java.security.cert.X509Certificate
-				if (leaf == null) {
-					runCatching { ss.close() }
-					runCatching { rawSocket.close() }
-					throw java.io.IOException("TLS: peer presented no X.509 certificate")
-				}
-				if (!hostnameMatchesCert(config.host, leaf)) {
-					val ids = certIdentities(leaf)
-					val accepted = config.tlsAcceptedIdentities.map { it.lowercase(Locale.ROOT) }.toSet()
-					val ok = ids.isNotEmpty() && accepted.containsAll(ids.map { it.lowercase(Locale.ROOT) })
-					if (!ok) {
-						runCatching { ss.close() }
-						runCatching { rawSocket.close() }
-						throw TlsHostnameMismatchException(expected = config.host, identities = ids)
-					}
-				}
-			}
-
-			// TOFU pinning after the handshake, only with invalid certificates allowed: hash the
-			// leaf certificate; with no pin stored, learn it (emitted as TlsFingerprintLearned);
-			// otherwise compare it with the primary and extra pins and throw
-			// [TlsFingerprintMismatchException] on mismatch. With a pin stored, any failure to
-			// check is fatal; without one, it is logged and skipped.
-			val storedRaw = config.tlsTofuFingerprint?.takeIf { it.isNotBlank() }
-			if (!config.allowInvalidCerts) {
-				// CA-validated connection. TOFU is dormant: any stored fingerprint stays in
-				// the profile (so flipping invalid-certs back on later picks up where it left
-				// off), but is neither verified against nor learned from this connection.
-				// The handshake's standard trust path is the authority here.
-			} else if (storedRaw != null) {
-				// Pin enforcement path: any failure here closes the socket and propagates.
-				val actualFp = try {
-					val peerCerts = ss.session.peerCertificates
-					val leaf = peerCerts.firstOrNull() as? java.security.cert.X509Certificate
-						?: throw java.io.IOException("TLS pin enforcement: peer presented no X.509 certificate")
-					computeFingerprintSha256(leaf)
-				} catch (t: Throwable) {
-					runCatching { ss.close() }
-					runCatching { rawSocket.close() }
-					if (t is java.io.IOException) throw t
-					throw java.io.IOException("TLS pin enforcement failed: ${t.message ?: t::class.java.simpleName}", t)
-				}
-				val storedNorm = normaliseFingerprint(storedRaw)
-				// Round-robin DNS: accept the connection if the fingerprint matches the primary pin
-				// or any of the extra accepted pins, since each server behind the name has its own
-				// certificate.
-				val acceptedNormSet = config.tlsTofuFingerprints
-					.asSequence()
-					.map { normaliseFingerprint(it) }
-					.toSet() + storedNorm
-				if (!acceptedNormSet.any { it.equals(actualFp, ignoreCase = true) }) {
-					runCatching { ss.close() }
-					runCatching { rawSocket.close() }
-					throw TlsFingerprintMismatchException(
-						stored = storedNorm,
-						actual = actualFp,
-					)
-				}
-			} else {
-				// Learning path: best-effort. Only reached when allowInvalidCerts is on AND
-				// no pin is stored yet - exactly the "first connect to a self-signed bouncer"
-				// case TOFU is designed for.
-				runCatching {
-					val peerCerts = ss.session.peerCertificates
-					val leaf = peerCerts.firstOrNull() as? java.security.cert.X509Certificate
-					if (leaf != null) {
-						learnedFingerprint = computeFingerprintSha256(leaf)
-					}
-				}
-			}
-
-			// Capture basic session info for UI (cipher/protocol/cert subject).
-			// The trust-mode label states what authenticated the peer.
-			lastTlsInfo = runCatching {
-				val sess = ss.session
-				val proto = sess.protocol ?: "?"
-				val cipher = sess.cipherSuite ?: "?"
-				val peer = runCatching { sess.peerPrincipal?.name }.getOrNull()
-				//   pinned          - TOFU fingerprint matched; chain was bypassed.
-				//   unverified      - invalid-certs on, nothing pinned yet.
-				//   verified        - CA chain and RFC 6125 hostname both passed.
-				//   name accepted   - CA chain passed, hostname accepted by the user.
-				val pinned = config.allowInvalidCerts && !config.tlsTofuFingerprint.isNullOrBlank()
-				val nameMatched = pinned || config.allowInvalidCerts ||
-					runCatching {
-						(ss.session.peerCertificates.firstOrNull() as? java.security.cert.X509Certificate)
-							?.let { hostnameMatchesCert(config.host, it) } ?: false
-					}.getOrDefault(false)
-				val verified = when {
-					pinned -> "(pinned)"
-					config.allowInvalidCerts -> "(unverified)"
-					nameMatched -> "(verified)"
-					else -> "(name accepted)"
-				}
-				val peerShort = peer?.substringAfter("CN=")?.substringBefore(',')?.takeIf { it.isNotBlank() }
-					?: peer
-					?: "peer"
-				"$proto $cipher $verified • $peerShort"
-			}.getOrNull()
-
-			// Apply socket options on the wrapped SSLSocket as well.
-			ss.tcpNoDelay = config.tcpNoDelay
-			ss.keepAlive = config.keepAlive
-			ss.soTimeout = config.readTimeoutMs
-
-			ss
-		}
-	}
-
-	/**
-	 * Turn raw exception text, especially OpenSSL/BoringSSL messages, into something a user can act
-	 * on. Walks the cause chain, since Android often wraps the real error.
-	 */
-	/**
-	 * Classify [t] as a [DisconnectCode] from the raw exception text, which is always English,
-	 * rather than from the translated friendly message.
-	 */
-	private fun errorCode(t: Throwable): DisconnectCode {
-		val chain = generateSequence<Throwable>(t) { it.cause.takeIf { c -> c !== it } }
-			.take(8)
-			.toList()
-		val raw = chain.mapNotNull { it.message }.joinToString(" | ")
-		val anyIs: (Class<out Throwable>) -> Boolean = { cls -> chain.any { cls.isInstance(it) } }
-		fun has(vararg needles: String) = needles.any { raw.contains(it, ignoreCase = true) }
-
-		return when {
-			anyIs(java.net.UnknownHostException::class.java) ||
-				has("UnknownHost", "No address associated", "nodename nor servname",
-					"Name or service not known", "resolution timed out") ->
-				DisconnectCode.HOST_UNREACHABLE
-			has("Connection refused") -> DisconnectCode.HOST_UNREACHABLE
-			anyIs(SSLHandshakeException::class.java) ||
-				has("CERTIFICATE_VERIFY_FAILED", "CertPathValidatorException",
-					"PROTOCOL_VERSION", "NO_PROTOCOLS_AVAILABLE", "HANDSHAKE_FAILURE",
-					"TLS pin enforcement") ->
-				DisconnectCode.TLS_UNRECOVERABLE
-			has("Connection reset", "ECONNRESET", "Broken pipe") ->
-				DisconnectCode.CONNECTION_RESET
-			anyIs(java.net.SocketTimeoutException::class.java) ||
-				has("Connection timed out", "connect timed out", "read timed out") ->
-				DisconnectCode.READ_TIMEOUT
-			else -> DisconnectCode.CONNECTION_ERROR
-		}
-	}
-
-	/**
-	 * As [errorCode], but for a failure during the connect attempt: anything not recognised
-	 * as a specific unrecoverable cause is CONNECT_FAILED rather than CONNECTION_ERROR, so
-	 * the VM can tell "never got a session" from "session died".
-	 */
-	private fun connectFailureCode(t: Throwable): DisconnectCode {
-		val code = errorCode(t)
-		return if (code == DisconnectCode.HOST_UNREACHABLE || code == DisconnectCode.TLS_UNRECOVERABLE) {
-			code
-		} else {
-			DisconnectCode.CONNECT_FAILED
-		}
-	}
-
-	private fun friendlyErrorMessage(t: Throwable): String {
-		// Walk the cause chain (bounded to 8 hops to avoid pathological cycles) so the
-		// message-substring checks can match regardless of which wrapper level carries
-		// the diagnostic string.
-		val chain = generateSequence<Throwable>(t) { it.cause.takeIf { c -> c !== it } }
-			.take(8)
-			.toList()
-		// Dedup the cause chain BEFORE joining.
-		val raw = chain.mapNotNull { it.message?.trim()?.takeIf { s -> s.isNotEmpty() } }
-			.distinct()
-			.joinToString(" | ")
-			.ifBlank { t::class.java.simpleName }
-		val anyIs: (Class<out Throwable>) -> Boolean = { cls -> chain.any { cls.isInstance(it) } }
-
-		// Proxy (SOCKS) failures: surface the proxy's own diagnostic, which SocksProxy already
-		// phrases for humans ("connection refused by destination", "proxy requires username…").
-		// Prefix so the user knows the failure was at the proxy hop, not the IRC server.
-		if (anyIs(com.boxlabs.hexdroid.connection.ProxyException::class.java)) {
-			val msg = chain.firstNotNullOfOrNull {
-				(it as? com.boxlabs.hexdroid.connection.ProxyException)?.message
-			} ?: raw
-			return tr(R.string.core_err_proxy, msg)
-		}
-
-		// SSL handshake failures (certificate problems, protocol mismatch).
-		// Hostname mismatch is not here: it raises TlsHostnameMismatchException post-handshake,
-		// never an SSLHandshakeException.
-		if (anyIs(SSLHandshakeException::class.java)) {
-			return when {
-				raw.contains("CERTIFICATE_VERIFY_FAILED", ignoreCase = true) ||
-				raw.contains("CertPathValidatorException", ignoreCase = true) ->
-					tr(R.string.core_err_tls_cert_verify)
-				raw.contains("PROTOCOL_VERSION", ignoreCase = true) ||
-				raw.contains("NO_PROTOCOLS_AVAILABLE", ignoreCase = true) ->
-					tr(R.string.core_err_tls_protocol)
-				raw.contains("HANDSHAKE_FAILURE", ignoreCase = true) ->
-					tr(R.string.core_err_tls_rejected)
-				else ->
-					tr(R.string.core_err_tls_handshake_other, raw.take(120))
-			}
-		}
-
-		// General SSL exceptions (mid-session errors)
-		if (anyIs(SSLException::class.java)) {
-			return when {
-				// BoringSSL "Success" (TCP closed without close_notify) and "Internal OpenSSL
-				// error" (a stale session after the app was killed) aren't actionable; the
-				// reconnect handles them.
-				raw.contains(", Success", ignoreCase = false) ||
-				raw.contains("I/O error during system call, Success", ignoreCase = true) ||
-				raw.contains("Internal error in SSL library", ignoreCase = true) ||
-				raw.contains("SSL_ERROR_INTERNAL", ignoreCase = true) ||
-				raw.contains("Internal OpenSSL error", ignoreCase = true) ||
-				raw.contains("or protocol error", ignoreCase = true) ->
-					tr(R.string.core_err_tls_interrupted)
-				raw.contains("Connection reset", ignoreCase = true) ||
-				raw.contains("ECONNRESET", ignoreCase = true) ->
-					tr(R.string.core_err_connection_reset)
-				raw.contains("PROTOCOL_ERROR", ignoreCase = true) ||
-				raw.contains("protocol_error", ignoreCase = true) ->
-					tr(R.string.core_err_tls_proto_error)
-				raw.contains("Read error", ignoreCase = true) ||
-				raw.contains("SSL_ERROR_SYSCALL", ignoreCase = true) ->
-					tr(R.string.core_err_tls_read)
-				raw.contains("write", ignoreCase = true) ->
-					tr(R.string.core_err_tls_write)
-				raw.contains("closed", ignoreCase = true) ||
-				raw.contains("shutdown", ignoreCase = true) ->
-					tr(R.string.core_err_tls_closed)
-				else ->
-					tr(R.string.core_err_tls_other, raw.take(120))
-			}
-		}
-
-		// Non-SSL socket/IO errors
-		return when {
-			raw.contains("Connection refused", ignoreCase = true) ->
-				tr(R.string.core_err_connection_refused)
-			raw.contains("Network is unreachable", ignoreCase = true) ->
-				tr(R.string.core_err_network_unreachable)
-			raw.contains("Connection timed out", ignoreCase = true) ||
-			raw.contains("connect timed out", ignoreCase = true) ->
-				tr(R.string.core_err_connection_timed_out)
-			raw.contains("resolution timed out", ignoreCase = true) ->
-				tr(R.string.core_err_dns_timeout)
-			raw.contains("UnknownHost", ignoreCase = true) ||
-			raw.contains("No address associated", ignoreCase = true) ->
-				tr(R.string.core_err_dns_failed)
-			raw.contains("Broken pipe", ignoreCase = true) ->
-				tr(R.string.core_err_broken_pipe)
-			raw.contains("Connection reset", ignoreCase = true) ->
-				tr(R.string.core_err_connection_reset)
-			raw.contains("Socket closed", ignoreCase = true) ->
-				tr(R.string.core_err_connection_closed)
-			else ->
-				raw.take(160)
-		}
-	}
-
-	@SuppressLint("TrustAllX509TrustManager")
-	private class InsecureTrustManager : X509TrustManager {
-		override fun getAcceptedIssuers() = arrayOf<java.security.cert.X509Certificate>()
-		override fun checkClientTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
-		override fun checkServerTrusted(chain: Array<java.security.cert.X509Certificate>, authType: String) {}
-	}
-
-	/**
-	 * Sentinel exception thrown from [openSocket] when a TOFU-pinned server presents a
-	 * certificate whose SHA-256 fingerprint does NOT match the stored one. Carries both the
-	 * expected (stored) and presented (actual) fingerprints so the [events] flow can surface
-	 * them to the user via [IrcEvent.TlsFingerprintChanged]. This is a distinct type (not a
-	 * plain IOException) so the flow can recognise it without string-matching the message.
-	 */
-	private class TlsFingerprintMismatchException(
-		val stored: String,
-		val actual: String,
-	) : java.io.IOException(
-		"TLS certificate fingerprint mismatch — expected $stored, got $actual"
-	)
-
-	private class TlsHostnameMismatchException(
-		val expected: String,
-		val identities: List<String>,
-	) : java.io.IOException(
-		"TLS certificate is not valid for $expected (cert names: ${identities.joinToString(", ").ifEmpty { "none" }})"
-	)
-
-	/**
-	 * Compute the SHA-256 fingerprint of an X.509 certificate's DER encoding, formatted as
-	 * lowercase hex pairs separated by colons (e.g. "a1:b2:c3:…"). This is the canonical
-	 * representation used by OpenSSL, Firefox, and most IRC clients that expose TOFU, so it
-	 * round-trips cleanly if a user ever wants to copy-paste a fingerprint between tools.
-	 */
-	private fun computeFingerprintSha256(cert: java.security.cert.X509Certificate): String {
-		val der = cert.encoded
-		val md = java.security.MessageDigest.getInstance("SHA-256")
-		val digest = md.digest(der)
-		val sb = StringBuilder(digest.size * 3)
-		for ((i, b) in digest.withIndex()) {
-			if (i > 0) sb.append(':')
-			sb.append(String.format("%02x", b.toInt() and 0xFF))
-		}
-		return sb.toString()
-	}
-
-	/**
-	 * RFC 6125 check of [host] against the certificate's SAN DNS and IP entries. A wildcard matches
-	 * only as the whole left-most label (`*.example.com` matches `irc.example.com`, not
-	 * `a.b.example.com`). IPs are compared as strings. The subject CN is not used.
-	 */
-	private fun hostnameMatchesCert(host: String, cert: java.security.cert.X509Certificate): Boolean {
-		val hostLower = host.lowercase(Locale.ROOT).trimEnd('.')
-		val sans = runCatching { cert.subjectAlternativeNames }.getOrNull() ?: return false
-		for (entry in sans) {
-			val type = entry.getOrNull(0) as? Int ?: continue
-			val value = (entry.getOrNull(1) as? String)?.lowercase(Locale.ROOT) ?: continue
-			when (type) {
-				2 /* dNSName */ -> if (dnsNameMatches(hostLower, value)) return true
-				7 /* iPAddress */ -> if (ipAddressMatches(hostLower, value)) return true
-			}
-		}
-		return false
-	}
-
-	private fun ipAddressMatches(host: String, value: String): Boolean {
-		if (host == value) return true
-		return runCatching {
-			java.net.InetAddress.getByName(host) == java.net.InetAddress.getByName(value)
-		}.getOrDefault(false)
-	}
-
-	/**
-	 * Every identity an X.509 certificate claims: SAN dNSNames, SAN iPAddresses, and the subject
-	 * CN. The CN is reported but never matched on ([hostnameMatchesCert] follows RFC 6125 §6.4.4).
-	 */
-	private fun certIdentities(cert: java.security.cert.X509Certificate): List<String> {
-		val out = LinkedHashSet<String>()
-		runCatching { cert.subjectAlternativeNames }.getOrNull()?.forEach { entry ->
-			val type = entry.getOrNull(0) as? Int
-			val value = entry.getOrNull(1) as? String
-			if ((type == 2 || type == 7) && !value.isNullOrBlank()) out.add(value.lowercase(Locale.ROOT))
-		}
-		runCatching {
-			val dn = cert.subjectX500Principal.getName(javax.security.auth.x500.X500Principal.RFC2253)
-			Regex("(?:^|,)CN=([^,]+)").find(dn)?.groupValues?.get(1)
-		}.getOrNull()?.trim()?.takeIf { it.isNotBlank() }?.let { out.add(it.lowercase(Locale.ROOT)) }
-		return out.toList()
-	}
-
-	private fun dnsNameMatches(host: String, pattern: String): Boolean {
-		if (host == pattern) return true
-		// Leftmost-only wildcard: "*.example.com" matches "irc.example.com" but not
-		// "a.b.example.com" and not "example.com" itself.
-		if (pattern.startsWith("*.")) {
-			val suffix = pattern.substring(1) // ".example.com"
-			if (!host.endsWith(suffix)) return false
-			val prefix = host.dropLast(suffix.length)
-			// Prefix must be exactly one label: non-empty and no dots.
-			return prefix.isNotEmpty() && !prefix.contains('.')
-		}
-		return false
-	}
-
-	/**
-	 * Normalise a TOFU fingerprint string for comparison. The stored value SHOULD already
-	 * be lowercase colon-separated hex (we emit it that way in [computeFingerprintSha256])
-	 * but accept a few common variations defensively: uppercase hex, missing colons, or
-	 * stray whitespace. This way a user who pastes a fingerprint from OpenSSL or a browser
-	 * into the profile JSON by hand doesn't get locked out by formatting alone.
-	 */
-	private fun normaliseFingerprint(raw: String): String {
-		val cleaned = raw.trim().lowercase().filter { it.isLetterOrDigit() }
-		// Re-insert colons between byte pairs.
-		return buildString(cleaned.length + cleaned.length / 2) {
-			for (i in cleaned.indices) {
-				if (i > 0 && i % 2 == 0) append(':')
-				append(cleaned[i])
-			}
-		}
-	}
-
-	private fun formatNumeric(msg: IrcMessage): String? {
-		val code = msg.command
-		if (code.length != 3 || !code.all { it.isDigit() }) return null
-
-		// Don't double-emit for numerics that already have dedicated events.
-		// SASL numerics 903-908 are emitted as IrcEvent.Status/Error by IrcSession's
-		// CAP/SASL state machine; they must be suppressed here or the user sees the
-		// success/failure message twice (once as a clean Status, once as raw ServerText).
-		// 900 (RPL_LOGGEDIN), 901 (RPL_LOGGEDOUT), and 902 (ERR_NICKLOCKED) are NOT
-		// handled by IrcSession, so they fall through to the generic ServerText path.
-		if (code in setOf(
-				"001","005","315","321","322","323","324","332","333","352","353","366","367","368","381",
-				"433","442","471","472","473","474","475","476","477",
-				// draft/metadata-2 numerics: handled by dedicated handlers (761/766 update the
-				// nick display silently; 770/771/772 emit a friendly status line; 774 retries).
-				// Must return null here too, or the generic formatter's fallback echoes them.
-				"761","766","770","771","772","774",
-				"903","904","905","906","907","908"
-			)) return null
-
-		fun p(i: Int) = msg.params.getOrNull(i)
-		// Strip IRC formatting for most numerics, but preserve it for MOTD lines (372/375/376)
-		// so mIRC colours and bold/italic show up when the user has them enabled in settings.
-		// The rendering layer (IrcLinkifiedText) decides whether to show or strip colours
-		// based on the mircColorsEnabled setting.
-		val motdCodes = setOf("372", "375", "376")
-		val t = msg.trailing?.let { if (code in motdCodes) it else stripIrcFormatting(it) }
-
-		return when (code) {
-			// MOTD - pass raw text so colours/formatting are preserved for the renderer
-			"375" -> t ?: tr(R.string.core_motd_start)
-			"372" -> t ?: p(1) ?: ""
-			"376" -> t ?: tr(R.string.core_motd_end)
-			"422" -> t ?: tr(R.string.core_no_motd)
-
-			// ISUPPORT
-			"005" -> {
-				val tokens = msg.params.drop(1).filter { it.isNotBlank() }
-				if (tokens.isEmpty()) null else "ISUPPORT: " + tokens.joinToString(" ")
-			}
-
-			// Host hidden
-			"396" -> {
-				// Typical: :server 396 <nick> <hiddenHost> :is now your hidden host
-				val hidden = p(1)
-				when {
-					hidden != null -> tr(R.string.core_hidden_host, hidden)
-					t != null -> t
-					else -> null
-				}
-			}
-
-			// LUSERS
-			"251" -> t ?: tr(R.string.core_lusers_251, p(1) ?: "?", p(2) ?: "?", p(3) ?: "?")
-			"252" -> {
-				val n = p(1) ?: return t
-				// Server trailing wins when present; our own wording is quantity-aware.
-				if (t != null) "$n $t"
-				else trPlural(R.plurals.core_lusers_operators, n.toIntOrNull() ?: 0, n)
-			}
-			"254" -> {
-				val n = p(1) ?: return t
-				// Server trailing wins when present; our own wording is quantity-aware.
-				if (t != null) "$n $t"
-				else trPlural(R.plurals.core_lusers_channels, n.toIntOrNull() ?: 0, n)
-			}
-			// Count is a middle param, wording is the trailing; both halves needed (cf. 252/254).
-			"253" -> {
-				val n = p(1) ?: return t
-				// Server trailing wins when present; our own wording is quantity-aware.
-				if (t != null) "$n $t"
-				else trPlural(R.plurals.core_lusers_unknown_conns, n.toIntOrNull() ?: 0, n)
-			}
-			"255" -> t ?: tr(R.string.core_lusers_255, p(1) ?: "?", p(2) ?: "?")
-			"265" -> t ?: tr(R.string.core_lusers_265, p(1) ?: "?", p(2) ?: "?")
-			"266" -> t ?: tr(R.string.core_lusers_266, p(1) ?: "?", p(2) ?: "?")
-
-			// Channel info
-			"328" -> t?.let { tr(R.string.core_channel_url, it) }
-			"329" -> {
-				val ts = (p(2) ?: t)?.toLongOrNull()?.times(1000L)
-				val date = ts?.let {
-					val sdf = SimpleDateFormat("EEE MMM dd HH:mm:ss yyyy", Locale.getDefault())
-					sdf.format(java.util.Date(it))
-				} ?: tr(R.string.core_unknown)
-				tr(R.string.core_channel_created, date)
-			}
-
-			// WHOIS / away / logged-in
-			"301" -> {
-				val nick = p(1) ?: return null
-				val awayMsg = t?.takeIf { it != "*" } ?: tr(R.string.core_away_default)
-				tr(R.string.core_whois_away, nick, awayMsg)
-			}
-			"307" -> {
-				val nick = p(1) ?: return null
-				t?.let { tr(R.string.core_whois_logged_in_as, nick, it) }
-			}
-			"311" -> {
-				val nick = p(1) ?: return null
-				val user = p(2) ?: "?"
-				val host = p(3) ?: "?"
-				val real = t ?: ""
-				"$nick is $user@$host ${if (real.isBlank()) "" else "($real)"}"
-			}
-			"312" -> {
-				val nick = p(1) ?: return null
-				val server = p(2) ?: "?"
-				val info = t ?: ""
-				"$nick using $server ${if (info.isBlank()) "" else "($info)"}"
-			}
-			"313" -> {
-				val nick = p(1) ?: return null
-				t ?: tr(R.string.core_whois_oper, nick)
-			}
-			"317" -> {
-				val nick = p(1) ?: return null
-				val idle = p(2)?.toLongOrNull()
-				val signon = p(3)?.toLongOrNull()
-				val idleStr = idle?.let { tr(R.string.core_whois_idle, it / 3600, (it % 3600) / 60, it % 60) } ?: ""
-				val signonStr = signon?.let { tr(R.string.core_whois_signon, java.util.Date(it * 1000L)) } ?: ""
-				listOf(idleStr, signonStr).filter { it.isNotBlank() }.joinToString(", ").let {
-					if (it.isBlank()) null else "$nick: $it"
-				}
-			}
-			"318" -> {
-				val nick = p(1) ?: return null
-				t ?: tr(R.string.core_whois_end)
-			}
-			"319" -> {
-				val nick = p(1) ?: return null
-				val chans = t ?: ""
-				tr(R.string.core_whois_channels, nick, chans)
-			}
-			"320" -> {
-				val nick = p(1) ?: return null
-				t ?: tr(R.string.core_whois_special, nick)
-			}
-			"330" -> {
-				// RPL_WHOISACCOUNT: <client> <nick> <account> :is logged in as
-				// (Trailing differs across IRCds — InspIRCd/UnrealIRCd say "is logged in as",
-				// ircd-seven says "is signed in as". Either way, account is in params[2].)
-				val nick = p(1) ?: return null
-				val account = p(2) ?: return null
-				// Server trailing wins; otherwise use a whole sentence so verb-final
-				// languages can order the nick and account themselves.
-				if (t != null && t.isNotBlank()) "$nick $t $account"
-				else tr(R.string.core_whois_logged_in_as, nick, account)
-			}
-			"335" -> {
-				val nick = p(1) ?: return null
-				t ?: tr(R.string.core_whois_bot, nick)
-			}
-			"338" -> {
-				// RPL_WHOISACTUALLY: <client> <nick> <ip> :Actual IP/host (varies by IRCd).
-				// Most IRCds put the resolved IP in params[2] and a description in trailing.
-				val nick = p(1) ?: return null
-				val info = (msg.params.drop(2) + listOfNotNull(t))
-					.filter { it.isNotBlank() }
-					.joinToString(" ")
-				if (info.isBlank()) tr(R.string.core_whois_actual_host, nick) else "$nick $info"
-			}
-			"378" -> {
-				// RPL_WHOISHOST: <client> <nick> :is connecting from <user>@<host> <ip>
-				val nick = p(1) ?: return null
-				t ?: return null
-				"$nick $t"
-			}
-			"276", "310", "337", "339", "344", "350" -> {
-				// Whois lines this client has no special layout for: certificate fingerprint,
-				// helpop, free text, marks, country, gateway. Rendered like the rest of the
-				// whois reply rather than through the numeric-prefixed fallback.
-				val nick = p(1) ?: return null
-				val rest = (msg.params.drop(2).map { stripIrcFormatting(it) } + listOfNotNull(t))
-					.filter { it.isNotBlank() }.joinToString(" ")
-				if (rest.isBlank()) return null
-				"$nick $rest"
-			}
-			"616" -> {
-				// RPL_WHOISCERTFP: <client> <nick> [<fp>] :has client certificate fingerprint <fp>
-				val nick = p(1) ?: return null
-				val rest = (msg.params.drop(2).map { stripIrcFormatting(it) } + listOfNotNull(t))
-					.filter { it.isNotBlank() }.joinToString(" ")
-				if (rest.isBlank()) return null
-				"$nick $rest"
-			}
-			"379" -> {
-				// RPL_WHOISMODES: <client> <nick> :is using modes +<modes>
-				val nick = p(1) ?: return null
-				t ?: return null
-				"$nick $t"
-			}
-			"760" -> {
-				// RPL_WHOISKEYVALUE (draft/metadata-2): <me> <nick> <key> <visibility> :<value>
-				// Shown as a WHOIS line, e.g. "alice display-name: Alice". Value is the last
-				// parameter so read it via allParams; skip control chars defensively since
-				// metadata is attacker-controlled free text.
-				val ap = msg.allParams
-				val nick = ap.getOrNull(1) ?: return null
-				val key = ap.getOrNull(2) ?: return null
-				val value = ap.getOrNull(4)?.let { raw -> buildString { for (c in raw) if (c.code >= 0x20 && c.code != 0x7f) append(c) }.trim() }
-				if (value.isNullOrEmpty()) tr(R.string.core_whois_metadata_set, nick, key) else "$nick $key: $value"
-			}
-			"671" -> {
-				// RPL_WHOISSECURE: <client> <nick> :is using a secure connection [cipher info]
-				val nick = p(1) ?: return null
-				if (t != null && t.isNotBlank()) "$nick $t"
-				else tr(R.string.core_whois_secure, nick)
-			}
-
-			// Common errors
-			"401" -> t ?: tr(R.string.core_err_no_such_nick_channel)
-			"402" -> t ?: tr(R.string.core_err_no_such_server)
-			"403" -> p(1)?.takeIf { it.isNotBlank() }?.let { tr(R.string.core_err_no_such_channel_named, it) } ?: (t ?: tr(R.string.core_err_no_such_channel))
-			"404" -> t ?: tr(R.string.core_err_cannot_send_to_channel)
-			"406" -> t ?: tr(R.string.core_err_no_such_nickname)
-			"421" -> p(1)?.takeIf { it.isNotBlank() }?.let { tr(R.string.core_err_unknown_command_named, it) } ?: (t ?: tr(R.string.core_err_unknown_command))
-			"433" -> t ?: tr(R.string.core_err_nick_in_use)
-			"442" -> t ?: tr(R.string.core_not_on_channel)
-			"461" -> t ?: tr(R.string.core_err_not_enough_params)
-			"462" -> t ?: tr(R.string.core_err_may_not_reregister)
-			"464" -> t ?: tr(R.string.core_password_incorrect)
-			"465" -> t ?: tr(R.string.core_err_banned_from_server)
-
-			// RPL_ADMIN
-			"256" -> t ?: tr(R.string.core_admin_info)
-			"257" -> t?.let { tr(R.string.core_admin_location, it) }
-			"258" -> t?.let { tr(R.string.core_admin_info_line, it) }
-			"259" -> t?.let { tr(R.string.core_admin_contact, it) }
-			"260" -> t?.let { tr(R.string.core_admin_extended, it) }
-
-			// Generic fallback
-			else -> {
-				val bodyParts = msg.params.drop(1).map { stripIrcFormatting(it) } + listOfNotNull(t)
-				val body = bodyParts.filter { it.isNotBlank() }.joinToString(" ")
-				if (body.isNotBlank()) "[$code] $body" else null
-			}
-		}
-	}
-
-	/**
-	 * CHANMODES types A, B and C. Before the server has sent CHANMODES, the RFC 2811 defaults: b, e,
-	 * I and q; k; l.
-	 */
-	private fun chanModeTypes(): Triple<Set<Char>, Set<Char>, Set<Char>> {
-		val parts = chanModes?.split(",")
-		fun type(i: Int, default: Set<Char>) = parts?.getOrNull(i)?.toSet() ?: default
-		return Triple(type(0, setOf('b', 'e', 'I', 'q')), type(1, setOf('k')), type(2, setOf('l')))
-	}
-
-	/**
-	 * Every change in a MODE line with its argument, consuming arguments by CHANMODES type as
-	 * [parseChannelUserModes] does: prefix modes and types A and B always, C only when adding.
-	 */
-	private fun parseModeChanges(modeStr: String, args: List<String>): List<ChannelModeChange> {
-		val (typeA, typeB, typeC) = chanModeTypes()
-		val out = mutableListOf<ChannelModeChange>()
-		var adding = true
-		var argIdx = 0
-		for (c in modeStr) {
-			when (c) {
-				'+' -> adding = true
-				'-' -> adding = false
-				else -> {
-					val takesArg = c in prefixModeToSymbol || c in typeA || c in typeB || (c in typeC && adding)
-					val arg = if (takesArg) args.getOrNull(argIdx).also { argIdx++ } else null
-					out += ChannelModeChange(adding, c, arg)
-				}
-			}
-		}
-		return out
-	}
-
-	private fun parseChannelUserModes(
-		channel: String,
-		modeStr: String,
-		args: List<String>
-	): List<Triple<String, Char?, Boolean>> {
-		// Returns (nick, prefix char, adding) for each prefix change, consuming every mode's
-		// argument by its CHANMODES type (A and B always, C only when adding, D never; prefix modes
-		// always) so arguments stay aligned. Unknown modes count as type D.
-		val (typeA, typeB, typeC) = chanModeTypes()
-		// typeD: any mode not in A, B, C, or prefix — no parameter needed.
-
-		val results = mutableListOf<Triple<String, Char?, Boolean>>()
-		var adding = true
-		var argIdx = 0
-
-		for (c in modeStr) {
-			when (c) {
-				'+' -> adding = true
-				'-' -> adding = false
-				else -> {
-					val prefix = prefixModeToSymbol[c]
-					if (prefix != null) {
-						// Prefix mode (op, voice, etc.) — consumes a nick argument.
-						val nick = args.getOrNull(argIdx) ?: continue
-						argIdx++
-						results.add(Triple(nick, prefix, adding))
-					} else {
-						// Non-prefix mode — consume its argument (if any) so argIdx
-						// stays aligned for subsequent prefix modes in the same line.
-						val takesArg = when {
-							c in typeA -> true          // list modes always take a param
-							c in typeB -> true          // key mode always takes a param
-							c in typeC -> adding        // limit mode: param only when adding
-							else       -> false         // flag mode: no param
-						}
-						if (takesArg && argIdx < args.size) argIdx++
-						// Do not emit a ChannelUserMode event for non-prefix modes.
-					}
-				}
-			}
-		}
-		return results
-	}
-
-	private suspend fun resolveDns(query: String): List<String> = withContext(Dispatchers.IO) {
-		val results = mutableListOf<String>()
-		var hasIpv4 = false
-		var hasIpv6 = false
-
-		try {
-			// Forward lookup: hostname > IP(s)
-			// Android's resolver won't return IPv6 if the device lacks IPv6 connectivity
-			val addresses = InetAddress.getAllByName(query)
-			for (addr in addresses) {
-				val ip = addr.hostAddress ?: continue
-				when (addr) {
-					is java.net.Inet6Address -> {
-						hasIpv6 = true
-						results.add("IPv6: $ip")
-					}
-					is java.net.Inet4Address -> {
-						hasIpv4 = true
-						results.add("IPv4: $ip")
-					}
-					else -> results.add("IP: $ip")
-				}
-
-				// Try reverse lookup (PTR) for each IP
-				try {
-					val reverse = InetAddress.getByAddress(addr.address).canonicalHostName
-					if (reverse != ip && reverse != query) {
-						results.add("  PTR: $reverse")
-					}
-				} catch (_: Exception) {
-					// Reverse failed, skip
-				}
-			}
-
-			// If we only got IPv4, note that IPv6 may exist but wasn't returned
-			if (hasIpv4 && !hasIpv6 && results.isNotEmpty()) {
-				results.add(tr(R.string.core_dns_ipv6_note))
-			}
-
-			// If it's an IP address and no forward results, try reverse directly
-			if (results.isEmpty() && isValidIp(query)) {
-				try {
-					val addr = InetAddress.getByName(query)
-					val ptr = addr.canonicalHostName
-					if (ptr != query) {
-						results.add("PTR: $ptr")
-					}
-				} catch (_: Exception) {}
-			}
-		} catch (_: UnknownHostException) {
-			// Host not found
-		}
-
-		results
-	}
-
-	// Validate IPs
-	private fun isValidIp(input: String): Boolean {
-		return input.matches(Regex("^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")) ||
-			   input.matches(Regex("^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$")) // rough IPv6 check
-	}
-}
-
-/**
- * Decode the \xHH escapes RPL_ISUPPORT values use for space, '=' and backslash. A malformed
- * escape is kept as written.
- */
-internal fun unescapeIsupportValue(value: String): String {
-    if (!value.contains("\\x")) return value
-    val out = StringBuilder(value.length)
-    var i = 0
-    while (i < value.length) {
-        val c = value[i]
-        if (c == '\\' && i + 3 < value.length && value[i + 1] == 'x') {
-            val hi = Character.digit(value[i + 2], 16)
-            val lo = Character.digit(value[i + 3], 16)
-            if (hi >= 0 && lo >= 0) {
-                out.append((hi * 16 + lo).toChar())
-                i += 4
-                continue
-            }
-        }
-        out.append(c)
-        i++
-    }
-    return out.toString()
 }

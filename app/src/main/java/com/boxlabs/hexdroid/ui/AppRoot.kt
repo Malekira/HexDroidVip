@@ -25,7 +25,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.CompositionLocalProvider
@@ -49,7 +48,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.res.stringResource
 import com.boxlabs.hexdroid.R
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.boxlabs.hexdroid.AppScreen
@@ -64,7 +62,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.setValue
 import com.boxlabs.hexdroid.INTRO_TOUR_VERSION
 import com.boxlabs.hexdroid.ui.tour.IntroTourOverlay
 import com.boxlabs.hexdroid.ui.tour.IntroTourActionId
@@ -99,6 +96,17 @@ fun AppRoot(
             vm.dccSendPickUnavailable()
         }
     }
+
+	val bouncerActions = remember(vm) {
+		BouncerNetworkActions(
+			refresh = vm::refreshBouncerNetworks,
+			import = vm::cloneBouncerNetwork,
+			importAll = vm::importAllBouncerNetworks,
+			add = vm::addBouncerNetwork,
+			edit = vm::editBouncerNetwork,
+			delete = vm::deleteBouncerNetwork,
+		)
+	}
 
 	val tourRegistry = remember { TourRegistry() }
 	var tourActive by rememberSaveable { mutableStateOf(false) }
@@ -349,8 +357,7 @@ fun AppRoot(
                     onOpenSettings = { vm.goTo(AppScreen.SETTINGS) },
                     onReorder = vm::reorderNetworks,
                     onToggleFavourite = vm::toggleFavourite,
-                    onRefreshBouncerNetworks = vm::refreshBouncerNetworks,
-                    onCloneBouncerNetwork = vm::cloneBouncerNetwork,
+                    bouncerActions = bouncerActions,
                     onDismissBouncerCloneMessage = vm::clearBouncerCloneMessage,
                     tourActive = tourActive,
                     tourTarget = currentTourStep?.target,
@@ -393,11 +400,13 @@ fun AppRoot(
                     onOpenScripts = { vm.goTo(AppScreen.SCRIPTS) },
                     tourActive = tourActive,
                     tourTarget = currentTourStep?.target,
-                    onExportBackup = vm::exportBackup,
+                    onExportBackup = { uri, passphrase -> vm.exportBackup(uri, passphrase) },
                     onMeasureLogs = vm::internalLogsSize,
                     onExportLogs = vm::exportInternalLogs,
                     onDeleteLogs = vm::deleteInternalLogs,
-                    onImportBackup = vm::importBackup,
+                    onImportBackup = { uri -> vm.importBackup(uri) },
+                    onRestoreBackup = { uri, passphrase, withoutPasswords -> vm.restoreBackup(uri, passphrase, withoutPasswords) },
+                    onCancelRestore = vm::cancelRestore,
                     onClearBackupMessage = vm::clearBackupMessage,
                     onWebPushToggled = vm::applyWebPushSetting,
                     onSelectPushDistributor = vm::selectPushDistributor,
@@ -425,7 +434,7 @@ fun AppRoot(
                         onToggle = { name, enabled -> vm.setScriptEnabled(name, enabled) },
                         onRemove = { name -> vm.removeScript(name) },
                         onReloadAll = { vm.reloadScripts() },
-                        onImportFile = { importLauncher.launch(arrayOf("*/*")) },
+                        onImportFile = { importLauncher.launchPicker(scriptCtx, arrayOf("*/*")) },
                         onPaste = { name, source -> vm.installScript(name, source) },
                         onRead = { name -> vm.readScript(name) },
                         onRevert = { name -> vm.revertScript(name) },
@@ -456,7 +465,8 @@ fun AppRoot(
                 )
 
                 AppScreen.ABOUT -> AboutScreen(
-                    onBack = vm::backToChat
+                    onBack = vm::backToChat,
+                    onBuildDebugInfo = vm::buildDebugInfo,
                 )
 
                 AppScreen.DCC_TRUSTED -> DccTrustedScreen(
@@ -470,6 +480,7 @@ fun AppRoot(
                     onBack = { vm.goTo(AppScreen.SETTINGS) },
                     onIgnoreNick = vm::ignoreNick,
                     onUnignoreNick = vm::unignoreNick,
+                    onSetIgnoreTypes = vm::setIgnoreTypes,
                 )
 }
             }

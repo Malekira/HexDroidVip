@@ -108,7 +108,7 @@ class ChatHistoryController(
 ) {
 
     private class Backfill(
-        val bufferKey: String,
+        var bufferKey: String,
         val kind: BackfillKind,
         val collected: MutableList<UiMessage> = mutableListOf(),
         val suppressed: MutableList<UiMessage> = mutableListOf(),
@@ -488,7 +488,15 @@ class ChatHistoryController(
     /** Move everything tracked for [from] onto [to], used when two buffers turn out to be one. */
     fun rename(from: String, to: String) {
         if (from == to) return
-        backfills.remove(from)?.watchdog?.cancel()
+        // A request in flight follows the buffer, so it still ends and clears its loading flag.
+        backfills.remove(from)?.let { bf ->
+            if (backfills.containsKey(to)) {
+                bf.watchdog?.cancel()
+            } else {
+                bf.bufferKey = to
+                backfills[to] = bf
+            }
+        }
         catchupRequested.remove(from)
         foreignBatches.replaceAll { if (it.bufferKey == from) it.copy(bufferKey = to) else it }
         pendingDivider.remove(from)?.let { ts ->

@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">إظهار الطوابع الزمنية</string>
     <string name="setting_timestamp_format">تنسيق الوقت (Java)</string>
     <string name="setting_hide_motd">إخفاء MOTD عند الاتصال</string>
-    <string name="setting_hide_joinpartquit">إخفاء رسائل الدخول/الخروج</string>
+    <string name="setting_channel_events">أحداث القناة</string>
+    <string name="setting_events_all_shown">كلها ظاهرة</string>
+    <string name="setting_events_all_hidden">كلها مخفية</string>
+    <string name="setting_events_some_shown">%1$d من %2$d ظاهرة</string>
+    <string name="setting_events_hide_all">إخفاء الكل</string>
+    <string name="setting_events_show_all">إظهار الكل</string>
+    <string name="setting_channel_events_own">تغييرات اسمك وطردك من القناة تظهر دائماً.</string>
+    <string name="event_joins">الدخول</string>
+    <string name="event_parts">المغادرة</string>
+    <string name="event_quits">الخروج</string>
+    <string name="event_nick_changes">تغيير الأسماء</string>
+    <string name="event_topic_changes">تغيير الموضوع</string>
+    <string name="event_kicks">الطرد</string>
+    <string name="event_mode_changes">تغيير الأوضاع</string>
     <string name="setting_hide_away_notify">إخفاء إشعارات الغياب/العودة</string>
     <string name="setting_color_channel_events">أحداث القناة الملونة</string>
     <string name="setting_hide_topic_on_entry">إخفاء الموضوع عند الدخول</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">الحساب</string>
     <string name="chat_ban_type_domain">النطاق</string>
     <string name="chat_react_custom">تفاعل مخصّص</string>
+    <string name="chat_reactions_unsupported">هذا الخادم لا يدعم التفاعلات</string>
     <string name="chat_react_custom_hint">رمز تعبيري أو كلمة</string>
     <string name="chat_react_send">تفاعل</string>
+    <string name="chat_reactions_title">التفاعلات</string>
+    <string name="chat_reactions_all">الكل</string>
+    <string name="chat_reactions_who">عرض من تفاعل</string>
+    <string name="chat_reaction_you">أنت</string>
+    <string name="chat_reaction_cd">%1$s، تفاعل بها %2$s</string>
     <string name="chat_reply_not_loaded">رد على رسالة سابقة</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">اسحب لإعادة الترتيب</string>
     <string name="networks_insecure_title">تم حجب الاتصال غير الآمن</string>
     <string name="networks_local_title">مطلوب إذن الشبكة المحلية</string>
-    <string name="networks_local_body">الاتصال بـ {0} يتطلب إذن الشبكة المحلية.
-
-        هذا متطلب جديد في Android 17 للاتصال بالخوادم على شبكتك المحلية (الشبكة المنزلية، الـ bouncer، وغيرها).</string>
+    <string name="networks_local_body">الاتصال بـ %1$s يتطلب إذن الشبكة المحلية.\n\nهذا متطلب جديد في Android 17 للاتصال بالخوادم على شبكتك المحلية (الشبكة المنزلية، الـ bouncer، وغيرها).</string>
     <string name="networks_local_grant">منح الإذن</string>
     <string name="networks_insecure_body">اتصالات IRC غير المشفرة ليست محمية ويمكنها كشف رسائلك وكلمة مرورك.</string>
     <string name="networks_insecure_body2">للاتصال بـ %1$s بدون TLS، يجب السماح صراحةً بالاتصالات غير المشفرة لهذه الشبكة.</string>
@@ -516,7 +533,7 @@
 
     <!-- Ignore list screen -->
     <string name="ignore_title">قائمة التجاهل</string>
-    <string name="ignore_nick_label">Nick للتجاهل</string>
+    <string name="ignore_nick_label">اسم مستعار أو قناع nick!user@host</string>
     <string name="ignore_no_nicks">لا يوجد نيكات مُتجاهلة.</string>
     <string name="ignore_no_networks">لم يتم تكوين شبكات بعد.</string>
     <string name="ignore_add">إضافة</string>
@@ -649,7 +666,7 @@
     <string name="setting_dcc_downloads_default">التنزيلات (افتراضي)</string>
     <string name="setting_dcc_downloads_custom">مجلد مخصص</string>
     <string name="section_backup_restore">النسخ الاحتياطي &amp; الاستعادة</string>
-    <string name="setting_backup_export_desc">تصدير تكوينات الشبكة وإعدادات التطبيق إلى ملف JSON. كلمات المرور وشهادات TLS غير مضمنة.</string>
+    <string name="setting_backup_export_desc">صدّر إعدادات الشبكات والتطبيق إلى ملف JSON. يمكن تضمين كلمات المرور مشفّرة بعبارة مرور. شهادات TLS غير مضمّنة.</string>
     <string name="setting_restore_desc">يستبدل الاستعادة جميع الشبكات والإعدادات الحالية.</string>
     <string name="setting_restore_confirm">سيستبدل هذا جميع الشبكات والإعدادات الحالية بتلك الموجودة في ملف النسخ الاحتياطي. لم تكن كلمات المرور مضمنة في النسخ الاحتياطي وستحتاج إلى إعادة إدخالها. لا يمكن التراجع عن هذا.</string>
     <string name="setting_backup_error">خطأ</string>
@@ -756,7 +773,7 @@
     <string name="nick_devoice">سحب voice (‎-v)</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">الشبكة</string>
-    <string name="ignore_list_desc">يتم مطابقة الأسماء المتجاهلة بدون حساسية للحالة وتنطبق على الدردشة والإشعارات وعروض DCC الواردة في هذه الشبكة.</string>
+    <string name="ignore_list_desc">كل إدخال اسم مستعار أو قناع مثل *!*@example.com، دون تمييز حالة الأحرف. اختر ما يحجبه كل إدخال على هذه الشبكة.</string>
     <string name="ignore_list_tip">نصيحة: يمكنك أيضًا تجاهل شخص ما من قائمة الأسماء أو بالنقر على اسمه في الدردشة.</string>
     <!-- ListScreen -->
     <string name="list_loading">جارٍ التحميل… (%1$d)</string>
@@ -821,6 +838,25 @@
     <string name="bouncer_networks_already_imported">مستورد بالفعل</string>
     <string name="bouncer_networks_unnamed">‏(upstream بلا اسم)</string>
     <string name="bouncer_networks_clone_dismiss">تجاهل</string>
+    <string name="bouncer_networks_add">إضافة شبكة</string>
+    <string name="bouncer_networks_import_all">استيراد الكل</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">نص عادي</string>
+    <string name="bouncer_networks_error">خطأ: %1$s</string>
+    <string name="bouncer_networks_actions">إجراءات %1$s</string>
+    <string name="bouncer_net_dialog_add_title">إضافة شبكة إلى الـ bouncer</string>
+    <string name="bouncer_net_dialog_edit_title">تعديل %1$s</string>
+    <string name="bouncer_net_field_name_hint">اتركه فارغًا لاستخدام اسم الخادم</string>
+    <string name="bouncer_net_field_port_hint">اتركه فارغًا لاستخدام القيمة الافتراضية</string>
+    <string name="bouncer_net_field_pass_keep">اتركه فارغًا للإبقاء على الحالية</string>
+    <string name="bouncer_net_optional">الحقول الفارغة تأخذ القيم الافتراضية للـ bouncer.</string>
+    <string name="bouncer_net_import_after">استيرادها كملف</string>
+    <string name="bouncer_net_host_required">أدخل اسم الخادم.</string>
+    <string name="bouncer_net_port_invalid">يجب أن يكون المنفذ رقمًا من 1 إلى 65535.</string>
+    <string name="bouncer_net_add">إضافة</string>
+    <string name="bouncer_net_delete_title">حذف %1$s؟</string>
+    <string name="bouncer_net_delete_body">سيقطع الـ bouncer اتصاله بهذه الشبكة وينساها مع السجل الذي احتفظ به.</string>
+    <string name="bouncer_net_delete_profile">حذف الملف المستورد أيضًا</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">للـ bouncer يُنصح باستخدام SASL. إذا استخدمت حقل PASS هذا بدلاً من ذلك، فأدخل كلمة المرور فقط؛ يُضاف اسم مستخدم الـ bouncer والشبكة من الحقول أعلاه في البداية تلقائيًا. كتابة <b>username/network:password</b> كاملة تعمل أيضًا.</string>
@@ -1099,6 +1135,17 @@
     <string name="vm_caps_removed">أزال الخادم قدرات: %1$s</string>
     <string name="vm_bouncer_removed">أُزيلت شبكة الـ bouncer: %1$s</string>
     <string name="vm_bouncer_state">شبكة الـ bouncer %1$s: %2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">شبكة الـ bouncer %1$s: %2$s</string>
+    <string name="vm_bouncer_renamed">أصبح اسم شبكة الـ bouncer %1$s الآن %2$s. يتبعها الملف \"%3$s\".</string>
+    <string name="vm_bouncer_import_none">جميع شبكات الـ bouncer مستوردة بالفعل.</string>
+    <string name="vm_bouncer_import_all">شبكات الـ bouncer المستوردة: %1$d. فعّل الاتصال التلقائي للشبكات التي تريد استخدامها.</string>
+    <string name="vm_bouncer_not_connected">اتصل بالـ bouncer لإدارة شبكاته.</string>
+    <string name="vm_bouncer_refused">رفض الـ bouncer: %1$s</string>
+    <string name="vm_bouncer_refused_attr">رفض الـ bouncer %1$s: %2$s</string>
+    <string name="vm_bouncer_added">تمت إضافة \"%1$s\" إلى الـ bouncer.</string>
+    <string name="vm_bouncer_changed">تم تحديث \"%1$s\" على الـ bouncer.</string>
+    <string name="vm_bouncer_deleted">تمت إزالة \"%1$s\" من الـ bouncer.</string>
+    <string name="vm_bouncer_deleted_profiles">تمت إزالة \"%1$s\" من الـ bouncer وحذف ملفها.</string>
     <string name="vm_deleted_message">حذف %1$s رسالة</string>
     <string name="vm_names_none">‏NAMES لـ %1$s: (لا شيء)</string>
     <string name="vm_names_header">‏NAMES لـ %1$s (%2$s):</string>
@@ -1132,7 +1179,8 @@
     <string name="vm_dcc_no_chat_offer">لا يوجد عرض دردشة DCC معلّق من %1$s.</string>
     <string name="dcc_send_pick_title">إرسال ملف إلى %1$s؟</string>
     <string name="dcc_send_pick_body">اختر ملفاً لعرضه على %1$s على %2$s عبر DCC.</string>
-    <string name="vm_dcc_no_file_picker">لا يتوفر منتقي ملفات على هذا الجهاز.</string>
+    <string name="no_file_picker">لا يتوفر منتقي ملفات على هذا الجهاز.</string>
+    <string name="no_app_for_action">لا يوجد تطبيق على هذا الجهاز يمكنه القيام بذلك.</string>
     <string name="vm_dcc_offering_active">جارٍ عرض %1$s على %2$s عبر DCC%3$s (نشط، المنفذ %4$s)…</string>
     <string name="vm_dcc_offering_passive">جارٍ عرض %1$s على %2$s عبر DCC%3$s (سلبي)…</string>
     <string name="vm_dcc_accepted_resume">قبل %1$s؛ المتابعة من %2$s بايت…</string>
@@ -1172,6 +1220,7 @@
     <string name="vm_auth_sasl_bouncer">رُفضت مصادقة SASL. تحتاج أجهزة الـ bouncer إلى SASL صالح لتوجيه الاتصال. تحقّق من اسم مستخدم وكلمة مرور SASL (أو شهادة العميل) في هذا الملف.</string>
     <string name="vm_auth_sasl_rejected">رُفضت مصادقة SASL. تحقّق من اسم مستخدم وكلمة مرور SASL (أو شهادة العميل) في هذا الملف.</string>
     <string name="vm_auth_rejected">رُفضت المصادقة.</string>
+    <string name="vm_auth_account_required">يتطلب هذا الخادم حسابًا. فعّل SASL لهذه الشبكة أو اضبط كلمة مرور الخادم.</string>
     <string name="vm_auth_halt_suffix">أُوقفت إعادة الاتصال التلقائية؛ اضغط «إعادة الاتصال» بعد تصحيح بيانات الاعتماد.</string>
     <string name="vm_ref">(مرجع: %1$s)</string>
 
@@ -1827,4 +1876,68 @@
     <string name="vm_ev_has_left_nohost">غادر %1$s القناة %2$s</string>
     <string name="vm_ev_has_quit_nohost">خرج %1$s</string>
     <string name="push_encrypted">رسالة مشفّرة</string>
+    <string name="setting_smart_filter">المرشح الذكي</string>
+    <string name="setting_smart_filter_desc">تظهر رسائل الدخول والمغادرة والخروج وتغيير الأسماء فقط لمن تحدّث مؤخراً. إذا تحدّث أحدهم بعد دخوله بقليل، يظهر دخوله حينها.</string>
+    <string name="setting_smart_filter_window">تحدّث خلال آخر</string>
+    <string name="setting_smart_filter_minutes">%1$d دقيقة</string>
+    <string name="menu_channel_settings">إعدادات القناة</string>
+    <string name="menu_conversation_settings">إعدادات المحادثة</string>
+    <string name="channel_settings_title">إعدادات %1$s</string>
+    <string name="channel_settings_mute">كتم الإشعارات</string>
+    <string name="channel_settings_mute_desc">لا شيء هنا يرسل إشعاراً. تبقى أعداد غير المقروء ظاهرة.</string>
+    <string name="channel_settings_words">كلمات التمييز</string>
+    <string name="channel_settings_words_desc">التمييز هنا عند هذه الكلمات أيضاً، إضافة إلى كلمات الإعدادات. افصل بينها بفواصل.</string>
+    <string name="channel_settings_events_follow">كما في الإعدادات</string>
+    <string name="channel_settings_events_custom">مخصّصة لهذه القناة</string>
+    <string name="channel_settings_reset">إعادة تعيين</string>
+    <string name="notif_self_name">أنت</string>
+    <string name="bubble_label">محادثة</string>
+    <string name="bubble_open_app">فتح في HexDroid</string>
+    <string name="bubble_message_hint">رسالة</string>
+    <string name="bubble_send">إرسال</string>
+    <string name="menu_search_logs">البحث في السجلات</string>
+    <string name="log_search_title">البحث في السجلات</string>
+    <string name="log_search_hint">البحث في الرسائل</string>
+    <string name="log_search_help">يجب أن تظهر كل الكلمات. ضع العبارة بين علامتي اقتباس، واستخدم from:nick لرسائل شخص واحد.</string>
+    <string name="log_search_scope_buffer">هذه المحادثة</string>
+    <string name="log_search_scope_network">هذه الشبكة</string>
+    <string name="log_search_scope_all">كل الشبكات</string>
+    <string name="log_search_results">النتائج: %1$d</string>
+    <string name="log_search_more">تُعرض أحدث %1$d نتيجة. ضيّق البحث لرؤية الأقدم.</string>
+    <string name="log_search_none">لا توجد نتائج.</string>
+    <string name="log_search_logging_off">التسجيل متوقف، لذا يمكن البحث فقط في السجلات المحفوظة سابقاً.</string>
+    <string name="log_search_go">الانتقال إلى الرسالة</string>
+    <string name="log_search_searching">جارٍ البحث…</string>
+    <string name="log_search_server_searching">جارٍ البحث في سجل الـ bouncer…</string>
+    <string name="log_search_server_count">المحادثات التي بُحث فيها على الـ bouncer: %1$d</string>
+    <string name="log_search_server_badge">Bouncer</string>
+    <string name="ignore_type_channel">رسائل القناة</string>
+    <string name="ignore_type_private">الرسائل الخاصة</string>
+    <string name="ignore_type_notices">التنبيهات</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">الدعوات</string>
+    <string name="ignore_type_dcc">عروض DCC</string>
+    <string name="ignore_type_events">الدخول والمغادرة والخروج</string>
+    <string name="vm_ignore_types_usage">أضف أنواعاً لحجب بعض الأشياء فقط: PUBLIC وMSGS وNOTICES وCTCPS وINVITES وDCC وEVENTS أو ALL.</string>
+    <string name="vm_backup_saved_with_passwords">تم حفظ النسخة الاحتياطية مع كلمات المرور مشفّرة بعبارة المرور الخاصة بك.\nالشهادات غير مضمّنة.</string>
+    <string name="backup_export_title">تصدير نسخة احتياطية</string>
+    <string name="backup_include_passwords">تضمين كلمات المرور</string>
+    <string name="backup_include_passwords_desc">كلمات مرور الخادم وSASL والوكيل، مشفّرة بعبارة مرور. لا يمكن استعادتها إلا بها.</string>
+    <string name="backup_passphrase">عبارة المرور</string>
+    <string name="backup_passphrase_confirm">أعد إدخال عبارة المرور</string>
+    <string name="backup_passphrase_short">%1$d أحرف على الأقل.</string>
+    <string name="backup_passphrase_mismatch">عبارتا المرور غير متطابقتين.</string>
+    <string name="backup_export_action">تصدير</string>
+    <string name="restore_passphrase_title">كلمات مرور النسخة الاحتياطية</string>
+    <string name="restore_passphrase_body">تحتوي هذه النسخة الاحتياطية على كلمات مرور مشفّرة بعبارة مرور. أدخلها لاستعادتها أيضاً.</string>
+    <string name="restore_passphrase_wrong">عبارة المرور هذه لا تفتح كلمات المرور.</string>
+    <string name="restore_with_passwords">استعادة</string>
+    <string name="restore_without_passwords">استعادة بدون كلمات المرور</string>
+    <string name="debug_info_title">نسخ معلومات التصحيح</string>
+    <string name="debug_info_desc">الإصدار وتفاصيل الاتصال والإمكانات والأخطاء الأخيرة، لتقرير خطأ</string>
+    <string name="debug_info_raw">تضمين آخر الأسطر الخام</string>
+    <string name="debug_info_raw_desc">آخر %1$d سطراً مرسلاً ومستلماً في كل شبكة، مع إخفاء كلمات المرور. قد تحتوي على رسائل.</string>
+    <string name="debug_info_check">راجعها قبل مشاركتها علناً.</string>
+    <string name="debug_info_copy">نسخ</string>
+    <string name="debug_info_copied">تم نسخ معلومات التصحيح</string>
 </resources>

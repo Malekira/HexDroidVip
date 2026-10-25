@@ -107,8 +107,8 @@ class SecretStore(private val ctx: Context) {
     private fun decryptFromB64(enc: String): ByteArray? {
         val parts = enc.split(":", limit = 2)
         if (parts.size != 2) return null
-        val iv = Base64.decode(parts[0], Base64.NO_WRAP)
-        val ct = Base64.decode(parts[1], Base64.NO_WRAP)
+        val iv = runCatching { Base64.decode(parts[0], Base64.NO_WRAP) }.getOrNull() ?: return null
+        val ct = runCatching { Base64.decode(parts[1], Base64.NO_WRAP) }.getOrNull() ?: return null
 
         return try {
             val key = getOrCreateKey()

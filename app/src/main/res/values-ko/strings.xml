@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">타임스탬프 표시</string>
     <string name="setting_timestamp_format">타임스탬프 형식 (Java)</string>
     <string name="setting_hide_motd">연결 시 MOTD 숨기기</string>
-    <string name="setting_hide_joinpartquit">입퇴장/종료 메시지 숨기기</string>
+    <string name="setting_channel_events">채널 이벤트</string>
+    <string name="setting_events_all_shown">모두 표시됨</string>
+    <string name="setting_events_all_hidden">모두 숨겨짐</string>
+    <string name="setting_events_some_shown">%2$d개 중 %1$d개 표시</string>
+    <string name="setting_events_hide_all">모두 숨기기</string>
+    <string name="setting_events_show_all">모두 표시</string>
+    <string name="setting_channel_events_own">내 닉네임 변경과 내가 강퇴된 경우는 항상 표시됩니다.</string>
+    <string name="event_joins">입장</string>
+    <string name="event_parts">퇴장</string>
+    <string name="event_quits">종료</string>
+    <string name="event_nick_changes">닉네임 변경</string>
+    <string name="event_topic_changes">주제 변경</string>
+    <string name="event_kicks">강퇴</string>
+    <string name="event_mode_changes">모드 변경</string>
     <string name="setting_hide_away_notify">자리비움/복귀 알림 숨기기</string>
     <string name="setting_color_channel_events">색상이 있는 채널 이벤트</string>
     <string name="setting_hide_topic_on_entry">입장 시 주제 숨기기</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">계정</string>
     <string name="chat_ban_type_domain">도메인</string>
     <string name="chat_react_custom">사용자 지정 반응</string>
+    <string name="chat_reactions_unsupported">이 서버는 반응을 지원하지 않습니다</string>
     <string name="chat_react_custom_hint">이모지 또는 단어</string>
     <string name="chat_react_send">반응하기</string>
+    <string name="chat_reactions_title">반응</string>
+    <string name="chat_reactions_all">전체</string>
+    <string name="chat_reactions_who">반응한 사람 보기</string>
+    <string name="chat_reaction_you">나</string>
+    <string name="chat_reaction_cd">%1$s, %2$s 님이 반응함</string>
     <string name="chat_reply_not_loaded">이전 메시지에 대한 답장</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">드래그하여 순서 변경</string>
     <string name="networks_insecure_title">안전하지 않은 연결이 차단됨</string>
     <string name="networks_local_title">로컬 네트워크 접근 권한 필요</string>
-    <string name="networks_local_body">{0}에 연결하려면 로컬 네트워크 권한이 필요합니다.
-
-        로컬 네트워크의 서버(홈 네트워크, 바운서 등)에 연결할 때 적용되는 Android 17의 새로운 요구 사항입니다.</string>
+    <string name="networks_local_body">%1$s에 연결하려면 로컬 네트워크 권한이 필요합니다.\n\n로컬 네트워크의 서버(홈 네트워크, 바운서 등)에 연결할 때 적용되는 Android 17의 새로운 요구 사항입니다.</string>
     <string name="networks_local_grant">권한 허용</string>
     <string name="networks_insecure_body">암호화되지 않은 IRC 연결은 보호되지 않으며 메시지와 비밀번호가 노출될 수 있습니다.</string>
     <string name="networks_insecure_body2">TLS 없이 %1$s에 연결하려면 이 네트워크에 대해 암호화되지 않은 연결을 명시적으로 허용해야 합니다.</string>
@@ -516,7 +533,7 @@
 
     <!-- Ignore list screen -->
     <string name="ignore_title">무시 목록</string>
-    <string name="ignore_nick_label">무시할 닉</string>
+    <string name="ignore_nick_label">닉네임 또는 nick!user@host 마스크</string>
     <string name="ignore_no_nicks">무시된 닉이 없습니다.</string>
     <string name="ignore_no_networks">아직 네트워크가 설정되지 않았습니다.</string>
     <string name="ignore_add">추가</string>
@@ -649,7 +666,7 @@
     <string name="setting_dcc_downloads_default">다운로드 (기본값)</string>
     <string name="setting_dcc_downloads_custom">사용자 지정 폴더</string>
     <string name="section_backup_restore">백업 &amp; 복원</string>
-    <string name="setting_backup_export_desc">네트워크 구성과 앱 설정을 JSON 파일로 내보냅니다. 비밀번호와 TLS 인증서는 포함되지 않습니다.</string>
+    <string name="setting_backup_export_desc">네트워크 구성과 앱 설정을 JSON 파일로 내보냅니다. 비밀번호는 암호문구로 암호화해 포함할 수 있습니다. TLS 인증서는 포함되지 않습니다.</string>
     <string name="setting_restore_desc">복원하면 현재의 모든 네트워크와 설정이 교체됩니다.</string>
     <string name="setting_restore_confirm">이렇게 하면 현재의 모든 네트워크와 설정이 백업 파일의 것으로 교체됩니다. 비밀번호는 백업에 포함되지 않았으므로 다시 입력해야 합니다. 이 작업은 취소할 수 없습니다.</string>
     <string name="setting_backup_error">오류</string>
@@ -756,7 +773,7 @@
     <string name="nick_devoice">보이스 회수 (-v)</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">네트워크</string>
-    <string name="ignore_list_desc">무시된 닉은 대소문자 구분 없이 매칭되며 이 네트워크의 채팅, 알림, 수신 DCC 제안에 적용됩니다.</string>
+    <string name="ignore_list_desc">각 항목은 닉네임이나 *!*@example.com 같은 마스크이며 대소문자를 구분하지 않습니다. 이 네트워크에서 각 항목이 무엇을 무시할지 고르세요.</string>
     <string name="ignore_list_tip">팁: 닉 목록에서 또는 채팅에서 이름을 눌러 누군가를 무시할 수도 있습니다.</string>
     <!-- ListScreen -->
     <string name="list_loading">로딩 중… (%1$d)</string>
@@ -821,6 +838,25 @@
     <string name="bouncer_networks_already_imported">이미 가져옴</string>
     <string name="bouncer_networks_unnamed">(이름 없는 업스트림)</string>
     <string name="bouncer_networks_clone_dismiss">닫기</string>
+    <string name="bouncer_networks_add">네트워크 추가</string>
+    <string name="bouncer_networks_import_all">모두 가져오기</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">평문</string>
+    <string name="bouncer_networks_error">오류: %1$s</string>
+    <string name="bouncer_networks_actions">%1$s 작업</string>
+    <string name="bouncer_net_dialog_add_title">바운서 네트워크 추가</string>
+    <string name="bouncer_net_dialog_edit_title">%1$s 편집</string>
+    <string name="bouncer_net_field_name_hint">비워 두면 호스트를 사용합니다</string>
+    <string name="bouncer_net_field_port_hint">비워 두면 기본값을 사용합니다</string>
+    <string name="bouncer_net_field_pass_keep">비워 두면 현재 값을 유지합니다</string>
+    <string name="bouncer_net_optional">빈 칸에는 바운서의 기본값이 쓰입니다.</string>
+    <string name="bouncer_net_import_after">프로필로 가져오기</string>
+    <string name="bouncer_net_host_required">서버의 호스트 이름을 입력하세요.</string>
+    <string name="bouncer_net_port_invalid">포트는 1에서 65535 사이의 숫자여야 합니다.</string>
+    <string name="bouncer_net_add">추가</string>
+    <string name="bouncer_net_delete_title">%1$s을(를) 삭제할까요?</string>
+    <string name="bouncer_net_delete_body">바운서가 이 네트워크와의 연결을 끊고, 저장해 둔 기록과 함께 이 네트워크를 잊습니다.</string>
+    <string name="bouncer_net_delete_profile">가져온 프로필도 삭제</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">바운서에는 SASL을 권장합니다. 대신 이 PASS 필드를 사용한다면 비밀번호만 입력하세요. 위 필드의 바운서 사용자 이름과 네트워크가 자동으로 앞에 붙습니다. <b>username/network:password</b> 전체를 입력해도 됩니다.</string>
@@ -1099,6 +1135,17 @@
     <string name="vm_caps_removed">서버가 기능을 제거했습니다: %1$s</string>
     <string name="vm_bouncer_removed">바운서 네트워크를 제거했습니다: %1$s</string>
     <string name="vm_bouncer_state">바운서 네트워크 %1$s: %2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">바운서 네트워크 %1$s: %2$s</string>
+    <string name="vm_bouncer_renamed">바운서 네트워크 %1$s의 이름이 %2$s(으)로 바뀌었습니다. 프로필 \"%3$s\"도 따라갑니다.</string>
+    <string name="vm_bouncer_import_none">바운서 네트워크를 이미 모두 가져왔습니다.</string>
+    <string name="vm_bouncer_import_all">가져온 바운서 네트워크: %1$d개. 사용할 네트워크는 자동 연결을 켜세요.</string>
+    <string name="vm_bouncer_not_connected">네트워크를 관리하려면 바운서에 연결하세요.</string>
+    <string name="vm_bouncer_refused">바운서가 거부했습니다: %1$s</string>
+    <string name="vm_bouncer_refused_attr">바운서가 %1$s을(를) 거부했습니다: %2$s</string>
+    <string name="vm_bouncer_added">\"%1$s\"을(를) 바운서에 추가했습니다.</string>
+    <string name="vm_bouncer_changed">바운서에서 \"%1$s\"을(를) 업데이트했습니다.</string>
+    <string name="vm_bouncer_deleted">바운서에서 \"%1$s\"을(를) 삭제했습니다.</string>
+    <string name="vm_bouncer_deleted_profiles">바운서에서 \"%1$s\"과(와) 해당 프로필을 삭제했습니다.</string>
     <string name="vm_deleted_message">%1$s이(가) 메시지를 삭제했습니다</string>
     <string name="vm_names_none">%1$s의 NAMES: (없음)</string>
     <string name="vm_names_header">%1$s의 NAMES (%2$s):</string>
@@ -1132,7 +1179,8 @@
     <string name="vm_dcc_no_chat_offer">%1$s의 대기 중인 DCC CHAT 제안이 없습니다.</string>
     <string name="dcc_send_pick_title">%1$s에게 파일을 보낼까요?</string>
     <string name="dcc_send_pick_body">%2$s의 %1$s에게 DCC로 보낼 파일을 선택하세요.</string>
-    <string name="vm_dcc_no_file_picker">이 기기에서 사용할 수 있는 파일 선택기가 없습니다.</string>
+    <string name="no_file_picker">이 기기에서 사용할 수 있는 파일 선택기가 없습니다.</string>
+    <string name="no_app_for_action">이 기기에는 이 작업을 할 수 있는 앱이 없습니다.</string>
     <string name="vm_dcc_offering_active">%2$s에게 DCC%3$s(으)로 %1$s을(를) 제안하는 중 (능동, 포트 %4$s)…</string>
     <string name="vm_dcc_offering_passive">%2$s에게 DCC%3$s(으)로 %1$s을(를) 제안하는 중 (수동)…</string>
     <string name="vm_dcc_accepted_resume">%1$s이(가) 수락했습니다. %2$s바이트 지점부터 이어받습니다…</string>
@@ -1172,6 +1220,7 @@
     <string name="vm_auth_sasl_bouncer">SASL 인증이 거부되었습니다. 바운서는 연결을 넘기기 위해 올바른 SASL이 필요합니다. 이 프로필의 SASL 사용자 이름과 비밀번호(또는 클라이언트 인증서)를 확인하세요.</string>
     <string name="vm_auth_sasl_rejected">SASL 인증이 거부되었습니다. 이 프로필의 SASL 사용자 이름과 비밀번호(또는 클라이언트 인증서)를 확인하세요.</string>
     <string name="vm_auth_rejected">인증이 거부되었습니다.</string>
+    <string name="vm_auth_account_required">이 서버는 계정이 필요합니다. 이 네트워크에서 SASL을 켜거나 서버 비밀번호를 설정하세요.</string>
     <string name="vm_auth_halt_suffix">자동 재연결이 중단되었습니다. 인증 정보를 수정한 뒤 「재연결」을 누르세요.</string>
     <string name="vm_ref">(참조: %1$s)</string>
 
@@ -1827,4 +1876,68 @@
     <string name="vm_ev_has_left_nohost">%1$s이(가) %2$s에서 나갔습니다</string>
     <string name="vm_ev_has_quit_nohost">%1$s이(가) 종료했습니다</string>
     <string name="push_encrypted">암호화된 메시지</string>
+    <string name="setting_smart_filter">스마트 필터</string>
+    <string name="setting_smart_filter_desc">입장, 퇴장, 종료, 닉네임 변경은 최근에 말한 사람에 대해서만 표시합니다. 입장 직후에 말하면 그때 입장도 표시합니다.</string>
+    <string name="setting_smart_filter_window">다음 시간 안에 말함</string>
+    <string name="setting_smart_filter_minutes">%1$d분</string>
+    <string name="menu_channel_settings">채널 설정</string>
+    <string name="menu_conversation_settings">대화 설정</string>
+    <string name="channel_settings_title">%1$s 설정</string>
+    <string name="channel_settings_mute">알림 끄기</string>
+    <string name="channel_settings_mute_desc">여기서는 알림이 오지 않습니다. 읽지 않은 수는 계속 표시됩니다.</string>
+    <string name="channel_settings_words">강조 단어</string>
+    <string name="channel_settings_words_desc">설정의 단어에 더해 여기서는 이 단어로도 강조합니다. 쉼표로 구분하세요.</string>
+    <string name="channel_settings_events_follow">설정과 동일</string>
+    <string name="channel_settings_events_custom">이 채널 전용</string>
+    <string name="channel_settings_reset">초기화</string>
+    <string name="notif_self_name">나</string>
+    <string name="bubble_label">대화</string>
+    <string name="bubble_open_app">HexDroid에서 열기</string>
+    <string name="bubble_message_hint">메시지</string>
+    <string name="bubble_send">보내기</string>
+    <string name="menu_search_logs">로그 검색</string>
+    <string name="log_search_title">로그 검색</string>
+    <string name="log_search_hint">메시지 검색</string>
+    <string name="log_search_help">모든 단어가 들어 있어야 합니다. 구절은 따옴표로 묶고, 한 사람의 메시지는 from:nick으로 찾으세요.</string>
+    <string name="log_search_scope_buffer">이 대화</string>
+    <string name="log_search_scope_network">이 네트워크</string>
+    <string name="log_search_scope_all">모든 네트워크</string>
+    <string name="log_search_results">결과: %1$d개</string>
+    <string name="log_search_more">최신 %1$d개를 표시합니다. 이전 결과를 보려면 검색 범위를 좁히세요.</string>
+    <string name="log_search_none">결과가 없습니다.</string>
+    <string name="log_search_logging_off">로그 기록이 꺼져 있어 이전에 저장된 로그만 검색할 수 있습니다.</string>
+    <string name="log_search_go">메시지로 이동</string>
+    <string name="log_search_searching">검색 중…</string>
+    <string name="log_search_server_searching">바운서 기록 검색 중…</string>
+    <string name="log_search_server_count">바운서에서 검색한 대화: %1$d개</string>
+    <string name="log_search_server_badge">바운서</string>
+    <string name="ignore_type_channel">채널 메시지</string>
+    <string name="ignore_type_private">개인 메시지</string>
+    <string name="ignore_type_notices">공지(NOTICE)</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">초대</string>
+    <string name="ignore_type_dcc">DCC 제안</string>
+    <string name="ignore_type_events">입장, 퇴장, 종료</string>
+    <string name="vm_ignore_types_usage">일부만 무시하려면 유형을 추가하세요: PUBLIC, MSGS, NOTICES, CTCPS, INVITES, DCC, EVENTS 또는 ALL.</string>
+    <string name="vm_backup_saved_with_passwords">백업을 저장했습니다. 비밀번호는 암호문구로 암호화되었습니다.\n인증서는 포함되지 않습니다.</string>
+    <string name="backup_export_title">백업 내보내기</string>
+    <string name="backup_include_passwords">비밀번호 포함</string>
+    <string name="backup_include_passwords_desc">서버, SASL, 프록시 비밀번호를 암호문구로 암호화합니다. 그 암호문구로만 복원할 수 있습니다.</string>
+    <string name="backup_passphrase">암호문구</string>
+    <string name="backup_passphrase_confirm">암호문구 다시 입력</string>
+    <string name="backup_passphrase_short">%1$d자 이상.</string>
+    <string name="backup_passphrase_mismatch">암호문구가 일치하지 않습니다.</string>
+    <string name="backup_export_action">내보내기</string>
+    <string name="restore_passphrase_title">백업의 비밀번호</string>
+    <string name="restore_passphrase_body">이 백업에는 암호문구로 암호화된 비밀번호가 들어 있습니다. 입력하면 비밀번호도 복원합니다.</string>
+    <string name="restore_passphrase_wrong">이 암호문구로는 비밀번호를 열 수 없습니다.</string>
+    <string name="restore_with_passwords">복원</string>
+    <string name="restore_without_passwords">비밀번호 없이 복원</string>
+    <string name="debug_info_title">디버그 정보 복사</string>
+    <string name="debug_info_desc">버전, 연결 정보, 기능, 최근 오류(버그 신고용)</string>
+    <string name="debug_info_raw">최근 원시 줄 포함</string>
+    <string name="debug_info_raw_desc">각 네트워크에서 주고받은 최근 %1$d줄(비밀번호는 숨김). 메시지가 들어 있을 수 있습니다.</string>
+    <string name="debug_info_check">공개적으로 공유하기 전에 내용을 확인하세요.</string>
+    <string name="debug_info_copy">복사</string>
+    <string name="debug_info_copied">디버그 정보를 복사했습니다</string>
 </resources>

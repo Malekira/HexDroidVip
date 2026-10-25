@@ -134,6 +134,13 @@ class IrcSession(private val config: IrcConfig, private val rng: SecureRandom) {
     private var metadataSubSent = false
 
     /**
+     * True when the server is soju. Its draft/metadata-2 holds only soju's own per-target keys
+     * and lists them only to a connection bound to a network, so the subscription waits until
+     * BOUNCER_NETID shows the binding.
+     */
+    val sojuMetadata: Boolean get() = serverCaps.contains("soju.im/bouncer-networks")
+
+    /**
      * The initial draft/metadata-2 subscription line, once; null if the capability isn't enabled or
      * it was already sent. Keys are in preference order, since the server stops at its subscription
      * limit.
@@ -142,6 +149,9 @@ class IrcSession(private val config: IrcConfig, private val rng: SecureRandom) {
         if (metadataSubSent) return null
         if (!enabledCaps.contains("draft/metadata-2")) return null
         metadataSubSent = true
+        // soju answers any other key with FAIL KEY_INVALID. soju.im/blocked stays off: soju
+        // hides blocked users itself only from clients that don't subscribe to it.
+        if (sojuMetadata) return "METADATA * SUB soju.im/muted"
         // Keys we actually render, in preference order. The server stops at the
         // max-subs limit, so the most visible keys lead: display-name and avatar,
         // then colour and status, then the tap-sheet extras. bio trails since it's
@@ -166,6 +176,9 @@ class IrcSession(private val config: IrcConfig, private val rng: SecureRandom) {
      * CAP LS, ACK and NEW.
      */
     fun hasCap(name: String): Boolean = enabledCaps.contains(name.lowercase())
+
+    /** The capabilities enabled now, sorted. */
+    fun enabledCapsList(): List<String> = runCatching { enabledCaps.toList().sorted() }.getOrDefault(emptyList())
     private var scram: ScramSha256Client? = null
 
     // Buffer for incoming SASL AUTHENTICATE payloads (servers may split into 400-byte chunks).
@@ -310,8 +323,9 @@ class IrcSession(private val config: IrcConfig, private val rng: SecureRandom) {
             // `before-connect`; otherwise the subscription is deferred to RPL_WELCOME
             // (see the "001" numeric handler). Once registered, METADATA is always
             // allowed, so a cap enabled later via CAP NEW subscribes here regardless.
+            // soju's subscription waits for its binding instead (see [sojuMetadata]).
             // "*" is the required self-target before a nick has been assigned.
-            if (metadataBeforeConnect() || registered) {
+            if (!sojuMetadata && (metadataBeforeConnect() || registered)) {
                 takeMetadataSubLine()?.let { out += IrcAction.Send(it) }
             }
 
@@ -494,6 +508,9 @@ class IrcSession(private val config: IrcConfig, private val rng: SecureRandom) {
             // soju.im/read: proprietary read markers (parallel to draft/read-marker)
             if (config.capPrefs.sojuRead) req += "soju.im/read"
         }
+
+        // soju.im/search: SEARCH over the bouncer's stored history, used by the log search.
+        if (config.capPrefs.batch) req += "soju.im/search"
 
         // draft/channel-rename: handle RENAME commands without a re-join cycle.
         if (config.capPrefs.channelRename) req += "draft/channel-rename"

@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">Időbélyegek megjelenítése</string>
     <string name="setting_timestamp_format">Időbélyeg formátum (Java)</string>
     <string name="setting_hide_motd">MOTD elrejtése kapcsolódáskor</string>
-    <string name="setting_hide_joinpartquit">join/part/quit üzenetek elrejtése</string>
+    <string name="setting_channel_events">Csatornaesemények</string>
+    <string name="setting_events_all_shown">Mind látható</string>
+    <string name="setting_events_all_hidden">Mind rejtett</string>
+    <string name="setting_events_some_shown">%1$d/%2$d látható</string>
+    <string name="setting_events_hide_all">Összes elrejtése</string>
+    <string name="setting_events_show_all">Összes megjelenítése</string>
+    <string name="setting_channel_events_own">A saját nickváltásaid és a téged érő kirúgások mindig megjelennek.</string>
+    <string name="event_joins">Belépések</string>
+    <string name="event_parts">Kilépések</string>
+    <string name="event_quits">Lecsatlakozások</string>
+    <string name="event_nick_changes">Nickváltások</string>
+    <string name="event_topic_changes">Topikváltások</string>
+    <string name="event_kicks">Kirúgások</string>
+    <string name="event_mode_changes">Módváltások</string>
     <string name="setting_hide_away_notify">away/back üzenetek elrejtése</string>
     <string name="setting_color_channel_events">Színes csatorna események</string>
     <string name="setting_hide_topic_on_entry">Topik elrejtése belépéskor</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">Fiók</string>
     <string name="chat_ban_type_domain">Tartomány</string>
     <string name="chat_react_custom">Egyéni reakció</string>
+    <string name="chat_reactions_unsupported">Ez a szerver nem támogatja a reakciókat</string>
     <string name="chat_react_custom_hint">Emoji vagy szó</string>
     <string name="chat_react_send">Reagálás</string>
+    <string name="chat_reactions_title">Reakciók</string>
+    <string name="chat_reactions_all">Mind</string>
+    <string name="chat_reactions_who">Ki reagált?</string>
+    <string name="chat_reaction_you">te</string>
+    <string name="chat_reaction_cd">%1$s, reagált: %2$s</string>
     <string name="chat_reply_not_loaded">Válasz egy korábbi üzenetre</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">Húzd az átrendezéshez</string>
     <string name="networks_insecure_title">Nem biztonságos kapcsolat blokkolva</string>
     <string name="networks_local_title">Helyi hálózati hozzáférés szükséges</string>
-    <string name="networks_local_body">Helyi Hálózati jogosultság szükséges a kapcsolódáshoz: {0} .
-
-Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez való kapcsolódáshoz (otthoni hálózat, bouncer, stb.).</string>
+    <string name="networks_local_body">Helyi Hálózati jogosultság szükséges a kapcsolódáshoz: %1$s .\n\nEz egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez való kapcsolódáshoz (otthoni hálózat, bouncer, stb.).</string>
     <string name="networks_local_grant">Engedélyezés</string>
     <string name="networks_insecure_body">Az egyszerű szöveges IRC kapcsolatok nem titkosítottak, így az üzeneteid és jelszavaid könnyen kideríthetők.</string>
     <string name="networks_insecure_body2">Egyértelműen engedélyezned kell a nem biztonságos egyszerű szöveges kapcsolatot a hálózathoz, ha TLS nélkül szeretnél kapcsolódni ide: %1$s .</string>
@@ -516,7 +533,7 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
 
     <!-- Ignore list screen -->
     <string name="ignore_title">Mellőzési lista</string>
-    <string name="ignore_nick_label">Mellőzendő becenév</string>
+    <string name="ignore_nick_label">Nick vagy nick!user@host maszk</string>
     <string name="ignore_no_nicks">Nincs mellőzendő becenév.</string>
     <string name="ignore_no_networks">Még nincs beállított hálózat.</string>
     <string name="ignore_add">Hozzáad</string>
@@ -649,7 +666,7 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
     <string name="setting_dcc_downloads_default">Letöltések (alapértelmezett)</string>
     <string name="setting_dcc_downloads_custom">Egyedi mappa</string>
     <string name="section_backup_restore">Mentés &amp; Visszaállítás</string>
-    <string name="setting_backup_export_desc">Hálózati- és alkalmazásbeállítások exportálása JSON fájlba. Jelszavakat és TLS tanúsítványokat nem tartalmaz.</string>
+    <string name="setting_backup_export_desc">Exportáld a hálózati beállításokat és az alkalmazás beállításait egy JSON-fájlba. A jelszavak jelmondattal titkosítva hozzáadhatók. A TLS-tanúsítványok nincsenek benne.</string>
     <string name="setting_restore_desc">A visszaállítás felülír minden jelenlegi hálózatot és beállítást.</string>
     <string name="setting_restore_confirm">Ez felülír minden jelenlegi hálózatot és beállítást a mentett fájlban lévőkkel. Jelszó azonban nem lett eltárolva, ezért azokat ismét meg kell adni. A művelet nem visszavonható.</string>
     <string name="setting_backup_error">Hiba</string>
@@ -756,7 +773,7 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
     <string name="nick_devoice">Voice elvétele (-v)</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">Hálózat</string>
-    <string name="ignore_list_desc">A mellőzött becenevek kis-nagybetű függetlenek és érvényesek a csevegésre + értesítésekre + bejövő DCC kérelmekre a szerveren.</string>
+    <string name="ignore_list_desc">Minden bejegyzés egy nick vagy egy maszk, például *!*@example.com, kis- és nagybetűtől függetlenül. Válaszd ki, mit hagy ki mindegyik ezen a hálózaton.</string>
     <string name="ignore_list_tip">Tipp: mellőzhetsz valakit a becenévlistáról is, vagy a nevére koppintva a csevegésben.</string>
     <!-- ListScreen -->
     <string name="list_loading">Betöltés… (%1$d)</string>
@@ -821,6 +838,25 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
     <string name="bouncer_networks_already_imported">Importálva</string>
     <string name="bouncer_networks_unnamed">(névtelen upstream)</string>
     <string name="bouncer_networks_clone_dismiss">Elutasít</string>
+    <string name="bouncer_networks_add">Hálózat hozzáadása</string>
+    <string name="bouncer_networks_import_all">Összes importálása</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">titkosítatlan</string>
+    <string name="bouncer_networks_error">Hiba: %1$s</string>
+    <string name="bouncer_networks_actions">Műveletek: %1$s</string>
+    <string name="bouncer_net_dialog_add_title">Bouncer hálózat hozzáadása</string>
+    <string name="bouncer_net_dialog_edit_title">%1$s szerkesztése</string>
+    <string name="bouncer_net_field_name_hint">Hagyd üresen a kiszolgáló nevének használatához</string>
+    <string name="bouncer_net_field_port_hint">Hagyd üresen az alapértelmezéshez</string>
+    <string name="bouncer_net_field_pass_keep">Hagyd üresen a jelenlegi megtartásához</string>
+    <string name="bouncer_net_optional">Az üres mezők a bouncer alapértelmezéseit használják.</string>
+    <string name="bouncer_net_import_after">Importálás profilként</string>
+    <string name="bouncer_net_host_required">Add meg a kiszolgáló nevét.</string>
+    <string name="bouncer_net_port_invalid">A port 1 és 65535 közötti szám legyen.</string>
+    <string name="bouncer_net_add">Hozzáadás</string>
+    <string name="bouncer_net_delete_title">Törlöd: %1$s?</string>
+    <string name="bouncer_net_delete_body">A bouncer bontja a kapcsolatot ezzel a hálózattal, és elfelejti a tárolt előzményekkel együtt.</string>
+    <string name="bouncer_net_delete_profile">Az importált profil törlése is</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">Bouncerekhez SASL javasolt. Ha inkább a PASS mezőt használnád, csak add meg a jelszót; a fenti mezőkből származó bouncer felhasználónév és hálózat automatikusan előtag lesz. A teljes <b>felhasználónév/hálózat:jelszó</b> szintén működik.</string>
@@ -1099,6 +1135,17 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
     <string name="vm_caps_removed">A kiszolgáló képességeket távolított el: %1$s</string>
     <string name="vm_bouncer_removed">Bouncer hálózat eltávolítva: %1$s</string>
     <string name="vm_bouncer_state">Bouncer hálózat %1$s: %2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">Bouncer hálózat %1$s: %2$s</string>
+    <string name="vm_bouncer_renamed">A(z) %1$s bouncer hálózat új neve %2$s. A(z) \"%3$s\" profil követi.</string>
+    <string name="vm_bouncer_import_none">Minden bouncer hálózat importálva van már.</string>
+    <string name="vm_bouncer_import_all">Importált bouncer hálózatok: %1$d. Kapcsold be az automatikus kapcsolódást azokon, amelyeket használni szeretnél.</string>
+    <string name="vm_bouncer_not_connected">Csatlakozz a bouncerhez a hálózatai kezeléséhez.</string>
+    <string name="vm_bouncer_refused">A bouncer elutasította: %1$s</string>
+    <string name="vm_bouncer_refused_attr">A bouncer elutasította ezt: %1$s: %2$s</string>
+    <string name="vm_bouncer_added">\"%1$s\" hozzáadva a bouncerhez.</string>
+    <string name="vm_bouncer_changed">\"%1$s\" frissítve a bounceren.</string>
+    <string name="vm_bouncer_deleted">\"%1$s\" eltávolítva a bouncerről.</string>
+    <string name="vm_bouncer_deleted_profiles">\"%1$s\" eltávolítva a bouncerről, a profiljával együtt.</string>
     <string name="vm_deleted_message">%1$s törölt egy üzenetet</string>
     <string name="vm_names_none">NAMES ehhez: %1$s: (nincs)</string>
     <string name="vm_names_header">NAMES ehhez: %1$s (%2$s):</string>
@@ -1132,7 +1179,8 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
     <string name="vm_dcc_no_chat_offer">Nincs függőben lévő DCC CHAT ajánlat tőle: %1$s.</string>
     <string name="dcc_send_pick_title">Fájl küldése neki: %1$s?</string>
     <string name="dcc_send_pick_body">Válassz egy fájlt, amelyet DCC-n keresztül felajánlasz neki: %1$s (%2$s).</string>
-    <string name="vm_dcc_no_file_picker">Ezen az eszközön nem érhető el fájlválasztó.</string>
+    <string name="no_file_picker">Ezen az eszközön nem érhető el fájlválasztó.</string>
+    <string name="no_app_for_action">Ezen az eszközön nincs ehhez megfelelő alkalmazás.</string>
     <string name="vm_dcc_offering_active">%1$s felajánlása neki: %2$s, DCC%3$s útján (aktív, port %4$s)…</string>
     <string name="vm_dcc_offering_passive">%1$s felajánlása neki: %2$s, DCC%3$s útján (passzív)…</string>
     <string name="vm_dcc_accepted_resume">%1$s elfogadta; folytatás %2$s bájttól…</string>
@@ -1172,6 +1220,7 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
     <string name="vm_auth_sasl_bouncer">A SASL hitelesítés elutasítva. A bouncerek érvényes SASL adatokat igényelnek a kapcsolat továbbításához. Ellenőrizd a profil SASL felhasználónevét és jelszavát (vagy a kliens tanúsítványát).</string>
     <string name="vm_auth_sasl_rejected">A SASL hitelesítés elutasítva. Ellenőrizd a profil SASL felhasználónevét és jelszavát (vagy a kliens tanúsítványát).</string>
     <string name="vm_auth_rejected">A hitelesítés elutasítva.</string>
+    <string name="vm_auth_account_required">Ez a szerver fiókot igényel. Kapcsold be a SASL-t ehhez a hálózathoz, vagy állítsd be a szerver jelszót.</string>
     <string name="vm_auth_halt_suffix">Az automatikus újracsatlakozás leállt; a hitelesítő adatok javítása után koppints az újracsatlakozásra.</string>
     <string name="vm_ref">(hiv.: %1$s)</string>
 
@@ -1827,4 +1876,68 @@ Ez egy új Android 17 követelmény a helyi hálózatodon lévő szerverekhez va
     <string name="vm_ev_has_left_nohost">%1$s elhagyta ezt: %2$s</string>
     <string name="vm_ev_has_quit_nohost">%1$s kilépett</string>
     <string name="push_encrypted">Titkosított üzenet</string>
+    <string name="setting_smart_filter">Okos szűrő</string>
+    <string name="setting_smart_filter_desc">A belépések, kilépések, lecsatlakozások és nickváltások csak azoknál jelennek meg, akik nemrég írtak. Ha valaki nem sokkal belépése után ír, a belépése akkor jelenik meg.</string>
+    <string name="setting_smart_filter_window">Írt az elmúlt</string>
+    <string name="setting_smart_filter_minutes">%1$d perc</string>
+    <string name="menu_channel_settings">Csatornabeállítások</string>
+    <string name="menu_conversation_settings">Beszélgetés beállításai</string>
+    <string name="channel_settings_title">%1$s beállításai</string>
+    <string name="channel_settings_mute">Értesítések némítása</string>
+    <string name="channel_settings_mute_desc">Innen semmi sem küld értesítést. Az olvasatlan számlálók látszanak.</string>
+    <string name="channel_settings_words">Kiemelő szavak</string>
+    <string name="channel_settings_words_desc">Itt ezekre a szavakra is kiemel, a Beállításokban megadottakon felül. Vesszővel válaszd el őket.</string>
+    <string name="channel_settings_events_follow">Ahogy a Beállításokban</string>
+    <string name="channel_settings_events_custom">Egyéni ehhez a csatornához</string>
+    <string name="channel_settings_reset">Visszaállítás</string>
+    <string name="notif_self_name">Te</string>
+    <string name="bubble_label">Beszélgetés</string>
+    <string name="bubble_open_app">Megnyitás a HexDroidban</string>
+    <string name="bubble_message_hint">Üzenet</string>
+    <string name="bubble_send">Küldés</string>
+    <string name="menu_search_logs">Keresés a naplókban</string>
+    <string name="log_search_title">Keresés a naplókban</string>
+    <string name="log_search_hint">Üzenetek keresése</string>
+    <string name="log_search_help">Minden szónak szerepelnie kell. Tegyél egy kifejezést idézőjelbe, egy ember üzeneteihez használd a from:nick alakot.</string>
+    <string name="log_search_scope_buffer">Ez a beszélgetés</string>
+    <string name="log_search_scope_network">Ez a hálózat</string>
+    <string name="log_search_scope_all">Minden hálózat</string>
+    <string name="log_search_results">Találatok: %1$d</string>
+    <string name="log_search_more">A legújabb %1$d látszik. A régebbiekhez szűkítsd a keresést.</string>
+    <string name="log_search_none">Nincs találat.</string>
+    <string name="log_search_logging_off">A naplózás ki van kapcsolva, így csak a korábban mentett naplókban lehet keresni.</string>
+    <string name="log_search_go">Ugrás az üzenethez</string>
+    <string name="log_search_searching">Keresés…</string>
+    <string name="log_search_server_searching">Keresés a bouncer előzményeiben…</string>
+    <string name="log_search_server_count">Bounceren átkeresett beszélgetések: %1$d</string>
+    <string name="log_search_server_badge">Bouncer</string>
+    <string name="ignore_type_channel">Csatornaüzenetek</string>
+    <string name="ignore_type_private">Privát üzenetek</string>
+    <string name="ignore_type_notices">Notice-ok</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">Meghívások</string>
+    <string name="ignore_type_dcc">DCC-ajánlatok</string>
+    <string name="ignore_type_events">Belépések, kilépések, lecsatlakozások</string>
+    <string name="vm_ignore_types_usage">Adj meg típusokat, hogy csak egyes dolgokat hagyj ki: PUBLIC, MSGS, NOTICES, CTCPS, INVITES, DCC, EVENTS vagy ALL.</string>
+    <string name="vm_backup_saved_with_passwords">Mentés kész, a jelszavak a jelmondatoddal titkosítva.\nA tanúsítványok nincsenek benne.</string>
+    <string name="backup_export_title">Mentés exportálása</string>
+    <string name="backup_include_passwords">Jelszavak hozzáadása</string>
+    <string name="backup_include_passwords_desc">Szerver-, SASL- és proxyjelszavak, jelmondattal titkosítva. Csak azzal állíthatók vissza.</string>
+    <string name="backup_passphrase">Jelmondat</string>
+    <string name="backup_passphrase_confirm">Jelmondat ismét</string>
+    <string name="backup_passphrase_short">Legalább %1$d karakter.</string>
+    <string name="backup_passphrase_mismatch">A jelmondatok nem egyeznek.</string>
+    <string name="backup_export_action">Exportálás</string>
+    <string name="restore_passphrase_title">Jelszavak a mentésben</string>
+    <string name="restore_passphrase_body">Ez a mentés jelmondattal titkosított jelszavakat tartalmaz. Add meg, hogy azokat is visszaállítsd.</string>
+    <string name="restore_passphrase_wrong">Ez a jelmondat nem nyitja meg a jelszavakat.</string>
+    <string name="restore_with_passwords">Visszaállítás</string>
+    <string name="restore_without_passwords">Visszaállítás jelszavak nélkül</string>
+    <string name="debug_info_title">Hibakeresési adatok másolása</string>
+    <string name="debug_info_desc">Verzió, kapcsolati adatok, képességek és friss hibák egy hibajelentéshez</string>
+    <string name="debug_info_raw">Friss nyers sorok hozzáadása</string>
+    <string name="debug_info_raw_desc">Minden hálózat utolsó %1$d küldött és fogadott sora, elrejtett jelszavakkal. Üzeneteket is tartalmazhatnak.</string>
+    <string name="debug_info_check">Olvasd át, mielőtt nyilvánosan megosztod.</string>
+    <string name="debug_info_copy">Másolás</string>
+    <string name="debug_info_copied">Hibakeresési adatok másolva</string>
 </resources>

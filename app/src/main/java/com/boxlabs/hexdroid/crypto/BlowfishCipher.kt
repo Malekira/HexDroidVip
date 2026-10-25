@@ -50,7 +50,7 @@ internal class BlowfishCipher(private val key: ByteArray) : E2eCipher {
         return "${scheme.wirePrefix} *$b64"
     }
 
-    override fun decrypt(wireText: String, aadContext: String): String? {
+    override fun decrypt(wireText: String, aadContext: String, allowRepeat: Boolean): String? {
         val prefix = "${scheme.wirePrefix} "
         if (!wireText.startsWith(prefix)) return null
         val body = wireText.substring(prefix.length).trim()

@@ -58,26 +58,26 @@ class KeepAliveService : Service() {
 
         /**
          * Acquire a PARTIAL_WAKE_LOCK scoped to the connect/handshake burst for [netId].
-         * Must be paired with [releaseScopedWakeLock] using the same [netId].
+         * Must be paired with [releaseScopedWakeLock] passing the returned lock.
          * The lock has a 60-second safety timeout so it is released automatically if the
          * caller forgets (e.g. due to an exception path).
          */
-        fun acquireScopedWakeLock(context: Context, netId: String) {
+        fun acquireScopedWakeLock(context: Context, netId: String): PowerManager.WakeLock {
             val pm = context.getSystemService(POWER_SERVICE) as PowerManager
             val lock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "HexDroid:ConnectBurst:$netId")
             lock.acquire(60_000L) // 60 s safety timeout
             // Release any stale lock for this netId before storing the new one.
             scopedWakeLocks.put(netId, lock)?.let { old -> if (old.isHeld) old.release() }
+            return lock
         }
 
         /**
-         * Release the scoped wake lock for [netId] acquired by [acquireScopedWakeLock].
-         * Safe to call even if no lock is held for [netId].
+         * Release [lock], acquired for [netId] by [acquireScopedWakeLock]. A newer lock for the
+         * same network, taken by a later connect, is left alone.
          */
-        fun releaseScopedWakeLock(netId: String) {
-            scopedWakeLocks.remove(netId)?.let { lock ->
-                if (lock.isHeld) lock.release()
-            }
+        fun releaseScopedWakeLock(netId: String, lock: PowerManager.WakeLock) {
+            scopedWakeLocks.remove(netId, lock)
+            runCatching { if (lock.isHeld) lock.release() }
         }
 
         /** Release ALL scoped wake locks (called from [onDestroy] as a last-resort cleanup). */

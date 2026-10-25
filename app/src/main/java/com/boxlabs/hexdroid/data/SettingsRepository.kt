@@ -11,6 +11,7 @@ import com.boxlabs.hexdroid.SaslConfig
 import com.boxlabs.hexdroid.SaslMechanism
 import com.boxlabs.hexdroid.UiSettings
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import org.json.JSONArray
@@ -51,6 +52,7 @@ class SettingsRepository(private val ctx: Context) {
     
         val SECRETS_MIGRATED_V2 = booleanPreferencesKey("secrets_migrated_v2")
         val QUIT_MSG_MIGRATED_V1 = booleanPreferencesKey("quit_msg_migrated_v1")
+        val CHANNEL_PREFS_JSON = stringPreferencesKey("channel_prefs_json")
     }
 
     val settingsFlow: Flow<UiSettings> = ctx.dataStore.data.map { prefs ->
@@ -59,6 +61,32 @@ class SettingsRepository(private val ctx: Context) {
 
     val networksFlow: Flow<List<NetworkProfile>> = ctx.dataStore.data.map { prefs ->
         parseNetworks(prefs[Keys.NETWORKS_JSON])
+    }
+
+    /** Per-buffer settings, keyed by [ChannelPrefsCodec.keyFor]. */
+    val channelPrefsFlow: Flow<Map<String, ChannelPrefs>> = ctx.dataStore.data
+        .map { prefs -> prefs[Keys.CHANNEL_PREFS_JSON] }
+        .distinctUntilChanged()
+        .map { ChannelPrefsCodec.decode(it) }
+
+    /** Sets or, with [value] null or default, clears one buffer's settings. */
+    suspend fun setChannelPrefs(bufferKey: String, value: ChannelPrefs?) {
+        ctx.dataStore.edit { prefs ->
+            val all = ChannelPrefsCodec.decode(prefs[Keys.CHANNEL_PREFS_JSON]).toMutableMap()
+            val key = ChannelPrefsCodec.keyFor(bufferKey)
+            if (value == null || value.isDefault) all.remove(key) else all[key] = value
+            prefs[Keys.CHANNEL_PREFS_JSON] = ChannelPrefsCodec.encode(all)
+        }
+    }
+
+    /** Clears the settings of every buffer on [networkId]. */
+    suspend fun removeChannelPrefsForNetwork(networkId: String) {
+        ctx.dataStore.edit { prefs ->
+            val all = ChannelPrefsCodec.decode(prefs[Keys.CHANNEL_PREFS_JSON])
+            val prefix = ChannelPrefsCodec.keyFor("$networkId::")
+            val kept = all.filterKeys { !it.startsWith(prefix) }
+            if (kept.size != all.size) prefs[Keys.CHANNEL_PREFS_JSON] = ChannelPrefsCodec.encode(kept)
+        }
     }
 
     val lastNetworkIdFlow: Flow<String?> = ctx.dataStore.data.map { prefs ->
@@ -306,7 +334,16 @@ class SettingsRepository(private val ctx: Context) {
                 bufferPaneFracLandscape = o.optDouble("bufferPaneFracLandscape", 0.22).toFloat(),
                 nickPaneFracLandscape = o.optDouble("nickPaneFracLandscape", 0.05).toFloat(),
 
-                hideJoinPartQuit = o.optBoolean("hideJoinPartQuit", false),
+                // Older settings hold one hideJoinPartQuit switch for all three.
+                hideJoins = o.optBoolean("hideJoins", o.optBoolean("hideJoinPartQuit", false)),
+                hideParts = o.optBoolean("hideParts", o.optBoolean("hideJoinPartQuit", false)),
+                hideQuits = o.optBoolean("hideQuits", o.optBoolean("hideJoinPartQuit", false)),
+                hideNickChanges = o.optBoolean("hideNickChanges", false),
+                hideTopicChanges = o.optBoolean("hideTopicChanges", false),
+                hideKicks = o.optBoolean("hideKicks", false),
+                hideModeChanges = o.optBoolean("hideModeChanges", false),
+                smartFilter = o.optBoolean("smartFilter", false),
+                smartFilterMinutes = o.optInt("smartFilterMinutes", 10).coerceIn(1, 60),
                 hideHostnames = o.optBoolean("hideHostnames", false),
                 colorChannelEvents = o.optBoolean("colorChannelEvents", true),
                 hideAwayNotify = o.optBoolean("hideAwayNotify", false),
@@ -424,7 +461,15 @@ class SettingsRepository(private val ctx: Context) {
         o.put("bufferPaneFracLandscape", s.bufferPaneFracLandscape.toDouble())
         o.put("nickPaneFracLandscape", s.nickPaneFracLandscape.toDouble())
 
-        o.put("hideJoinPartQuit", s.hideJoinPartQuit)
+        o.put("hideJoins", s.hideJoins)
+        o.put("hideParts", s.hideParts)
+        o.put("hideQuits", s.hideQuits)
+        o.put("hideNickChanges", s.hideNickChanges)
+        o.put("hideTopicChanges", s.hideTopicChanges)
+        o.put("hideKicks", s.hideKicks)
+        o.put("hideModeChanges", s.hideModeChanges)
+        o.put("smartFilter", s.smartFilter)
+        o.put("smartFilterMinutes", s.smartFilterMinutes)
         o.put("hideHostnames", s.hideHostnames)
         o.put("colorChannelEvents", s.colorChannelEvents)
         o.put("hideAwayNotify", s.hideAwayNotify)
@@ -587,6 +632,7 @@ class SettingsRepository(private val ctx: Context) {
                                 ig.optString(j)?.trim()?.takeIf { it.isNotBlank() }
                             }.distinctBy { it.lowercase() }
                         } ?: emptyList(),
+                        ignoreLevels = IgnoreRules.decodeLevels(o.optJSONObject("ignoreLevels")),
     
                         dccAutoAcceptNicks = o.optJSONArray("dccAutoAccept")?.let { aa ->
                             (0 until aa.length()).mapNotNull { j ->
@@ -627,6 +673,7 @@ class SettingsRepository(private val ctx: Context) {
                             }
                         },
                         bouncerNetworkName = o.optString("bouncerNetworkName", "").takeIf { it.isNotBlank() },
+                        bouncerNetworkId = o.optString("bouncerNetworkId", "").takeIf { it.isNotBlank() },
                         bouncerClientId = o.optString("bouncerClientId", "").takeIf { it.isNotBlank() },
                         tlsTofuFingerprint = o.optString("tlsTofuFingerprint", "").takeIf { it.isNotBlank() },
                         tlsAcceptedIdentities = run {
@@ -730,6 +777,9 @@ class SettingsRepository(private val ctx: Context) {
             o.put("autoConnect", n.autoConnect)
             o.put("autoReconnect", n.autoReconnect)
             o.put("ignoreList", JSONArray(n.ignoredNicks))
+            // Types only for entries still listed.
+            val levels = n.ignoreLevels.filterKeys { k -> n.ignoredNicks.any { IgnoreRules.key(it) == k } }
+            if (levels.isNotEmpty()) o.put("ignoreLevels", IgnoreRules.encodeLevels(levels))
             o.put("dccAutoAccept", JSONArray(n.dccAutoAcceptNicks))
             o.put("notifyOnErrors", n.notifyOnErrors)
             if (n.highlightIgnoreMasks.isNotEmpty()) {
@@ -748,6 +798,7 @@ class SettingsRepository(private val ctx: Context) {
             // Always emit bouncerKind so the migration on next read doesn't second-guess us.
             o.put("bouncerKind", n.bouncerKind.name)
             if (!n.bouncerNetworkName.isNullOrBlank()) o.put("bouncerNetworkName", n.bouncerNetworkName)
+            if (!n.bouncerNetworkId.isNullOrBlank()) o.put("bouncerNetworkId", n.bouncerNetworkId)
             if (!n.bouncerClientId.isNullOrBlank()) o.put("bouncerClientId", n.bouncerClientId)
             if (n.tlsTofuFingerprint != null) o.put("tlsTofuFingerprint", n.tlsTofuFingerprint)
             o.put("tlsHostnameGrace", n.tlsHostnameGrace)
@@ -928,55 +979,148 @@ class SettingsRepository(private val ctx: Context) {
     // Backup / Restore
     // -----------------------------------------------------------------------------------------
 
+    /** A network's passwords, as carried in an encrypted backup. */
+    data class BackupSecrets(val server: String?, val sasl: String?, val proxy: String?)
+
+    /** The passwords stored for each of [networks], leaving out networks with none. */
+    fun collectSecrets(networks: List<NetworkProfile>): Map<String, BackupSecrets> =
+        networks.associate { n ->
+            n.id to BackupSecrets(
+                server = runCatching { secretStore.getServerPassword(n.id) }.getOrNull()?.takeIf { it.isNotEmpty() },
+                sasl = runCatching { secretStore.getSaslPassword(n.id) }.getOrNull()?.takeIf { it.isNotEmpty() },
+                proxy = runCatching { secretStore.getProxyPassword(n.id) }.getOrNull()?.takeIf { it.isNotEmpty() },
+            )
+        }.filterValues { it.server != null || it.sasl != null || it.proxy != null }
+
     /**
-     * Produce a JSON string representing the current networks and settings.
+     * Produce a JSON string representing the current networks, settings and per-buffer settings.
      *
-     * Passwords (SASL, server) and TLS client certificates are intentionally excluded — they
-     * are stored encrypted using hardware-backed Android Keystore keys that are device-specific
-     * and cannot be exported.
+     * TLS client certificates are never included: their keys live in the Android Keystore and
+     * cannot leave the device. Passwords are included only with a [passphrase], encrypted with it
+     * (see [BackupCrypto]).
      */
-    fun exportBackupJson(networks: List<NetworkProfile>, settings: com.boxlabs.hexdroid.UiSettings): String {
+    fun exportBackupJson(
+        networks: List<NetworkProfile>,
+        settings: com.boxlabs.hexdroid.UiSettings,
+        channelPrefs: Map<String, ChannelPrefs> = emptyMap(),
+        secrets: Map<String, BackupSecrets> = emptyMap(),
+        passphrase: CharArray? = null,
+    ): String {
         val root = JSONObject()
         // version: bumped when the schema gains fields whose absence in a round-trip through
         //   an older build would silently change behaviour.
-        root.put("version", 5)
+        root.put("version", 6)
         root.put("minCompatVersion", 1)
         root.put("app", "HexDroid")
         root.put("exportedAt", java.time.Instant.now().toString())
-        root.put("note", "Passwords and TLS certificates are not included in the backup.")
+        root.put(
+            "note",
+            if (passphrase != null && secrets.isNotEmpty()) "Passwords are included, encrypted with a passphrase. TLS certificates are not included."
+            else "Passwords and TLS certificates are not included in the backup."
+        )
         root.put("schemaChanges", org.json.JSONArray(listOf(
             "v2: added sortOrder and isFavourite fields on NetworkProfile",
             "v3: added bouncerKind, bouncerClientId, tlsTofuFingerprint on NetworkProfile; " +
                 "added rejoinOnKick on UiSettings. bouncerNetworkName pre-v3 profiles are " +
                 "migrated to bouncerKind=SOJU on import.",
             "v4: added proxyType, proxyHost, proxyPort, proxyUsername on NetworkProfile (SOCKS/Tor).",
-            "v5: updated cap fields"
+            "v5: updated cap fields",
+            "v6: added channelPrefs, ignoreLevels on NetworkProfile, and optional encryptedSecrets " +
+                "(Argon2id + AES-256-GCM over the network passwords)."
         )))
         root.put("settings", toSettingsJson(settings))
         root.put("networks", toNetworksJson(networks))
+        if (channelPrefs.isNotEmpty()) root.put("channelPrefs", JSONObject(ChannelPrefsCodec.encode(channelPrefs)))
+        if (passphrase != null && secrets.isNotEmpty()) {
+            val plain = JSONObject()
+            for ((id, sec) in secrets) {
+                plain.put(id, JSONObject().apply {
+                    sec.server?.let { put("server", it) }
+                    sec.sasl?.let { put("sasl", it) }
+                    sec.proxy?.let { put("proxy", it) }
+                })
+            }
+            val bytes = plain.toString().toByteArray(Charsets.UTF_8)
+            val sealed = try { BackupCrypto.seal(bytes, passphrase) } finally { bytes.fill(0) }
+            root.put("encryptedSecrets", JSONObject().apply {
+                put("v", 1)
+                put("kdf", "argon2id")
+                put("t", sealed.iterations)
+                put("m", sealed.memoryKb)
+                put("p", sealed.parallelism)
+                put("salt", sealed.salt)
+                put("iv", sealed.iv)
+                put("data", sealed.data)
+            })
+        }
         return root.toString(2)
     }
 
+    /** True when [json] is a backup carrying encrypted passwords. */
+    fun backupHasEncryptedSecrets(json: String): Boolean =
+        runCatching { JSONObject(json).optJSONObject("encryptedSecrets") != null }.getOrDefault(false)
+
     /**
-     * Import a backup, replacing settings and networks with those in [json]. Secrets aren't part of
-     * backups. Returns the ids of profiles that existed before but aren't in the backup, so the
-     * caller can clear their secrets.
+     * The passwords in a backup's encryptedSecrets, keyed by network id.
+     *
+     * @throws BackupCrypto.WrongPassphrase When [passphrase] doesn't open them.
+     */
+    private fun openSecrets(o: JSONObject, passphrase: CharArray): Map<String, BackupSecrets> {
+        require(o.optString("kdf") == "argon2id") { "Unsupported backup encryption" }
+        val sealed = BackupCrypto.Sealed(
+            iterations = o.optInt("t"),
+            memoryKb = o.optInt("m"),
+            parallelism = o.optInt("p"),
+            salt = o.optString("salt"),
+            iv = o.optString("iv"),
+            data = o.optString("data"),
+        )
+        val bytes = BackupCrypto.open(sealed, passphrase)
+        try {
+            val plain = JSONObject(String(bytes, Charsets.UTF_8))
+            val out = HashMap<String, BackupSecrets>()
+            val keys = plain.keys()
+            while (keys.hasNext()) {
+                val id = keys.next()
+                val e = plain.optJSONObject(id) ?: continue
+                out[id] = BackupSecrets(
+                    server = e.optString("server", "").takeIf { it.isNotEmpty() },
+                    sasl = e.optString("sasl", "").takeIf { it.isNotEmpty() },
+                    proxy = e.optString("proxy", "").takeIf { it.isNotEmpty() },
+                )
+            }
+            return out
+        } finally {
+            bytes.fill(0)
+        }
+    }
+
+    /**
+     * Import a backup, replacing settings, networks and per-buffer settings with those in [json].
+     * With a [passphrase], encrypted passwords in the backup are restored too. Returns the ids of
+     * profiles that existed before but aren't in the backup, so the caller can clear their
+     * secrets.
      *
      * @throws IllegalArgumentException If the JSON is invalid or its version unsupported.
+     * @throws BackupCrypto.WrongPassphrase If [passphrase] doesn't open the passwords.
      */
-    suspend fun importBackup(json: String): Set<String> {
+    suspend fun importBackup(json: String, passphrase: CharArray? = null): Set<String> {
         val root = try {
             JSONObject(json)
         } catch (e: Throwable) {
             throw IllegalArgumentException("Not a valid backup file: ${e.message}")
         }
+        // Opened before anything is written, so a wrong passphrase changes nothing.
+        val restoredSecrets = if (passphrase != null) {
+            root.optJSONObject("encryptedSecrets")?.let { openSecrets(it, passphrase) }.orEmpty()
+        } else emptyMap()
 
         val version = root.optInt("version", 1)
         // minCompatVersion declares the *minimum* app backup-format version needed to safely
         // import this file.  If minCompatVersion is absent, assume it equals version (old
         // backups that predate this field are version 1 and this build supports version 1).
         val minCompat = root.optInt("minCompatVersion", version)
-        val appBackupVersion = 4  // this build's highest supported backup version
+        val appBackupVersion = 6  // this build's highest supported backup version
         if (minCompat > appBackupVersion) {
             throw IllegalArgumentException(
                 "This backup requires a newer version of HexDroid (backup minCompatVersion=$minCompat, app supports up to $appBackupVersion). Please update the app."
@@ -988,6 +1132,7 @@ class SettingsRepository(private val ctx: Context) {
 
         val settingsJson = root.optJSONObject("settings")
         val networksJson = root.optJSONArray("networks")
+        val channelPrefsJson = root.optJSONObject("channelPrefs")
 
         val orphanedIds = mutableSetOf<String>()
         // Cleartext passwords that arrived in the backup JSON. These must be moved into
@@ -998,10 +1143,14 @@ class SettingsRepository(private val ctx: Context) {
         val pendingServerPasswords = mutableMapOf<String, String>()  // id → cleartext
         val pendingSaslPasswords = mutableMapOf<String, String>()    // id → cleartext
 
+        var restoredNetworkIds: Set<String> = emptySet()
         ctx.dataStore.edit { prefs ->
             if (settingsJson != null) {
                 val restoredSettings = parseSettings(settingsJson.toString())
                 prefs[Keys.SETTINGS_JSON] = toSettingsJson(restoredSettings).toString()
+            }
+            if (channelPrefsJson != null) {
+                prefs[Keys.CHANNEL_PREFS_JSON] = ChannelPrefsCodec.encode(ChannelPrefsCodec.decode(channelPrefsJson.toString()))
             }
             if (networksJson != null) {
                 val oldNetworks = parseNetworks(prefs[Keys.NETWORKS_JSON])
@@ -1038,6 +1187,7 @@ class SettingsRepository(private val ctx: Context) {
 
                 val oldIds = oldNetworks.map { it.id }.toSet()
                 val newIds = restoredNetworks.map { it.id }.toSet()
+                restoredNetworkIds = newIds
                 orphanedIds.addAll(oldIds - newIds)
                 prefs[Keys.NETWORKS_JSON] = toNetworksJson(restoredNetworks).toString()
             }
@@ -1049,6 +1199,12 @@ class SettingsRepository(private val ctx: Context) {
         // and the user can re-enter that one password manually.
         for ((id, pw) in pendingServerPasswords) runCatching { secretStore.setServerPassword(id, pw) }
         for ((id, pw) in pendingSaslPasswords) runCatching { secretStore.setSaslPassword(id, pw) }
+        for ((id, sec) in restoredSecrets) {
+            if (id !in restoredNetworkIds) continue
+            sec.server?.let { pw -> runCatching { secretStore.setServerPassword(id, pw) } }
+            sec.sasl?.let { pw -> runCatching { secretStore.setSaslPassword(id, pw) } }
+            sec.proxy?.let { pw -> runCatching { secretStore.setProxyPassword(id, pw) } }
+        }
 
         return orphanedIds
     }
@@ -1224,8 +1380,11 @@ data class NetworkProfile(
     val caps: CapPrefs,
     val autoJoin: List<AutoJoinChannel>,
 
-    // Ignored nicknames (case-insensitive match).
+    // Ignored nicknames and nick!user@host masks (case-insensitive match).
     val ignoredNicks: List<String> = emptyList(),
+
+    /** What each ignore entry drops, keyed by [IgnoreRules.key]. Entries without types use [IgnoreRules.DEFAULT_TYPES]. */
+    val ignoreLevels: Map<String, Set<IgnoreType>> = emptyMap(),
 
     /**
      * Nicks whose DCC file offers are accepted without prompting on this network
@@ -1301,6 +1460,11 @@ data class NetworkProfile(
      * IRCd or at a bouncer's default upstream.
      */
     val bouncerNetworkName: String? = null,
+    /**
+     * The soju netid of [bouncerNetworkName], which survives a rename on the bouncer. Lets a
+     * renamed network be followed. Null when unknown or not soju.
+     */
+    val bouncerNetworkId: String? = null,
     /**
      * Per-client identifier for bouncers that support per-client buffers (ZNC clientbuffer,
      * soju per-client history). Short opaque string, typically a device name like "phone"

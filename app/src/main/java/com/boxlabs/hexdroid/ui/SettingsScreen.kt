@@ -64,6 +64,8 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -120,6 +122,9 @@ import com.boxlabs.hexdroid.ChatFontStyle
 import com.boxlabs.hexdroid.FontChoice
 import com.boxlabs.hexdroid.NickStyle
 import com.boxlabs.hexdroid.R
+import com.boxlabs.hexdroid.SmartFilter
+import com.boxlabs.hexdroid.data.eventPrefs
+import com.boxlabs.hexdroid.data.withEventPrefs
 import com.boxlabs.hexdroid.TimestampStyle
 import com.boxlabs.hexdroid.UiSettings
 import com.boxlabs.hexdroid.UiState
@@ -448,12 +453,16 @@ fun SettingsScreen(
     onOpenScripts: () -> Unit = {},
     tourActive: Boolean = false,
     tourTarget: TourTarget? = null,
-    onExportBackup: (Uri) -> Unit = {},
+    /** Export a backup to the picked file, with passwords encrypted by the passphrase when one is given. */
+    onExportBackup: (Uri, String?) -> Unit = { _, _ -> },
     /** Bytes used by logs in app storage. */
     onMeasureLogs: suspend () -> Long = { 0L },
     onExportLogs: (Uri) -> Unit = {},
     onDeleteLogs: (onDone: () -> Unit) -> Unit = {},
     onImportBackup: (Uri) -> Unit = {},
+    /** Restore again once the passphrase for a backup's passwords is known, or without them. */
+    onRestoreBackup: (Uri, String?, Boolean) -> Unit = { _, _, _ -> },
+    onCancelRestore: () -> Unit = {},
     onClearBackupMessage: () -> Unit = {},
     onWebPushToggled: (Boolean) -> Unit = {},
     /**
@@ -468,6 +477,9 @@ fun SettingsScreen(
     val isOnePlus = remember { Build.MANUFACTURER.equals("OnePlus", ignoreCase = true) }
 
     // Backup / restore state
+    var showExportDialog by remember { mutableStateOf(false) }
+    // Held only between the export dialog and the file picker's answer.
+    var pendingExportPassphrase by remember { mutableStateOf<String?>(null) }
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var showBackupResultDialog by remember { mutableStateOf(false) }
@@ -500,7 +512,8 @@ fun SettingsScreen(
     val exportBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
-        if (uri != null) onExportBackup(uri)
+        if (uri != null) onExportBackup(uri, pendingExportPassphrase)
+        pendingExportPassphrase = null
     }
 
     val importBackupLauncher = rememberLauncherForActivityResult(
@@ -513,11 +526,24 @@ fun SettingsScreen(
     }
 
 
+    /** Give up the folder grant for [old] unless [stillUsed] (the other folder setting) is the same tree. */
+    fun releaseFolder(old: String?, stillUsed: String?) {
+        if (old.isNullOrBlank() || old == stillUsed) return
+        runCatching {
+            ctx.contentResolver.releasePersistableUriPermission(
+                Uri.parse(old),
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        }
+    }
+
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri != null) {
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             runCatching { ctx.contentResolver.takePersistableUriPermission(uri, flags) }
+            val old = s.logFolderUri
             onUpdate { copy(logFolderUri = uri.toString()) }
+            if (old != uri.toString()) releaseFolder(old, s.dccDownloadFolderUri)
         }
     }
 
@@ -525,7 +551,9 @@ fun SettingsScreen(
         if (uri != null) {
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             runCatching { ctx.contentResolver.takePersistableUriPermission(uri, flags) }
+            val old = s.dccDownloadFolderUri
             onUpdate { copy(dccDownloadFolderUri = uri.toString()) }
+            if (old != uri.toString()) releaseFolder(old, s.logFolderUri)
         }
     }
 
@@ -781,7 +809,7 @@ fun SettingsScreen(
                         onUpdate { copy(fontChoice = choice) }
                     },
                     onPickCustom = {
-                        uiFontPicker.launch(arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf"))
+                        uiFontPicker.launchPicker(ctx, arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf"))
                     }
                 )
             }
@@ -795,7 +823,7 @@ fun SettingsScreen(
                         onUpdate { copy(chatFontChoice = choice) }
                     },
                     onPickCustom = {
-                        chatFontPicker.launch(arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf"))
+                        chatFontPicker.launchPicker(ctx, arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf"))
                     }
                 )
             }
@@ -1149,10 +1177,14 @@ fun SettingsScreen(
                 )
             }
             item { SettingToggle(stringResource(R.string.setting_hide_motd), s.hideMotdOnConnect) { onUpdate { copy(hideMotdOnConnect = !hideMotdOnConnect) } } }
-            item { SettingToggle(stringResource(R.string.setting_hide_joinpartquit), s.hideJoinPartQuit) { onUpdate { copy(hideJoinPartQuit = !hideJoinPartQuit) } } }
-            item { SettingToggle(stringResource(R.string.setting_hide_hostnames), s.hideHostnames) { onUpdate { copy(hideHostnames = !hideHostnames) } } }
-            item { SettingToggle(stringResource(R.string.setting_hide_away_notify), s.hideAwayNotify) { onUpdate { copy(hideAwayNotify = !hideAwayNotify) } } }
-            item { SettingToggle(stringResource(R.string.setting_hide_topic_on_entry), s.hideTopicOnEntry) { onUpdate { copy(hideTopicOnEntry = !hideTopicOnEntry) } } }
+            item {
+                ChannelEventsCard(
+                    s = s,
+                    // The window applies wherever the filter is on, including a channel's own setting.
+                    showWindow = s.smartFilter || state.channelPrefs.values.any { it.events?.smartFilter == true },
+                    onUpdate = onUpdate,
+                )
+            }
             item { SectionTitle(stringResource(R.string.section_landscape)) }
             item { SettingToggle(stringResource(R.string.setting_show_buffers_default), s.defaultShowBufferList) { onUpdate { copy(defaultShowBufferList = !defaultShowBufferList) } } }
             item { SettingToggle(stringResource(R.string.setting_show_nicklist_default), s.defaultShowNickList) { onUpdate { copy(defaultShowNickList = !defaultShowNickList) } } }
@@ -1575,15 +1607,10 @@ fun SettingsScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { folderPicker.launch(null) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.setting_choose_folder)) }
+                        Button(onClick = { folderPicker.launchPicker(ctx, null) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.setting_choose_folder)) }
                         if (!s.logFolderUri.isNullOrBlank()) {
                             OutlinedButton(onClick = {
-                                runCatching {
-                                    ctx.contentResolver.releasePersistableUriPermission(
-                                        Uri.parse(s.logFolderUri),
-                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                                    )
-                                }
+                                releaseFolder(s.logFolderUri, s.dccDownloadFolderUri)
                                 onUpdate { copy(logFolderUri = null) }
                             }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
                                 Text(stringResource(R.string.reset))
@@ -1611,7 +1638,7 @@ fun SettingsScreen(
                                 OutlinedButton(
                                     onClick = {
                                         val ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
-                                        exportLogsLauncher.launch("hexdroid_logs_$ts.zip")
+                                        exportLogsLauncher.launchPicker(ctx, "hexdroid_logs_$ts.zip")
                                     },
                                     modifier = Modifier.focusHighlight(RoundedCornerShape(50)),
                                 ) { Text(stringResource(R.string.setting_logs_export)) }
@@ -1744,15 +1771,10 @@ fun SettingsScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { dccFolderPicker.launch(null) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.setting_choose_folder)) }
+                        Button(onClick = { dccFolderPicker.launchPicker(ctx, null) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.setting_choose_folder)) }
                         if (!s.dccDownloadFolderUri.isNullOrBlank()) {
                             OutlinedButton(onClick = {
-                                runCatching {
-                                    ctx.contentResolver.releasePersistableUriPermission(
-                                        Uri.parse(s.dccDownloadFolderUri),
-                                        Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                                    )
-                                }
+                                releaseFolder(s.dccDownloadFolderUri, s.logFolderUri)
                                 onUpdate { copy(dccDownloadFolderUri = null) }
                             }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
                                 Text(stringResource(R.string.reset))
@@ -1797,11 +1819,11 @@ fun SettingsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { exportBackupLauncher.launch(backupFileName) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
+                        Button(onClick = { showExportDialog = true }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
                             Text(stringResource(R.string.settings_export_backup))
                         }
                         OutlinedButton(onClick = {
-                            importBackupLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                            importBackupLauncher.launchPicker(ctx, arrayOf("application/json", "text/plain", "*/*"))
                         }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
                             Text(stringResource(R.string.settings_restore_backup))
                         }
@@ -1824,6 +1846,26 @@ fun SettingsScreen(
         }
         }
     }
+    if (showExportDialog) {
+        ExportBackupDialog(
+            onExport = { passphrase ->
+                showExportDialog = false
+                pendingExportPassphrase = passphrase
+                exportBackupLauncher.launchPicker(ctx, backupFileName)
+            },
+            onDismiss = { showExportDialog = false },
+        )
+    }
+
+    state.restorePassphraseUri?.let { pending ->
+        RestorePassphraseDialog(
+            wrong = state.restorePassphraseWrong,
+            onRestore = { passphrase -> onRestoreBackup(Uri.parse(pending), passphrase, false) },
+            onRestoreWithout = { onRestoreBackup(Uri.parse(pending), null, true) },
+            onDismiss = onCancelRestore,
+        )
+    }
+
     // Restore confirmation dialog
     if (showRestoreConfirmDialog) {
         AlertDialog(
@@ -1916,7 +1958,7 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showBatteryHelpDialog = false
-                    ctx.startActivity(
+                    ctx.startActivityOrToast(
                         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                             data = Uri.parse("package:${ctx.packageName}")
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -1930,7 +1972,7 @@ fun SettingsScreen(
                 Row {
                     TextButton(onClick = {
                         showBatteryHelpDialog = false
-                        ctx.startActivity(
+                        ctx.startActivityOrToast(
                             Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
@@ -2041,6 +2083,49 @@ private fun SettingToggle(label: String, checked: Boolean, onClick: () -> Unit) 
     ) {
         Text(label, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = { onClick() }, modifier = Modifier.focusHighlight(RoundedCornerShape(16.dp)))
+    }
+}
+
+/**
+ * Which channel events appear in chat, the smart filter and its window, and the other event-line
+ * options underneath.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChannelEventsCard(s: UiSettings, showWindow: Boolean, onUpdate: (UiSettings.() -> UiSettings) -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ChannelEventChips(
+                prefs = s.eventPrefs(),
+                onChange = { transform -> onUpdate { withEventPrefs(transform(eventPrefs())) } },
+            )
+            if (showWindow) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.setting_smart_filter_window),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (minutes in SmartFilter.WINDOW_CHOICES) {
+                        FilterChip(
+                            selected = s.smartFilterMinutes == minutes,
+                            onClick = { onUpdate { copy(smartFilterMinutes = minutes) } },
+                            label = { Text(stringResource(R.string.setting_smart_filter_minutes, minutes)) },
+                            modifier = Modifier.focusHighlight(RoundedCornerShape(8.dp)),
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            SettingToggle(stringResource(R.string.setting_hide_hostnames), s.hideHostnames) { onUpdate { copy(hideHostnames = !hideHostnames) } }
+            SettingToggle(stringResource(R.string.setting_hide_topic_on_entry), s.hideTopicOnEntry) { onUpdate { copy(hideTopicOnEntry = !hideTopicOnEntry) } }
+            SettingToggle(stringResource(R.string.setting_hide_away_notify), s.hideAwayNotify) { onUpdate { copy(hideAwayNotify = !hideAwayNotify) } }
+        }
     }
 }
 

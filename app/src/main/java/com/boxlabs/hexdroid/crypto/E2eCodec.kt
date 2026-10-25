@@ -77,7 +77,8 @@ class E2eCodec(
     enum class Outcome { PASSTHROUGH, DECRYPTED, FAILED }
     data class Result(val text: String, val scheme: E2eScheme?, val outcome: Outcome)
 
-    fun decryptIncoming(target: String, wireText: String, selfNick: String): Result {
+    /** [replay] is true for history playback, which may deliver a ciphertext already seen. */
+    fun decryptIncoming(target: String, wireText: String, selfNick: String, replay: Boolean = false): Result {
         val detected = E2eScheme.detect(wireText)
             ?: return Result(wireText, null, Outcome.PASSTHROUGH)
 
@@ -91,7 +92,7 @@ class E2eCodec(
             return Result(wireText, detected, Outcome.FAILED)
         }
 
-        val pt = cipherFor(entry).decrypt(wireText, aadContext(target, selfNick))
+        val pt = cipherFor(entry).decrypt(wireText, aadContext(target, selfNick), allowRepeat = replay)
             ?: return Result(wireText, detected, Outcome.FAILED)
 
         return Result(pt, detected, Outcome.DECRYPTED)

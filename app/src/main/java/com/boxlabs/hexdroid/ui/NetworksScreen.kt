@@ -42,12 +42,10 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -91,7 +89,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.boxlabs.hexdroid.BouncerKind
-import com.boxlabs.hexdroid.BouncerUpstreamInfo
 import com.boxlabs.hexdroid.R
 import com.boxlabs.hexdroid.UiState
 import com.boxlabs.hexdroid.data.NetworkProfile
@@ -371,8 +368,7 @@ private fun NetworkDetailPane(
     onSetShowInSidebar: (String, Boolean) -> Unit,
     onToggleFavourite: (String) -> Unit,
     onReorder: (Int, Int) -> Unit,
-    onRefreshBouncerNetworks: (String) -> Unit,
-    onCloneBouncerNetwork: (String, String) -> Unit,
+    bouncerActions: BouncerNetworkActions,
     onActionTaken: () -> Unit,
     modifier: Modifier = Modifier,
     connectModifier: Modifier = Modifier,
@@ -485,14 +481,10 @@ private fun NetworkDetailPane(
         if (showBouncer) {
             HorizontalDivider()
             BouncerNetworksSection(
-                parentNetworkName = profile.name,
-                parentHost = profile.host,
-                parentPort = profile.port,
-                parentKind = profile.bouncerKind,
+                parent = profile,
                 upstreams = state.bouncerNetworks[profile.id] ?: emptyMap(),
                 existingProfiles = state.networks,
-                onRefresh = { onRefreshBouncerNetworks(profile.id) },
-                onClone = { upstreamName -> onCloneBouncerNetwork(profile.id, upstreamName) },
+                actions = bouncerActions,
             )
         }
 
@@ -531,10 +523,8 @@ fun NetworksScreen(
     onOpenSettings: () -> Unit,
     onReorder: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
     onToggleFavourite: (String) -> Unit = {},
-    /** Re-request the bouncer's upstream-network list (sends BOUNCER LISTNETWORKS). */
-    onRefreshBouncerNetworks: (parentNetId: String) -> Unit = {},
-    /** Clone a discovered upstream into a new local profile bound to that upstream. */
-    onCloneBouncerNetwork: (parentNetId: String, bouncerNetworkName: String) -> Unit = { _, _ -> },
+    /** Listing, importing and managing a bouncer's upstream networks. */
+    bouncerActions: BouncerNetworkActions = BouncerNetworkActions(),
     /** Acknowledge the transient clone-result message so the snackbar can dismiss. */
     onDismissBouncerCloneMessage: () -> Unit = {},
     tourActive: Boolean = false,
@@ -845,8 +835,7 @@ fun NetworksScreen(
                         onSetShowInSidebar = onSetShowInSidebar,
                         onToggleFavourite = onToggleFavourite,
                         onReorder = onReorder,
-                        onRefreshBouncerNetworks = onRefreshBouncerNetworks,
-                        onCloneBouncerNetwork = onCloneBouncerNetwork,
+                        bouncerActions = bouncerActions,
                         onActionTaken = { },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         connectModifier = if (detailProfile.id == active) {
@@ -890,8 +879,7 @@ fun NetworksScreen(
                 onSetShowInSidebar = onSetShowInSidebar,
                 onToggleFavourite = onToggleFavourite,
                 onReorder = onReorder,
-                onRefreshBouncerNetworks = onRefreshBouncerNetworks,
-                onCloneBouncerNetwork = onCloneBouncerNetwork,
+                bouncerActions = bouncerActions,
                 onActionTaken = { sheetId = null },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -935,7 +923,13 @@ fun NetworksScreen(
     val localWarnNetId = state.localNetworkWarningNetworkId
     if (localWarnNetId != null) {
         val prof = state.networks.firstOrNull { it.id == localWarnNetId }
-        val hostPort = if (prof != null) "${prof.host}:${prof.port}" else stringResource(R.string.net_this_network)
+        // Through a proxy, the proxy is what is on the local network.
+        val hostPort = when {
+            prof == null -> stringResource(R.string.net_this_network)
+            prof.proxyType != com.boxlabs.hexdroid.connection.ProxyType.NONE && prof.proxyHost.isNotBlank() ->
+                "${prof.proxyHost}:${prof.proxyPort}"
+            else -> "${prof.host}:${prof.port}"
+        }
         AlertDialog(
             onDismissRequest = onDismissLocalNetworkWarning,
             title = { Text(stringResource(R.string.networks_local_title)) },
@@ -951,177 +945,5 @@ fun NetworksScreen(
                 }
             }
         )
-    }
-}
-
-/**
- * One section per live SOJU profile listing the upstreams its bouncer reports, with name, host,
- * state and Import or "Already imported". An empty list shows a hint to refresh. "Already imported"
- * uses the same predicate as cloneBouncerNetwork.
- */
-@Composable
-private fun BouncerNetworksSection(
-    parentNetworkName: String,
-    parentHost: String,
-    parentPort: Int,
-    parentKind: BouncerKind,
-    upstreams: Map<String, BouncerUpstreamInfo>,
-    existingProfiles: List<NetworkProfile>,
-    onRefresh: () -> Unit,
-    onClone: (bouncerNetworkName: String) -> Unit,
-) {
-    // Stable order: name (blank treated as no name, as in the import check), case-folded with
-    // Locale.ROOT, then id.
-    val sortedUpstreams = upstreams.values.sortedWith(
-        compareBy(
-            { (it.name?.takeIf { n -> n.isNotBlank() } ?: it.id).lowercase(java.util.Locale.ROOT) },
-            { it.id }
-        )
-    )
-
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        stringResource(R.string.bouncer_networks_section_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        stringResource(R.string.bouncer_networks_section_subtitle, parentNetworkName),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                IconButton(onClick = onRefresh, modifier = Modifier.focusHighlight()) {
-                    Icon(
-                        Icons.Default.Refresh,
-                        contentDescription = stringResource(R.string.bouncer_networks_refresh)
-                    )
-                }
-            }
-
-            if (sortedUpstreams.isEmpty()) {
-                Text(
-                    stringResource(R.string.bouncer_networks_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                sortedUpstreams.forEach { upstream ->
-                    // "Already imported" is only computed for named upstreams: a nameless one can't
-                    // be cloned, and two nameless ones would otherwise compare equal. The match
-                    // mirrors cloneBouncerNetwork's own check (host + port + bouncerKind +
-                    // bouncerNetworkName), so the same name on soju and on ZNC counts as two
-                    // profiles.
-                    val upstreamName = upstream.name?.takeIf { it.isNotBlank() }
-                    val alreadyImported = upstreamName != null && existingProfiles.any {
-                        it.bouncerKind == parentKind &&
-                            it.host.equals(parentHost, ignoreCase = true) &&
-                            it.port == parentPort &&
-                            it.bouncerNetworkName.equals(upstreamName, ignoreCase = true)
-                    }
-                    BouncerUpstreamRow(
-                        upstream = upstream,
-                        alreadyImported = alreadyImported,
-                        onClone = {
-                            // Pass the bouncer-reported name; the upstream id is opaque and
-                            // not what soju/ZNC expect on the client→bouncer authcid suffix.
-                            if (upstreamName != null) onClone(upstreamName)
-                        }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BouncerUpstreamRow(
-    upstream: BouncerUpstreamInfo,
-    alreadyImported: Boolean,
-    onClone: () -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                upstream.name?.takeIf { it.isNotBlank() }
-                    ?: stringResource(R.string.bouncer_networks_unnamed),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
-            )
-            if (!upstream.host.isNullOrBlank()) {
-                Text(
-                    upstream.host,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        BouncerStatePill(state = upstream.state)
-        // The clone action requires a non-empty bouncer-reported name (it becomes
-        // bouncerNetworkName on the cloned profile and the soju authcid suffix). When
-        // soju reports an unnamed upstream, rare but possible during a transient
-        // BOUNCER ADDNETWORK race. disable the button to surface the constraint.
-        val canClone = !upstream.name.isNullOrBlank()
-        if (alreadyImported) {
-            Text(
-                stringResource(R.string.bouncer_networks_already_imported),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            OutlinedButton(onClick = onClone, enabled = canClone, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
-                Text(stringResource(R.string.bouncer_networks_import))
-            }
-        }
-    }
-}
-
-/**
- * Coloured pill rendering of an upstream's connection state. The colour mapping mirrors
- * what users expect from familiar dashboards: green = up, amber = working, grey = down,
- * neutral = unknown / not yet announced. We deliberately don't use Material's error red
- * for "disconnected" because the bouncer being intentionally detached from an upstream
- * is normal operation, not an error.
- */
-@Composable
-private fun BouncerStatePill(state: String?) {
-    val (label, bg, fg) = when (state?.lowercase()) {
-        "connected" -> Triple(
-            stringResource(R.string.bouncer_networks_state_connected),
-            Color(0xFF1B5E20),
-            Color.White
-        )
-        "connecting" -> Triple(
-            stringResource(R.string.bouncer_networks_state_connecting),
-            Color(0xFFF9A825),
-            Color.Black
-        )
-        "disconnected" -> Triple(
-            stringResource(R.string.bouncer_networks_state_disconnected),
-            MaterialTheme.colorScheme.surfaceVariant,
-            MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        else -> Triple(
-            stringResource(R.string.bouncer_networks_state_unknown),
-            MaterialTheme.colorScheme.surfaceVariant,
-            MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-    Box(
-        modifier = Modifier
-            .background(bg, RoundedCornerShape(8.dp))
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-    ) {
-        Text(label, style = MaterialTheme.typography.labelSmall, color = fg)
     }
 }

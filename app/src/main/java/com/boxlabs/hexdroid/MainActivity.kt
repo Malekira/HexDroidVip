@@ -71,7 +71,9 @@ class MainActivity : ComponentActivity() {
         configureEdgeToEdgeCompat()
 
         vm = (application as HexDroidApp).ircViewModel
-        processIntent(intent)
+        // A recreated activity still carries the intent it was first started with; acting on it
+        // again would repeat a notification action such as Quit.
+        if (savedInstanceState == null) processIntent(intent)
 
         val requestNotif = registerForActivityResult(
             ActivityResultContracts.RequestPermission()
@@ -138,6 +140,8 @@ class MainActivity : ComponentActivity() {
     
     private fun processIntent(intent: android.content.Intent?) {
         if (intent == null) return
+        // Reopening from Recents replays the original launch intent.
+        if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
         val action = intent.getStringExtra(NotificationHelper.EXTRA_ACTION)
         when (action) {
             NotificationHelper.ACTION_QUIT -> vm.disconnectAll()

@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">显示时间戳</string>
     <string name="setting_timestamp_format">时间格式 (Java)</string>
     <string name="setting_hide_motd">连接时隐藏 MOTD</string>
-    <string name="setting_hide_joinpartquit">隐藏加入/离开/退出消息</string>
+    <string name="setting_channel_events">频道事件</string>
+    <string name="setting_events_all_shown">已全部显示</string>
+    <string name="setting_events_all_hidden">已全部隐藏</string>
+    <string name="setting_events_some_shown">显示 %1$d / %2$d 项</string>
+    <string name="setting_events_hide_all">全部隐藏</string>
+    <string name="setting_events_show_all">全部显示</string>
+    <string name="setting_channel_events_own">你自己的昵称变更和你被踢出始终显示。</string>
+    <string name="event_joins">加入</string>
+    <string name="event_parts">离开</string>
+    <string name="event_quits">退出</string>
+    <string name="event_nick_changes">昵称变更</string>
+    <string name="event_topic_changes">话题变更</string>
+    <string name="event_kicks">踢出</string>
+    <string name="event_mode_changes">模式变更</string>
     <string name="setting_hide_away_notify">隐藏离开/归来通知</string>
     <string name="setting_color_channel_events">彩色频道事件</string>
     <string name="setting_hide_topic_on_entry">进入时隐藏话题</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">账号</string>
     <string name="chat_ban_type_domain">域名</string>
     <string name="chat_react_custom">自定义回应</string>
+    <string name="chat_reactions_unsupported">此服务器不支持表情回应</string>
     <string name="chat_react_custom_hint">表情或文字</string>
     <string name="chat_react_send">回应</string>
+    <string name="chat_reactions_title">表情回应</string>
+    <string name="chat_reactions_all">全部</string>
+    <string name="chat_reactions_who">查看谁做了回应</string>
+    <string name="chat_reaction_you">你</string>
+    <string name="chat_reaction_cd">%1$s，回应者：%2$s</string>
     <string name="chat_reply_not_loaded">回复一条较早的消息</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">拖动以重新排序</string>
     <string name="networks_insecure_title">不安全连接已被阻止</string>
     <string name="networks_local_title">需要本地网络访问权限</string>
-    <string name="networks_local_body">连接到 {0} 需要本地网络权限。
-
-        这是 Android 17 对连接本地网络服务器（家庭网络、bouncer 等）的新要求。</string>
+    <string name="networks_local_body">连接到 %1$s 需要本地网络权限。\n\n这是 Android 17 对连接本地网络服务器（家庭网络、bouncer 等）的新要求。</string>
     <string name="networks_local_grant">授予权限</string>
     <string name="networks_insecure_body">未加密的 IRC 连接不受保护，可能暴露您的消息和密码。</string>
     <string name="networks_insecure_body2">要在不使用 TLS 的情况下连接到 %1$s，您必须为此网络明确允许未加密的连接。</string>
@@ -516,7 +533,7 @@
 
     <!-- Ignore list screen -->
     <string name="ignore_title">忽略列表</string>
-    <string name="ignore_nick_label">要忽略的 Nick</string>
+    <string name="ignore_nick_label">昵称或 nick!user@host 掩码</string>
     <string name="ignore_no_nicks">没有被忽略的 Nick。</string>
     <string name="ignore_no_networks">尚未配置网络。</string>
     <string name="ignore_add">添加</string>
@@ -649,7 +666,7 @@
     <string name="setting_dcc_downloads_default">下载 (默认)</string>
     <string name="setting_dcc_downloads_custom">自定义文件夹</string>
     <string name="section_backup_restore">备份 &amp; 还原</string>
-    <string name="setting_backup_export_desc">将网络配置和应用设置导出为 JSON 文件。密码和 TLS 证书不包含在内。</string>
+    <string name="setting_backup_export_desc">将网络配置和应用设置导出为 JSON 文件。密码可以用口令加密后包含在内。TLS 证书不包含在内。</string>
     <string name="setting_restore_desc">还原将替换所有当前的网络和设置。</string>
     <string name="setting_restore_confirm">这将用备份文件中的网络和设置替换所有当前的网络和设置。备份中不包含密码，需要重新输入。 此操作无法撤销。</string>
     <string name="setting_backup_error">错误</string>
@@ -756,7 +773,7 @@
     <string name="nick_devoice">收回发言权（-v）</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">网络</string>
-    <string name="ignore_list_desc">屏蔽的昵称不区分大小写，适用于此网络上的聊天、通知和传入的 DCC 邀请。</string>
+    <string name="ignore_list_desc">每一项是一个昵称或类似 *!*@example.com 的掩码,不区分大小写。请选择每一项在此网络上屏蔽的内容。</string>
     <string name="ignore_list_tip">提示：您也可以从昵称列表或点击聊天中的名字来屏蔽某人。</string>
     <!-- ListScreen -->
     <string name="list_loading">加载中… (%1$d)</string>
@@ -821,6 +838,25 @@
     <string name="bouncer_networks_already_imported">已导入</string>
     <string name="bouncer_networks_unnamed">(未命名上游)</string>
     <string name="bouncer_networks_clone_dismiss">关闭</string>
+    <string name="bouncer_networks_add">添加网络</string>
+    <string name="bouncer_networks_import_all">全部导入</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">明文</string>
+    <string name="bouncer_networks_error">错误：%1$s</string>
+    <string name="bouncer_networks_actions">%1$s 的操作</string>
+    <string name="bouncer_net_dialog_add_title">添加 bouncer 网络</string>
+    <string name="bouncer_net_dialog_edit_title">编辑 %1$s</string>
+    <string name="bouncer_net_field_name_hint">留空则使用主机名</string>
+    <string name="bouncer_net_field_port_hint">留空则使用默认值</string>
+    <string name="bouncer_net_field_pass_keep">留空则保留当前密码</string>
+    <string name="bouncer_net_optional">留空的字段使用 bouncer 的默认值。</string>
+    <string name="bouncer_net_import_after">导入为配置</string>
+    <string name="bouncer_net_host_required">请输入服务器的主机名。</string>
+    <string name="bouncer_net_port_invalid">端口必须是 1 到 65535 之间的数字。</string>
+    <string name="bouncer_net_add">添加</string>
+    <string name="bouncer_net_delete_title">删除 %1$s？</string>
+    <string name="bouncer_net_delete_body">bouncer 将断开与该网络的连接，并连同它保存的历史记录一起遗忘该网络。</string>
+    <string name="bouncer_net_delete_profile">同时删除已导入的配置</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">对于 bouncer，建议使用 SASL。如果改用此 PASS 字段，只需输入密码；上方字段中的 bouncer 用户名和网络会自动加在前面。直接输入完整的 <b>username/network:password</b> 也可以。</string>
@@ -1099,6 +1135,17 @@
     <string name="vm_caps_removed">服务器移除了能力：%1$s</string>
     <string name="vm_bouncer_removed">已移除 bouncer 网络：%1$s</string>
     <string name="vm_bouncer_state">bouncer 网络 %1$s：%2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">bouncer 网络 %1$s：%2$s</string>
+    <string name="vm_bouncer_renamed">bouncer 网络 %1$s 已更名为 %2$s。配置「%3$s」已随之更新。</string>
+    <string name="vm_bouncer_import_none">所有 bouncer 网络都已导入。</string>
+    <string name="vm_bouncer_import_all">已导入 bouncer 网络：%1$d 个。请为要使用的网络开启自动连接。</string>
+    <string name="vm_bouncer_not_connected">连接到 bouncer 后才能管理它的网络。</string>
+    <string name="vm_bouncer_refused">bouncer 拒绝了：%1$s</string>
+    <string name="vm_bouncer_refused_attr">bouncer 拒绝了 %1$s：%2$s</string>
+    <string name="vm_bouncer_added">已将「%1$s」添加到 bouncer。</string>
+    <string name="vm_bouncer_changed">已在 bouncer 上更新「%1$s」。</string>
+    <string name="vm_bouncer_deleted">已从 bouncer 移除「%1$s」。</string>
+    <string name="vm_bouncer_deleted_profiles">已从 bouncer 移除「%1$s」并删除其配置。</string>
     <string name="vm_deleted_message">%1$s 删除了一条消息</string>
     <string name="vm_names_none">%1$s 的 NAMES：（无）</string>
     <string name="vm_names_header">%1$s 的 NAMES（%2$s）：</string>
@@ -1132,7 +1179,8 @@
     <string name="vm_dcc_no_chat_offer">没有来自 %1$s 的待处理 DCC CHAT 邀请。</string>
     <string name="dcc_send_pick_title">向 %1$s 发送文件？</string>
     <string name="dcc_send_pick_body">选择要通过 DCC 在 %2$s 上发送给 %1$s 的文件。</string>
-    <string name="vm_dcc_no_file_picker">此设备上没有可用的文件选择器。</string>
+    <string name="no_file_picker">此设备上没有可用的文件选择器。</string>
+    <string name="no_app_for_action">此设备上没有可执行此操作的应用。</string>
     <string name="vm_dcc_offering_active">正在通过 DCC%3$s 向 %2$s 发送 %1$s（主动，端口 %4$s）…</string>
     <string name="vm_dcc_offering_passive">正在通过 DCC%3$s 向 %2$s 发送 %1$s（被动）…</string>
     <string name="vm_dcc_accepted_resume">%1$s 已接受；正在从第 %2$s 字节继续…</string>
@@ -1172,6 +1220,7 @@
     <string name="vm_auth_sasl_bouncer">SASL 认证被拒绝。bouncer 需要有效的 SASL 才能转发连接。请检查此配置中的 SASL 用户名和密码（或客户端证书）。</string>
     <string name="vm_auth_sasl_rejected">SASL 认证被拒绝。请检查此配置中的 SASL 用户名和密码（或客户端证书）。</string>
     <string name="vm_auth_rejected">认证被拒绝。</string>
+    <string name="vm_auth_account_required">该服务器需要账户。请为此网络开启 SASL，或设置其服务器密码。</string>
     <string name="vm_auth_halt_suffix">自动重连已停止；更正凭据后请点按「重新连接」。</string>
     <string name="vm_ref">（引用：%1$s）</string>
 
@@ -1827,4 +1876,68 @@
     <string name="vm_ev_has_left_nohost">%1$s离开了 %2$s</string>
     <string name="vm_ev_has_quit_nohost">%1$s已退出</string>
     <string name="push_encrypted">加密消息</string>
+    <string name="setting_smart_filter">智能过滤</string>
+    <string name="setting_smart_filter_desc">加入、离开、退出和昵称变更只为最近发过言的人显示。如果有人加入后不久就发言,届时会显示其加入。</string>
+    <string name="setting_smart_filter_window">发言时间在最近</string>
+    <string name="setting_smart_filter_minutes">%1$d 分钟</string>
+    <string name="menu_channel_settings">频道设置</string>
+    <string name="menu_conversation_settings">对话设置</string>
+    <string name="channel_settings_title">%1$s 的设置</string>
+    <string name="channel_settings_mute">静音通知</string>
+    <string name="channel_settings_mute_desc">这里的消息不会发出通知。未读计数仍会显示。</string>
+    <string name="channel_settings_words">高亮词</string>
+    <string name="channel_settings_words_desc">除设置中的词外,在这里也对这些词高亮。用逗号分隔。</string>
+    <string name="channel_settings_events_follow">与设置相同</string>
+    <string name="channel_settings_events_custom">为此频道自定义</string>
+    <string name="channel_settings_reset">重置</string>
+    <string name="notif_self_name">你</string>
+    <string name="bubble_label">对话</string>
+    <string name="bubble_open_app">在 HexDroid 中打开</string>
+    <string name="bubble_message_hint">消息</string>
+    <string name="bubble_send">发送</string>
+    <string name="menu_search_logs">搜索日志</string>
+    <string name="log_search_title">搜索日志</string>
+    <string name="log_search_hint">搜索消息</string>
+    <string name="log_search_help">所有词都必须出现。短语请加引号,用 from:nick 查找某个人的消息。</string>
+    <string name="log_search_scope_buffer">此对话</string>
+    <string name="log_search_scope_network">此网络</string>
+    <string name="log_search_scope_all">所有网络</string>
+    <string name="log_search_results">结果:%1$d 条</string>
+    <string name="log_search_more">显示最新的 %1$d 条。缩小搜索范围可查看更早的结果。</string>
+    <string name="log_search_none">没有匹配结果。</string>
+    <string name="log_search_logging_off">日志记录已关闭,只能搜索以前保存的日志。</string>
+    <string name="log_search_go">跳到消息</string>
+    <string name="log_search_searching">正在搜索…</string>
+    <string name="log_search_server_searching">正在搜索 bouncer 的历史记录…</string>
+    <string name="log_search_server_count">在 bouncer 上搜索的会话：%1$d 个</string>
+    <string name="log_search_server_badge">Bouncer</string>
+    <string name="ignore_type_channel">频道消息</string>
+    <string name="ignore_type_private">私聊消息</string>
+    <string name="ignore_type_notices">通知(NOTICE)</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">邀请</string>
+    <string name="ignore_type_dcc">DCC 请求</string>
+    <string name="ignore_type_events">加入、离开、退出</string>
+    <string name="vm_ignore_types_usage">添加类型以只屏蔽部分内容:PUBLIC、MSGS、NOTICES、CTCPS、INVITES、DCC、EVENTS 或 ALL。</string>
+    <string name="vm_backup_saved_with_passwords">备份已保存,密码已用你的口令加密。\n证书未包含在内。</string>
+    <string name="backup_export_title">导出备份</string>
+    <string name="backup_include_passwords">包含密码</string>
+    <string name="backup_include_passwords_desc">服务器、SASL 和代理密码,使用口令加密。只能用该口令恢复。</string>
+    <string name="backup_passphrase">口令</string>
+    <string name="backup_passphrase_confirm">再次输入口令</string>
+    <string name="backup_passphrase_short">至少 %1$d 个字符。</string>
+    <string name="backup_passphrase_mismatch">两次输入的口令不一致。</string>
+    <string name="backup_export_action">导出</string>
+    <string name="restore_passphrase_title">备份中的密码</string>
+    <string name="restore_passphrase_body">此备份包含用口令加密的密码。输入口令即可一并恢复。</string>
+    <string name="restore_passphrase_wrong">此口令无法打开密码。</string>
+    <string name="restore_with_passwords">恢复</string>
+    <string name="restore_without_passwords">不含密码恢复</string>
+    <string name="debug_info_title">复制调试信息</string>
+    <string name="debug_info_desc">版本、连接详情、能力和最近的错误,用于错误报告</string>
+    <string name="debug_info_raw">包含最近的原始行</string>
+    <string name="debug_info_raw_desc">每个网络最近发送和接收的 %1$d 行,密码已隐藏。其中可能包含消息。</string>
+    <string name="debug_info_check">公开分享前请先通读一遍。</string>
+    <string name="debug_info_copy">复制</string>
+    <string name="debug_info_copied">已复制调试信息</string>
 </resources>

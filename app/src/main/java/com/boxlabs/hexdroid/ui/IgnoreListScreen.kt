@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +36,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -59,6 +61,19 @@ import androidx.compose.ui.unit.dp
 import com.boxlabs.hexdroid.UiState
 import androidx.compose.ui.res.stringResource
 import com.boxlabs.hexdroid.R
+import com.boxlabs.hexdroid.data.IgnoreRules
+import com.boxlabs.hexdroid.data.IgnoreType
+
+/** The label for each ignore type, in display order. */
+private val IGNORE_TYPE_LABELS = listOf(
+    IgnoreType.CHANNEL to R.string.ignore_type_channel,
+    IgnoreType.PRIVATE to R.string.ignore_type_private,
+    IgnoreType.NOTICES to R.string.ignore_type_notices,
+    IgnoreType.CTCP to R.string.ignore_type_ctcp,
+    IgnoreType.INVITES to R.string.ignore_type_invites,
+    IgnoreType.DCC to R.string.ignore_type_dcc,
+    IgnoreType.EVENTS to R.string.ignore_type_events,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +82,7 @@ fun IgnoreListScreen(
     onBack: () -> Unit,
     onIgnoreNick: (String, String) -> Unit,
     onUnignoreNick: (String, String) -> Unit,
+    onSetIgnoreTypes: (String, String, Set<IgnoreType>) -> Unit = { _, _, _ -> },
 ) {
     val nets = state.networks
 
@@ -193,16 +209,37 @@ fun IgnoreListScreen(
                             shape = MaterialTheme.shapes.medium,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(nick, modifier = Modifier.weight(1f))
-                                Spacer(Modifier.width(8.dp))
-                                OutlinedButton(
-                                    onClick = { onUnignoreNick(selectedNetId, nick) },
-                                    modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                                ) { Text(stringResource(R.string.ignore_remove)) }
+                            val types = IgnoreRules.typesFor(selNet?.ignoreLevels.orEmpty(), nick)
+                            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(nick, modifier = Modifier.weight(1f))
+                                    Spacer(Modifier.width(8.dp))
+                                    OutlinedButton(
+                                        onClick = { onUnignoreNick(selectedNetId, nick) },
+                                        modifier = Modifier.focusHighlight(RoundedCornerShape(50))
+                                    ) { Text(stringResource(R.string.ignore_remove)) }
+                                }
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                ) {
+                                    for ((type, label) in IGNORE_TYPE_LABELS) {
+                                        val on = type in types
+                                        FilterChip(
+                                            selected = on,
+                                            // At least one type stays chosen; removing the entry is the way to drop them all.
+                                            onClick = {
+                                                val next = if (on) types - type else types + type
+                                                if (next.isNotEmpty()) onSetIgnoreTypes(selectedNetId, nick, next)
+                                            },
+                                            label = { Text(stringResource(label)) },
+                                            modifier = Modifier.focusHighlight(RoundedCornerShape(8.dp)),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

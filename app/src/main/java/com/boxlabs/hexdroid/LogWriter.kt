@@ -122,7 +122,8 @@ class LogWriter(private val ctx: Context) {
 
     /** Close and forget the writer for [key]'s log file, if one is open. */
     fun releaseBuffer(networkName: String, buffer: String) {
-        closeWriter(logFileInternal(networkName, buffer).absolutePath)
+        val key = logFileInternal(networkName, buffer).absolutePath
+        synchronized(writeLockFor(key)) { closeWriter(key) }
     }
 
     // One lock per log file, so two coroutines writing the same buffer cannot interleave
@@ -253,6 +254,92 @@ class LogWriter(private val ctx: Context) {
         }
     }
 
+    /** The folder name a network's logs are kept under. */
+    fun networkDirName(networkName: String): String = safeNetworkDirName(networkName)
+
+    /** The file name a buffer's log is kept under. */
+    fun bufferFileName(buffer: String): String = safeBufferFileName(buffer)
+
+    /**
+     * Search the logs for [query], newest hits first: those in app storage and, with
+     * [logFolderUri], those in the chosen folder. [networkName] and [buffer] narrow the search to
+     * one network or one buffer's log. Files are read in full; [cancelled] stops early. Returns
+     * the hits and whether more were found than [limit].
+     */
+    fun search(
+        query: LogSearch.Query,
+        networkName: String?,
+        buffer: String?,
+        logFolderUri: String?,
+        limit: Int = 300,
+        context: Int = 2,
+        cancelled: () -> Boolean = { false },
+    ): Pair<List<LogSearchHit>, Boolean> {
+        flushAll()
+        val netDir = networkName?.let { safeNetworkDirName(it) }
+        val fileName = buffer?.let { safeBufferFileName(it) }
+        val all = ArrayList<LogSearchHit>()
+        searchInternal(query, netDir, fileName, limit + 1, context, cancelled, all)
+        if (!logFolderUri.isNullOrBlank()) {
+            searchSaf(Uri.parse(logFolderUri), query, netDir, fileName, limit + 1, context, cancelled, all)
+        }
+        return LogSearch.newestFirst(all, limit) to (all.size > limit)
+    }
+
+    private fun searchInternal(
+        query: LogSearch.Query,
+        netDir: String?,
+        fileName: String?,
+        perFile: Int,
+        context: Int,
+        cancelled: () -> Boolean,
+        out: MutableList<LogSearchHit>,
+    ) {
+        val root = File(ctx.filesDir, "logs")
+        val nets = root.listFiles()?.filter { it.isDirectory && (netDir == null || it.name.equals(netDir, ignoreCase = true)) }.orEmpty()
+        for (dir in nets) {
+            val files = dir.listFiles()?.filter { it.isFile && it.name.endsWith(".txt") && (fileName == null || it.name.equals(fileName, ignoreCase = true)) }.orEmpty()
+            for (f in files) {
+                if (cancelled()) return
+                runCatching {
+                    f.bufferedReader().useLines { lines ->
+                        out += LogSearch.searchLines(lines, query, dir.name, LogSearch.bufferForFileName(f.name), context, perFile, cancelled)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun searchSaf(
+        treeUri: Uri,
+        query: LogSearch.Query,
+        netDir: String?,
+        fileName: String?,
+        perFile: Int,
+        context: Int,
+        cancelled: () -> Boolean,
+        out: MutableList<LogSearchHit>,
+    ) {
+        if (isTreeUriUnreadable(treeUri)) return
+        val resolver = ctx.contentResolver
+        val rootDocId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }.getOrNull() ?: return
+        val nets = queryChildren(resolver, treeUri, rootDocId)
+            .filter { it.mime == Document.MIME_TYPE_DIR && (netDir == null || it.name.trim().equals(netDir, ignoreCase = true)) }
+        for (net in nets) {
+            val files = queryChildren(resolver, treeUri, net.docId)
+                .filter { it.mime != Document.MIME_TYPE_DIR && it.name.endsWith(".txt") && (fileName == null || it.name.trim().equals(fileName, ignoreCase = true)) }
+            for (f in files) {
+                if (cancelled()) return
+                val uri = DocumentsContract.buildDocumentUriUsingTree(treeUri, f.docId)
+                runCatching {
+                    resolver.openInputStream(uri)?.bufferedReader()?.useLines { lines ->
+                        out += LogSearch.searchLines(lines, query, net.name.trim(), LogSearch.bufferForFileName(f.name.trim()), context, perFile, cancelled)
+                    }
+                }
+            }
+        }
+    }
+
     fun readTail(networkName: String, buffer: String, maxLines: Int, logFolderUri: String?): List<String> {
         val n = maxLines.coerceIn(1, 5000)
         return if (logFolderUri.isNullOrBlank()) {
@@ -363,11 +450,12 @@ class LogWriter(private val ctx: Context) {
             internalRoot().walkTopDown().forEach { f ->
                 if (f.isFile && f.lastModified() < cutoff) {
                     val absPath = f.absolutePath
-                    // Close the cached writer for this file before deleting it.
-                    closeWriter(absPath)
-                    lastFlushMs.remove(absPath)
-                    writeLocks.remove(absPath)
-                    runCatching { f.delete() }
+                    // Close the cached writer for this file before deleting it, under the
+                    // file's lock so a line being written finishes first.
+                    synchronized(writeLockFor(absPath)) {
+                        closeWriter(absPath)
+                        runCatching { f.delete() }
+                    }
                 }
             }
         } else {
@@ -403,8 +491,9 @@ class LogWriter(private val ctx: Context) {
                         // open handle, so no key is the normal case.
                         val writerKey = safWriters.keys().firstOrNull { safFileCache[it] == fileUri }
                         if (writerKey != null) {
-                            safWriters.take(writerKey)?.runCatching { close() }
-                            writeLocks.remove(writerKey)
+                            synchronized(writeLockFor(writerKey)) {
+                                safWriters.take(writerKey)?.runCatching { close() }
+                            }
                         }
                         safFileCache.entries.removeIf { it.value == fileUri }
                         runCatching { DocumentsContract.deleteDocument(resolver, fileUri) }

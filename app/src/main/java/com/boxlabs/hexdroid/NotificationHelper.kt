@@ -20,7 +20,12 @@ import android.media.AudioAttributes
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.Person
 import androidx.core.app.RemoteInput
+import androidx.core.content.LocusIdCompat
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 
 class NotificationHelper(private val ctx: Context) {
 
@@ -57,6 +62,17 @@ class NotificationHelper(private val ctx: Context) {
         }
 
         const val NOTIF_ID_CONNECTION = 1001
+        /** Id of a conversation's notification. The buffer tag tells conversations apart. */
+        const val NOTIF_ID_CONVERSATION = 1002
+        private const val MAX_CONVERSATION_MESSAGES = 12
+        private const val SHORTCUT_CATEGORY_CONVERSATION = "android.shortcut.conversation"
+
+        /** Shortcut ids pushed by this process. */
+        private val publishedShortcuts: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+        /** The id of a conversation's shortcut, also used as its locus id. */
+        fun conversationShortcutId(networkId: String, buffer: String): String =
+            "conv:" + notifTagFor(networkId, buffer).lowercase(java.util.Locale.ROOT)
 
         const val EXTRA_NETWORK_ID = "extra_network_id"
         const val EXTRA_BUFFER     = "extra_buffer"
@@ -82,6 +98,8 @@ class NotificationHelper(private val ctx: Context) {
         const val ACTION_OPEN_TRANSFERS   = "action_open_transfers"
         const val ACTION_OPEN_DCC_CHAT    = "action_open_dcc_chat"
         const val ACTION_INLINE_REPLY     = "action_inline_reply"
+        /** Intent action of a conversation shortcut. */
+        const val ACTION_OPEN_CONVERSATION = "com.boxlabs.hexdroid.OPEN_CONVERSATION"
         /** Accept the DCC file offer identified by [EXTRA_DCC_FROM] + [EXTRA_DCC_FILENAME]. */
         const val ACTION_ACCEPT_DCC       = "action_accept_dcc"
         const val EXTRA_DCC_FROM          = "extra_dcc_from"
@@ -106,8 +124,12 @@ class NotificationHelper(private val ctx: Context) {
 
         // Request codes for notifications that must stay individually addressable (highlights, PMs,
         // inline replies). A counter rather than hashCode(), whose collisions let one buffer's tap
-        // intent overwrite another's. The connection notification uses a stable code instead.
-        private val piRequestCounter = java.util.concurrent.atomic.AtomicInteger(0)
+        // intent overwrite another's. The connection notification uses a stable code instead, and
+        // the counter starts well clear of those codes. Its random start keeps a new process from
+        // reusing the codes of notifications an earlier one left in the tray.
+        private val piRequestCounter = java.util.concurrent.atomic.AtomicInteger(
+            PI_COUNTER_BASE + kotlin.random.Random.nextInt(1_000_000_000)
+        )
         fun nextPiRequestCode(): Int = piRequestCounter.incrementAndGet()
 
         /**
@@ -120,6 +142,9 @@ class NotificationHelper(private val ctx: Context) {
         const val CONNECTION_TRANSFERS_PI_REQUEST_CODE = 101
         const val CONNECTION_QUIT_PI_REQUEST_CODE = 102
         const val CONNECTION_EXIT_PI_REQUEST_CODE = 103
+
+        /** Lowest request code [nextPiRequestCode] hands out. */
+        private const val PI_COUNTER_BASE = 1000
 
         /**
          * Create a PendingIntent, returning null instead of throwing when some Samsung firmware's
@@ -339,28 +364,31 @@ class NotificationHelper(private val ctx: Context) {
         }
     }
 
-    /** Post a highlight notification. Returns false when this message has already been notified. */
-    fun notifyHighlight(networkId: String, buffer: String, text: String, playSound: Boolean, msgId: Long = -1L, displayTitle: String = buffer, from: String = "", originalText: String = "", msgAnchor: String? = null, networkName: String = ""): Boolean {
+    /**
+     * Post a highlight notification. Returns false when this message has already been notified.
+     * [body] is the message without the sender, for the conversation view; [text] is the one-line
+     * fallback. A channel highlight is shown as a group conversation.
+     */
+    fun notifyHighlight(networkId: String, buffer: String, text: String, playSound: Boolean, msgId: Long = -1L, displayTitle: String = buffer, from: String = "", originalText: String = "", msgAnchor: String? = null, networkName: String = "", body: String? = null, timeMs: Long = System.currentTimeMillis(), selfName: String? = null): Boolean {
         // One message, one ping: a Web Push and the live connection can both surface the
         // same message, and which of them fires depends on the bouncer's configuration.
         if (!com.boxlabs.hexdroid.data.NotifiedMessages.claim(ctx, msgAnchor)) return false
         ensureChannels()
-        val channelId = highlightChannelFor(networkName, playSound)
-        val notifId = nextNotifId()
-        val builder = NotificationCompat.Builder(ctx, channelId)
-            .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle(displayTitle)
-            .setContentText(text)
-            .setAutoCancel(true)
-            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-        openBufferPendingIntent(networkId, buffer, msgId, msgAnchor)?.let { builder.setContentIntent(it) }
-        // Without a network the reply has nowhere to go: the receiver looks the connection
-        // up by id and would report the reply as undeliverable however well connected the
-        // user actually is. Offering no Reply button is better than offering one that always fails.
-        if (networkId.isNotBlank()) {
-            buildReplyAction(networkId, buffer, notifId, from, originalText, msgAnchor)?.let { builder.addAction(it) }
-        }
-        NotificationManagerCompat.from(ctx).notify(notifTagFor(networkId, buffer), notifId, builder.build())
+        postConversation(
+            channelId = highlightChannelFor(networkName, playSound),
+            networkId = networkId,
+            buffer = buffer,
+            title = displayTitle,
+            from = from,
+            text = text,
+            body = body ?: text,
+            timeMs = timeMs,
+            isGroup = true,
+            msgId = msgId,
+            originalText = originalText,
+            msgAnchor = msgAnchor,
+            selfName = selfName,
+        )
         return true
     }
 
@@ -380,25 +408,172 @@ class NotificationHelper(private val ctx: Context) {
     }
 
     /** Post a private-message notification. Returns false when this message has already been notified. */
-    fun notifyPm(networkId: String, buffer: String, text: String, msgId: Long = -1L, displayTitle: String = buffer, from: String = "", originalText: String = "", msgAnchor: String? = null, networkName: String = ""): Boolean {
+    fun notifyPm(networkId: String, buffer: String, text: String, msgId: Long = -1L, displayTitle: String = buffer, from: String = "", originalText: String = "", msgAnchor: String? = null, networkName: String = "", body: String? = null, timeMs: Long = System.currentTimeMillis(), selfName: String? = null): Boolean {
         // See notifyHighlight: the same message can arrive by push and by connection.
         if (!com.boxlabs.hexdroid.data.NotifiedMessages.claim(ctx, msgAnchor)) return false
         ensureChannels()
-        val channelId = pmChannelFor(networkName)
-        val notifId = nextNotifId()
+        postConversation(
+            channelId = pmChannelFor(networkName),
+            networkId = networkId,
+            buffer = buffer,
+            title = displayTitle,
+            from = from,
+            text = text,
+            body = body ?: text,
+            timeMs = timeMs,
+            isGroup = false,
+            msgId = msgId,
+            originalText = originalText,
+            msgAnchor = msgAnchor,
+            selfName = selfName,
+        )
+        return true
+    }
+
+    /** A notification that is not part of a conversation, such as an invite. */
+    fun notifySimple(networkId: String, buffer: String, title: String, text: String) {
+        ensureChannels()
+        val builder = NotificationCompat.Builder(ctx, CH_HIGHLIGHT_SILENT)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_SOCIAL)
+        openBufferPendingIntent(networkId, buffer)?.let { builder.setContentIntent(it) }
+        NotificationManagerCompat.from(ctx).notify(notifTagFor(networkId, buffer), nextNotifId(), builder.build())
+    }
+
+    /**
+     * One notification per conversation, in MessagingStyle, carrying the messages still in the
+     * shade for it. With a network to open it on, it is tied to a long-lived conversation
+     * shortcut, so Android lists it with conversations, allows it to be made a priority
+     * conversation, and can show it as a bubble.
+     */
+    private fun postConversation(
+        channelId: String,
+        networkId: String,
+        buffer: String,
+        title: String,
+        from: String,
+        text: String,
+        body: String,
+        timeMs: Long,
+        isGroup: Boolean,
+        msgId: Long,
+        originalText: String,
+        msgAnchor: String?,
+        selfName: String?,
+    ) {
+        val tag = notifTagFor(networkId, buffer)
+        val mgr = NotificationManagerCompat.from(ctx)
+        val self = Person.Builder()
+            .setName(selfName?.takeIf { it.isNotBlank() } ?: ctx.getString(R.string.notif_self_name))
+            .setKey("self")
+            .build()
+        val sender = from.takeIf { it.isNotBlank() }?.let { personFor(networkId, it) }
+
+        // Messages already in the shade for this conversation stay in it.
+        val previous = runCatching {
+            mgr.activeNotifications.firstOrNull { it.tag == tag && it.id == NOTIF_ID_CONVERSATION }
+                ?.let { NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(it.notification) }
+        }.getOrNull()
+        val style = NotificationCompat.MessagingStyle(self)
+            .setConversationTitle(if (isGroup) title else null)
+            .setGroupConversation(isGroup)
+        previous?.messages?.takeLast(MAX_CONVERSATION_MESSAGES - 1)?.forEach { style.addMessage(it) }
+        style.addMessage(NotificationCompat.MessagingStyle.Message(body, timeMs, sender))
+
         val builder = NotificationCompat.Builder(ctx, channelId)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle(displayTitle)
+            .setContentTitle(title)
             .setContentText(text)
+            .setStyle(style)
+            .setWhen(timeMs)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
         openBufferPendingIntent(networkId, buffer, msgId, msgAnchor)?.let { builder.setContentIntent(it) }
-        // See notifyHighlight: no network means no deliverable reply.
+        // Without a network the reply has nowhere to go: the receiver looks the connection
+        // up by id and would report the reply as undeliverable however well connected the
+        // user actually is. Offering no Reply button is better than offering one that always fails.
         if (networkId.isNotBlank()) {
-            buildReplyAction(networkId, buffer, notifId, from, originalText, msgAnchor)?.let { builder.addAction(it) }
+            buildReplyAction(networkId, buffer, NOTIF_ID_CONVERSATION, from, originalText, msgAnchor)?.let { builder.addAction(it) }
+            val shortcutId = publishConversationShortcut(networkId, buffer, title, if (isGroup) null else sender)
+            if (shortcutId != null) {
+                builder.setShortcutId(shortcutId)
+                builder.setLocusId(LocusIdCompat(shortcutId))
+                bubbleFor(networkId, buffer, shortcutId)?.let { builder.setBubbleMetadata(it) }
+            }
         }
-        NotificationManagerCompat.from(ctx).notify(notifTagFor(networkId, buffer), notifId, builder.build())
-        return true
+        mgr.notify(tag, NOTIF_ID_CONVERSATION, builder.build())
+    }
+
+    /** The person behind [nick] on [networkId], with a lettered avatar. */
+    private fun personFor(networkId: String, nick: String): Person =
+        Person.Builder()
+            .setName(nick)
+            .setKey("$networkId::${nick.lowercase(java.util.Locale.ROOT)}")
+            .setIcon(IconCompat.createWithBitmap(Avatars.letterAvatar(nick)))
+            .build()
+
+    /**
+     * Publish the long-lived shortcut for a conversation, once per process, and return its id.
+     * Returns null when the launcher refuses it, in which case the notification is posted
+     * without one.
+     */
+    private fun publishConversationShortcut(networkId: String, buffer: String, title: String, person: Person?): String? {
+        val id = conversationShortcutId(networkId, buffer)
+        if (id in publishedShortcuts) return id
+        return runCatching {
+            val intent = Intent(ctx, MainActivity::class.java).apply {
+                action = ACTION_OPEN_CONVERSATION
+                flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(EXTRA_NETWORK_ID, networkId)
+                putExtra(EXTRA_BUFFER, buffer)
+            }
+            val shortcut = ShortcutInfoCompat.Builder(ctx, id)
+                .setShortLabel(title)
+                .setLongLabel(title)
+                .setIntent(intent)
+                .setLongLived(true)
+                .setCategories(setOf(SHORTCUT_CATEGORY_CONVERSATION))
+                .setLocusId(LocusIdCompat(id))
+                .setIcon(IconCompat.createWithAdaptiveBitmap(Avatars.letterAvatar(title, adaptive = true)))
+                .apply { if (person != null) setPerson(person) }
+                .build()
+            if (!ShortcutManagerCompat.pushDynamicShortcut(ctx, shortcut)) return null
+            publishedShortcuts.add(id)
+            id
+        }.getOrNull()
+    }
+
+    /** Bubble metadata opening [BubbleActivity] on the conversation, or null below Android 11. */
+    private fun bubbleFor(networkId: String, buffer: String, shortcutId: String): NotificationCompat.BubbleMetadata? {
+        if (Build.VERSION.SDK_INT < 30) return null
+        return runCatching {
+            val intent = Intent(ctx, BubbleActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = android.net.Uri.parse("hexdroid-bubble://" + android.net.Uri.encode(shortcutId))
+                putExtra(EXTRA_NETWORK_ID, networkId)
+                putExtra(EXTRA_BUFFER, buffer)
+            }
+            // A bubble's intent must be mutable.
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or
+                (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
+            val pi = safePi { PendingIntent.getActivity(ctx, shortcutId.hashCode(), intent, flags) } ?: return null
+            NotificationCompat.BubbleMetadata.Builder(pi, IconCompat.createWithAdaptiveBitmap(Avatars.letterAvatar(buffer, adaptive = true)))
+                .setDesiredHeight(600)
+                .setAutoExpandBubble(false)
+                .setSuppressNotification(false)
+                .build()
+        }.getOrNull()
+    }
+
+    /** Remove a closed conversation's shortcut and anything in the shade for it. */
+    fun removeConversation(networkId: String, buffer: String) {
+        cancelBuffer(networkId, buffer)
+        val id = conversationShortcutId(networkId, buffer)
+        publishedShortcuts.remove(id)
+        runCatching { ShortcutManagerCompat.removeLongLivedShortcuts(ctx, listOf(id)) }
     }
 
     fun notifyFileDone(networkId: String, filename: String, where: String) {

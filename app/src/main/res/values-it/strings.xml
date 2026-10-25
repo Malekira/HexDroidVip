@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">Mostra orari</string>
     <string name="setting_timestamp_format">Formato ora (Java)</string>
     <string name="setting_hide_motd">Nascondi MOTD alla connessione</string>
-    <string name="setting_hide_joinpartquit">Nascondi messaggi entra/esci/quit</string>
+    <string name="setting_channel_events">Eventi del canale</string>
+    <string name="setting_events_all_shown">Tutti visibili</string>
+    <string name="setting_events_all_hidden">Tutti nascosti</string>
+    <string name="setting_events_some_shown">%1$d su %2$d visibili</string>
+    <string name="setting_events_hide_all">Nascondi tutti</string>
+    <string name="setting_events_show_all">Mostra tutti</string>
+    <string name="setting_channel_events_own">I tuoi cambi di nick e i kick che ricevi sono sempre visibili.</string>
+    <string name="event_joins">Ingressi</string>
+    <string name="event_parts">Uscite</string>
+    <string name="event_quits">Disconnessioni</string>
+    <string name="event_nick_changes">Cambi di nick</string>
+    <string name="event_topic_changes">Cambi di argomento</string>
+    <string name="event_kicks">Kick</string>
+    <string name="event_mode_changes">Cambi di modalità</string>
     <string name="setting_hide_away_notify">Nascondi notifiche assente/di ritorno</string>
     <string name="setting_color_channel_events">Eventi del canale colorati</string>
     <string name="setting_hide_topic_on_entry">Nascondi argomento all\'ingresso</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">Account</string>
     <string name="chat_ban_type_domain">Dominio</string>
     <string name="chat_react_custom">Reazione personalizzata</string>
+    <string name="chat_reactions_unsupported">Questo server non supporta le reazioni</string>
     <string name="chat_react_custom_hint">Emoji o parola</string>
     <string name="chat_react_send">Reagisci</string>
+    <string name="chat_reactions_title">Reazioni</string>
+    <string name="chat_reactions_all">Tutte</string>
+    <string name="chat_reactions_who">Vedi chi ha reagito</string>
+    <string name="chat_reaction_you">tu</string>
+    <string name="chat_reaction_cd">%1$s, reazione di %2$s</string>
     <string name="chat_reply_not_loaded">Risposta a un messaggio precedente</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">Trascina per riordinare</string>
     <string name="networks_insecure_title">Connessione non sicura bloccata</string>
     <string name="networks_local_title">Accesso rete locale richiesto</string>
-    <string name="networks_local_body">La connessione a {0} richiede il permesso Rete locale.
-
-        È un nuovo requisito di Android 17 per connettersi ai server della tua rete locale (rete domestica, bouncer, ecc.).</string>
+    <string name="networks_local_body">La connessione a %1$s richiede il permesso Rete locale.\n\nÈ un nuovo requisito di Android 17 per connettersi ai server della tua rete locale (rete domestica, bouncer, ecc.).</string>
     <string name="networks_local_grant">Concedi permesso</string>
     <string name="networks_insecure_body">Le connessioni IRC non cifrate non sono protette e possono esporre i tuoi messaggi e la tua password.</string>
     <string name="networks_insecure_body2">Per connetterti a %1$s senza TLS, devi consentire esplicitamente le connessioni non cifrate per questa rete.</string>
@@ -516,7 +533,7 @@
 
     <!-- Ignore list screen -->
     <string name="ignore_title">Lista ignorati</string>
-    <string name="ignore_nick_label">Nick da ignorare</string>
+    <string name="ignore_nick_label">Nick o maschera nick!user@host</string>
     <string name="ignore_no_nicks">Nessun nick ignorato.</string>
     <string name="ignore_no_networks">Nessuna rete configurata.</string>
     <string name="ignore_add">Aggiungi</string>
@@ -649,7 +666,7 @@
     <string name="setting_dcc_downloads_default">Download (predefinito)</string>
     <string name="setting_dcc_downloads_custom">Cartella personalizzata</string>
     <string name="section_backup_restore">Backup &amp; Ripristino</string>
-    <string name="setting_backup_export_desc">Esporta le configurazioni di rete e le impostazioni dell\'app in un file JSON. Password e certificati TLS non sono inclusi.</string>
+    <string name="setting_backup_export_desc">Esporta le configurazioni delle reti e le impostazioni dell\'app in un file JSON. Le password possono essere incluse, cifrate con una passphrase. I certificati TLS non sono inclusi.</string>
     <string name="setting_restore_desc">Il ripristino sostituisce tutte le reti e impostazioni attuali.</string>
     <string name="setting_restore_confirm">Questo sostituirà tutte le reti e impostazioni attuali con quelle nel file di backup. Le password non erano incluse nel backup e dovranno essere reinserite. Questa operazione non può essere annullata.</string>
     <string name="setting_backup_error">Errore</string>
@@ -756,7 +773,7 @@
     <string name="nick_devoice">Rimuovi voice (-v)</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">Rete</string>
-    <string name="ignore_list_desc">I nick ignorati vengono confrontati senza distinzione tra maiuscole e minuscole e si applicano a chat, notice e offerte DCC in arrivo in questa rete.</string>
+    <string name="ignore_list_desc">Ogni voce è un nick o una maschera come *!*@example.com, senza distinzione tra maiuscole e minuscole. Scegli cosa scarta ciascuna su questa rete.</string>
     <string name="ignore_list_tip">Suggerimento: puoi anche ignorare qualcuno dalla lista nick o toccando il suo nome nella chat.</string>
     <!-- ListScreen -->
     <string name="list_loading">Caricamento… (%1$d)</string>
@@ -821,6 +838,25 @@
     <string name="bouncer_networks_already_imported">Già importato</string>
     <string name="bouncer_networks_unnamed">(upstream senza nome)</string>
     <string name="bouncer_networks_clone_dismiss">Ignora</string>
+    <string name="bouncer_networks_add">Aggiungi rete</string>
+    <string name="bouncer_networks_import_all">Importa tutte</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">non cifrata</string>
+    <string name="bouncer_networks_error">Errore: %1$s</string>
+    <string name="bouncer_networks_actions">Azioni per %1$s</string>
+    <string name="bouncer_net_dialog_add_title">Aggiungi rete al bouncer</string>
+    <string name="bouncer_net_dialog_edit_title">Modifica %1$s</string>
+    <string name="bouncer_net_field_name_hint">Lascia vuoto per usare l\'host</string>
+    <string name="bouncer_net_field_port_hint">Lascia vuoto per il valore predefinito</string>
+    <string name="bouncer_net_field_pass_keep">Lascia vuoto per mantenere quella attuale</string>
+    <string name="bouncer_net_optional">I campi vuoti usano i valori predefiniti del bouncer.</string>
+    <string name="bouncer_net_import_after">Importala come profilo</string>
+    <string name="bouncer_net_host_required">Inserisci il nome host del server.</string>
+    <string name="bouncer_net_port_invalid">La porta deve essere un numero da 1 a 65535.</string>
+    <string name="bouncer_net_add">Aggiungi</string>
+    <string name="bouncer_net_delete_title">Eliminare %1$s?</string>
+    <string name="bouncer_net_delete_body">Il bouncer si disconnette da questa rete e la dimentica, insieme alla cronologia che conservava.</string>
+    <string name="bouncer_net_delete_profile">Elimina anche il profilo importato</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">Per i bouncer è consigliato SASL. Se usi invece questo campo PASS, inserisci solo la password; il nome utente del bouncer e la rete dai campi sopra vengono anteposti automaticamente. Funziona anche digitare l\'intero <b>username/network:password</b>.</string>
@@ -1099,6 +1135,17 @@
     <string name="vm_caps_removed">Il server ha rimosso capability: %1$s</string>
     <string name="vm_bouncer_removed">Rete del bouncer rimossa: %1$s</string>
     <string name="vm_bouncer_state">Rete del bouncer %1$s: %2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">Rete del bouncer %1$s: %2$s</string>
+    <string name="vm_bouncer_renamed">La rete del bouncer %1$s ora si chiama %2$s. Il profilo \"%3$s\" la segue.</string>
+    <string name="vm_bouncer_import_none">Tutte le reti del bouncer sono già importate.</string>
+    <string name="vm_bouncer_import_all">Reti del bouncer importate: %1$d. Attiva la connessione automatica per quelle che vuoi usare.</string>
+    <string name="vm_bouncer_not_connected">Connettiti al bouncer per gestirne le reti.</string>
+    <string name="vm_bouncer_refused">Il bouncer ha rifiutato: %1$s</string>
+    <string name="vm_bouncer_refused_attr">Il bouncer ha rifiutato %1$s: %2$s</string>
+    <string name="vm_bouncer_added">\"%1$s\" aggiunta al bouncer.</string>
+    <string name="vm_bouncer_changed">\"%1$s\" aggiornata sul bouncer.</string>
+    <string name="vm_bouncer_deleted">\"%1$s\" rimossa dal bouncer.</string>
+    <string name="vm_bouncer_deleted_profiles">\"%1$s\" rimossa dal bouncer insieme al suo profilo.</string>
     <string name="vm_deleted_message">%1$s ha eliminato un messaggio</string>
     <string name="vm_names_none">NAMES per %1$s: (nessuno)</string>
     <string name="vm_names_header">NAMES per %1$s (%2$s):</string>
@@ -1132,7 +1179,8 @@
     <string name="vm_dcc_no_chat_offer">Nessuna offerta DCC CHAT in sospeso da %1$s.</string>
     <string name="dcc_send_pick_title">Inviare un file a %1$s?</string>
     <string name="dcc_send_pick_body">Scegli un file da offrire a %1$s su %2$s tramite DCC.</string>
-    <string name="vm_dcc_no_file_picker">Su questo dispositivo non è disponibile alcun selettore di file.</string>
+    <string name="no_file_picker">Su questo dispositivo non è disponibile alcun selettore di file.</string>
+    <string name="no_app_for_action">Nessuna app su questo dispositivo può farlo.</string>
     <string name="vm_dcc_offering_active">Offerta di %1$s a %2$s tramite DCC%3$s (attivo, porta %4$s)…</string>
     <string name="vm_dcc_offering_passive">Offerta di %1$s a %2$s tramite DCC%3$s (passivo)…</string>
     <string name="vm_dcc_accepted_resume">%1$s ha accettato; ripresa da %2$s byte…</string>
@@ -1172,6 +1220,7 @@
     <string name="vm_auth_sasl_bouncer">Autenticazione SASL rifiutata. I bouncer richiedono un SASL valido per instradare la connessione. Controlla nome utente e password SASL (o il certificato client) su questo profilo.</string>
     <string name="vm_auth_sasl_rejected">Autenticazione SASL rifiutata. Controlla nome utente e password SASL (o il certificato client) su questo profilo.</string>
     <string name="vm_auth_rejected">Autenticazione rifiutata.</string>
+    <string name="vm_auth_account_required">Questo server richiede un account. Attiva SASL per questa rete o imposta la sua password del server.</string>
     <string name="vm_auth_halt_suffix">Riconnessione automatica interrotta; tocca «Riconnetti» dopo aver corretto le credenziali.</string>
     <string name="vm_ref">(rif: %1$s)</string>
 
@@ -1827,4 +1876,68 @@
     <string name="vm_ev_has_left_nohost">%1$s ha lasciato %2$s</string>
     <string name="vm_ev_has_quit_nohost">%1$s si è disconnesso</string>
     <string name="push_encrypted">Messaggio cifrato</string>
+    <string name="setting_smart_filter">Filtro intelligente</string>
+    <string name="setting_smart_filter_desc">Ingressi, uscite, disconnessioni e cambi di nick vengono mostrati solo per chi ha scritto di recente. Se qualcuno scrive poco dopo essere entrato, il suo ingresso viene mostrato allora.</string>
+    <string name="setting_smart_filter_window">Ha scritto negli ultimi</string>
+    <string name="setting_smart_filter_minutes">%1$d min</string>
+    <string name="menu_channel_settings">Impostazioni del canale</string>
+    <string name="menu_conversation_settings">Impostazioni della conversazione</string>
+    <string name="channel_settings_title">Impostazioni di %1$s</string>
+    <string name="channel_settings_mute">Silenzia notifiche</string>
+    <string name="channel_settings_mute_desc">Niente qui genera notifiche. I contatori dei non letti restano visibili.</string>
+    <string name="channel_settings_words">Parole evidenziate</string>
+    <string name="channel_settings_words_desc">Evidenzia anche queste parole qui, oltre a quelle nelle Impostazioni. Separale con virgole.</string>
+    <string name="channel_settings_events_follow">Come nelle Impostazioni</string>
+    <string name="channel_settings_events_custom">Personalizzati per questo canale</string>
+    <string name="channel_settings_reset">Ripristina</string>
+    <string name="notif_self_name">Tu</string>
+    <string name="bubble_label">Conversazione</string>
+    <string name="bubble_open_app">Apri in HexDroid</string>
+    <string name="bubble_message_hint">Messaggio</string>
+    <string name="bubble_send">Invia</string>
+    <string name="menu_search_logs">Cerca nei log</string>
+    <string name="log_search_title">Cerca nei log</string>
+    <string name="log_search_hint">Cerca messaggi</string>
+    <string name="log_search_help">Devono comparire tutte le parole. Metti una frase tra virgolette e usa from:nick per i messaggi di una persona.</string>
+    <string name="log_search_scope_buffer">Questa conversazione</string>
+    <string name="log_search_scope_network">Questa rete</string>
+    <string name="log_search_scope_all">Tutte le reti</string>
+    <string name="log_search_results">Risultati: %1$d</string>
+    <string name="log_search_more">Vengono mostrati i %1$d più recenti. Restringi la ricerca per vedere quelli precedenti.</string>
+    <string name="log_search_none">Nessun risultato.</string>
+    <string name="log_search_logging_off">Il logging è disattivato, quindi si possono cercare solo i log salvati in precedenza.</string>
+    <string name="log_search_go">Vai al messaggio</string>
+    <string name="log_search_searching">Ricerca in corso…</string>
+    <string name="log_search_server_searching">Ricerca nella cronologia del bouncer…</string>
+    <string name="log_search_server_count">Conversazioni cercate sul bouncer: %1$d</string>
+    <string name="log_search_server_badge">Bouncer</string>
+    <string name="ignore_type_channel">Messaggi del canale</string>
+    <string name="ignore_type_private">Messaggi privati</string>
+    <string name="ignore_type_notices">Notice</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">Inviti</string>
+    <string name="ignore_type_dcc">Offerte DCC</string>
+    <string name="ignore_type_events">Ingressi, uscite, disconnessioni</string>
+    <string name="vm_ignore_types_usage">Aggiungi dei tipi per scartare solo alcune cose: PUBLIC, MSGS, NOTICES, CTCPS, INVITES, DCC, EVENTS o ALL.</string>
+    <string name="vm_backup_saved_with_passwords">Backup salvato, con le password cifrate dalla tua passphrase.\nI certificati non sono inclusi.</string>
+    <string name="backup_export_title">Esporta backup</string>
+    <string name="backup_include_passwords">Includi le password</string>
+    <string name="backup_include_passwords_desc">Password del server, SASL e proxy, cifrate con una passphrase. Si possono ripristinare solo con essa.</string>
+    <string name="backup_passphrase">Passphrase</string>
+    <string name="backup_passphrase_confirm">Ripeti la passphrase</string>
+    <string name="backup_passphrase_short">Almeno %1$d caratteri.</string>
+    <string name="backup_passphrase_mismatch">Le passphrase non coincidono.</string>
+    <string name="backup_export_action">Esporta</string>
+    <string name="restore_passphrase_title">Password del backup</string>
+    <string name="restore_passphrase_body">Questo backup contiene password cifrate con una passphrase. Inseriscila per ripristinare anche quelle.</string>
+    <string name="restore_passphrase_wrong">Quella passphrase non apre le password.</string>
+    <string name="restore_with_passwords">Ripristina</string>
+    <string name="restore_without_passwords">Ripristina senza password</string>
+    <string name="debug_info_title">Copia informazioni di debug</string>
+    <string name="debug_info_desc">Versione, dettagli di connessione, capability ed errori recenti, per una segnalazione di bug</string>
+    <string name="debug_info_raw">Includi le ultime righe grezze</string>
+    <string name="debug_info_raw_desc">Le ultime %1$d righe inviate e ricevute su ogni rete, con le password nascoste. Possono contenere messaggi.</string>
+    <string name="debug_info_check">Rileggilo prima di condividerlo pubblicamente.</string>
+    <string name="debug_info_copy">Copia</string>
+    <string name="debug_info_copied">Informazioni di debug copiate</string>
 </resources>

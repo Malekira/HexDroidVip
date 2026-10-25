@@ -60,7 +60,7 @@ internal class AesGcmCipher(private val key: ByteArray) : E2eCipher {
         return "${scheme.wirePrefix} " + Base64.encodeToString(out, Base64.NO_WRAP or Base64.NO_PADDING)
     }
 
-    override fun decrypt(wireText: String, aadContext: String): String? {
+    override fun decrypt(wireText: String, aadContext: String, allowRepeat: Boolean): String? {
         val prefix = "${scheme.wirePrefix} "
         if (!wireText.startsWith(prefix)) return null
             val b64 = wireText.substring(prefix.length).trim()
@@ -92,7 +92,7 @@ internal class AesGcmCipher(private val key: ByteArray) : E2eCipher {
                     val replayKey = convLower + "\u0000" +
                     Base64.encodeToString(nonce, Base64.NO_WRAP or Base64.NO_PADDING)
                     synchronized(seenNonces) {
-                        if (seenNonces.put(replayKey, PRESENT) != null) {
+                        if (seenNonces.put(replayKey, PRESENT) != null && !allowRepeat) {
                             // Already seen for this conversation -> replayed/duplicate. Drop it.
                             return null
                         }

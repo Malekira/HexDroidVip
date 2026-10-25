@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">Показувати позначки часу</string>
     <string name="setting_timestamp_format">Формат позначки часу (Java)</string>
     <string name="setting_hide_motd">Приховувати MOTD під час підключення</string>
-    <string name="setting_hide_joinpartquit">Приховувати повідомлення про вхід, вихід і відключення</string>
+    <string name="setting_channel_events">Події каналу</string>
+    <string name="setting_events_all_shown">Усі показано</string>
+    <string name="setting_events_all_hidden">Усі приховано</string>
+    <string name="setting_events_some_shown">Показано: %1$d з %2$d</string>
+    <string name="setting_events_hide_all">Приховати всі</string>
+    <string name="setting_events_show_all">Показати всі</string>
+    <string name="setting_channel_events_own">Ваші зміни ніка й кіки проти вас завжди показуються.</string>
+    <string name="event_joins">Входи</string>
+    <string name="event_parts">Виходи</string>
+    <string name="event_quits">Відключення</string>
+    <string name="event_nick_changes">Зміни ніка</string>
+    <string name="event_topic_changes">Зміни теми</string>
+    <string name="event_kicks">Кіки</string>
+    <string name="event_mode_changes">Зміни режимів</string>
     <string name="setting_hide_away_notify">Приховувати повідомлення про відсутність і повернення</string>
     <string name="setting_color_channel_events">Кольорові події каналу</string>
     <string name="setting_hide_topic_on_entry">Приховувати тему під час входу</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">Акаунт</string>
     <string name="chat_ban_type_domain">Домен</string>
     <string name="chat_react_custom">Власна реакція</string>
+    <string name="chat_reactions_unsupported">Цей сервер не підтримує реакції</string>
     <string name="chat_react_custom_hint">Емодзі або слово</string>
     <string name="chat_react_send">Відреагувати</string>
+    <string name="chat_reactions_title">Реакції</string>
+    <string name="chat_reactions_all">Усі</string>
+    <string name="chat_reactions_who">Хто відреагував</string>
+    <string name="chat_reaction_you">ви</string>
+    <string name="chat_reaction_cd">%1$s, відреагували: %2$s</string>
     <string name="chat_reply_not_loaded">Відповідь на попереднє повідомлення</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">Перетягніть, щоб змінити порядок</string>
     <string name="networks_insecure_title">Незахищене з\'єднання заблоковано</string>
     <string name="networks_local_title">Потрібен доступ до локальної мережі</string>
-    <string name="networks_local_body">Для підключення до {0} потрібен дозвіл на доступ до локальної мережі.
-
-        Це нова вимога Android 17 для підключення до серверів у вашій локальній мережі (домашня мережа, bouncer тощо).</string>
+    <string name="networks_local_body">Для підключення до %1$s потрібен дозвіл на доступ до локальної мережі.\n\nЦе нова вимога Android 17 для підключення до серверів у вашій локальній мережі (домашня мережа, bouncer тощо).</string>
     <string name="networks_local_grant">Надати дозвіл</string>
     <string name="networks_insecure_body">З\'єднання IRC у відкритому вигляді не шифруються і можуть розкрити ваші повідомлення та пароль.</string>
     <string name="networks_insecure_body2">Щоб підключитися до %1$s без TLS, потрібно явно дозволити незахищені з\'єднання у відкритому вигляді для цієї мережі.</string>
@@ -516,7 +533,7 @@
 
     <!-- Ignore list screen -->
     <string name="ignore_title">Список ігнорування</string>
-    <string name="ignore_nick_label">Нік для ігнорування</string>
+    <string name="ignore_nick_label">Нік або маска nick!user@host</string>
     <string name="ignore_no_nicks">Немає ігнорованих ніків.</string>
     <string name="ignore_no_networks">Мереж ще не налаштовано.</string>
     <string name="ignore_add">Додати</string>
@@ -649,7 +666,7 @@
     <string name="setting_dcc_downloads_default">Завантаження (типово)</string>
     <string name="setting_dcc_downloads_custom">Власна тека</string>
     <string name="section_backup_restore">Резервне копіювання &amp; відновлення</string>
-    <string name="setting_backup_export_desc">Експортуйте налаштування мереж і застосунку до файлу JSON. Паролі та сертифікати TLS не включаються.</string>
+    <string name="setting_backup_export_desc">Експортуйте налаштування мереж і застосунку у файл JSON. Паролі можна включити, зашифрувавши їх парольною фразою. Сертифікати TLS не включаються.</string>
     <string name="setting_restore_desc">Відновлення замінює всі поточні мережі й налаштування.</string>
     <string name="setting_restore_confirm">Це замінить усі поточні мережі й налаштування тими, що є у файлі резервної копії. Паролі не було включено до резервної копії, тому їх доведеться ввести заново. Цю дію не можна скасувати.</string>
     <string name="setting_backup_error">Помилка</string>
@@ -756,7 +773,7 @@
     <string name="nick_devoice">Забрати голос (-v)</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">Мережа</string>
-    <string name="ignore_list_desc">Ігноровані ніки порівнюються без урахування регістру й діють для чату, повідомлень notice та вхідних пропозицій DCC у цій мережі.</string>
+    <string name="ignore_list_desc">Кожен запис містить нік або маску на кшталт *!*@example.com, без урахування регістру. Виберіть, що кожен із них приховує в цій мережі.</string>
     <string name="ignore_list_tip">Порада: ігнорувати когось також можна зі списку ніків або натиснувши на його ім\'я в чаті.</string>
     <!-- ListScreen -->
     <string name="list_loading">Завантаження… (%1$d)</string>
@@ -821,6 +838,25 @@
     <string name="bouncer_networks_already_imported">Імпортовано</string>
     <string name="bouncer_networks_unnamed">(безіменна висхідна мережа)</string>
     <string name="bouncer_networks_clone_dismiss">Приховати</string>
+    <string name="bouncer_networks_add">Додати мережу</string>
+    <string name="bouncer_networks_import_all">Імпортувати всі</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">без шифрування</string>
+    <string name="bouncer_networks_error">Помилка: %1$s</string>
+    <string name="bouncer_networks_actions">Дії для %1$s</string>
+    <string name="bouncer_net_dialog_add_title">Додати мережу bouncer\'а</string>
+    <string name="bouncer_net_dialog_edit_title">Змінити %1$s</string>
+    <string name="bouncer_net_field_name_hint">Залиште порожнім, щоб використати хост</string>
+    <string name="bouncer_net_field_port_hint">Залиште порожнім для типового значення</string>
+    <string name="bouncer_net_field_pass_keep">Залиште порожнім, щоб зберегти поточний</string>
+    <string name="bouncer_net_optional">Порожні поля беруть типові значення bouncer\'а.</string>
+    <string name="bouncer_net_import_after">Імпортувати як профіль</string>
+    <string name="bouncer_net_host_required">Введіть ім\'я хоста сервера.</string>
+    <string name="bouncer_net_port_invalid">Порт має бути числом від 1 до 65535.</string>
+    <string name="bouncer_net_add">Додати</string>
+    <string name="bouncer_net_delete_title">Видалити %1$s?</string>
+    <string name="bouncer_net_delete_body">Bouncer від\'єднається від цієї мережі й забуде її разом зі збереженою історією.</string>
+    <string name="bouncer_net_delete_profile">Також видалити імпортований профіль</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">Для bouncer\'ів рекомендовано SASL. Якщо ви все ж використовуєте це поле PASS, просто введіть пароль; ім\'я користувача bouncer\'а та мережу з полів вище буде додано автоматично. Введення повного <b>username/network:password</b> також працює.</string>
@@ -1099,6 +1135,17 @@
     <string name="vm_caps_removed">Сервер вилучив можливості: %1$s</string>
     <string name="vm_bouncer_removed">Мережу bouncer\'а вилучено: %1$s</string>
     <string name="vm_bouncer_state">Мережа bouncer\'а %1$s: %2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">Мережа bouncer\'а %1$s: %2$s</string>
+    <string name="vm_bouncer_renamed">Мережу bouncer\'а %1$s перейменовано на %2$s. Профіль \"%3$s\" стежить за нею.</string>
+    <string name="vm_bouncer_import_none">Усі мережі bouncer\'а вже імпортовано.</string>
+    <string name="vm_bouncer_import_all">Імпортовано мереж bouncer\'а: %1$d. Увімкніть автопідключення для тих, якими хочете користуватися.</string>
+    <string name="vm_bouncer_not_connected">Під\'єднайтеся до bouncer\'а, щоб керувати його мережами.</string>
+    <string name="vm_bouncer_refused">Bouncer відмовив: %1$s</string>
+    <string name="vm_bouncer_refused_attr">Bouncer відхилив %1$s: %2$s</string>
+    <string name="vm_bouncer_added">\"%1$s\" додано до bouncer\'а.</string>
+    <string name="vm_bouncer_changed">\"%1$s\" оновлено на bouncer\'і.</string>
+    <string name="vm_bouncer_deleted">\"%1$s\" видалено з bouncer\'а.</string>
+    <string name="vm_bouncer_deleted_profiles">\"%1$s\" видалено з bouncer\'а разом із профілем.</string>
     <string name="vm_deleted_message">%1$s видалив повідомлення</string>
     <string name="vm_names_none">NAMES для %1$s: (немає)</string>
     <string name="vm_names_header">NAMES для %1$s (%2$s):</string>
@@ -1132,7 +1179,8 @@
     <string name="vm_dcc_no_chat_offer">Немає очікуваної пропозиції DCC CHAT від %1$s.</string>
     <string name="dcc_send_pick_title">Надіслати файл %1$s?</string>
     <string name="dcc_send_pick_body">Виберіть файл, який запропонувати %1$s у %2$s через DCC.</string>
-    <string name="vm_dcc_no_file_picker">На цьому пристрої немає засобу вибору файлів.</string>
+    <string name="no_file_picker">На цьому пристрої немає засобу вибору файлів.</string>
+    <string name="no_app_for_action">На цьому пристрої немає застосунку для цієї дії.</string>
     <string name="vm_dcc_offering_active">Пропонування %1$s для %2$s через DCC%3$s (активний, порт %4$s)…</string>
     <string name="vm_dcc_offering_passive">Пропонування %1$s для %2$s через DCC%3$s (пасивний)…</string>
     <string name="vm_dcc_accepted_resume">%1$s прийняв; продовження з %2$s байтів…</string>
@@ -1172,6 +1220,7 @@
     <string name="vm_auth_sasl_bouncer">Автентифікацію SASL відхилено. Bouncer\'ам потрібен дійсний SASL, щоб маршрутизувати з\'єднання. Перевірте ім\'я користувача та пароль SASL (або клієнтський сертифікат) у цьому профілі.</string>
     <string name="vm_auth_sasl_rejected">Автентифікацію SASL відхилено. Перевірте ім\'я користувача та пароль SASL (або клієнтський сертифікат) у цьому профілі.</string>
     <string name="vm_auth_rejected">Автентифікацію відхилено.</string>
+    <string name="vm_auth_account_required">Цей сервер потребує облікового запису. Увімкніть SASL для цієї мережі або задайте її пароль сервера.</string>
     <string name="vm_auth_halt_suffix">Автоперепідключення припинено; натисніть «Перепідключитися» після виправлення облікових даних.</string>
     <string name="vm_ref">(посилання: %1$s)</string>
 
@@ -1827,4 +1876,68 @@
     <string name="vm_ev_has_left_nohost">%1$s покинув %2$s</string>
     <string name="vm_ev_has_quit_nohost">%1$s вийшов</string>
     <string name="push_encrypted">Зашифроване повідомлення</string>
+    <string name="setting_smart_filter">Розумний фільтр</string>
+    <string name="setting_smart_filter_desc">Входи, виходи, відключення та зміни ніка показуються лише для тих, хто нещодавно писав. Якщо хтось напише невдовзі після входу, його вхід буде показано тоді.</string>
+    <string name="setting_smart_filter_window">Писав за останні</string>
+    <string name="setting_smart_filter_minutes">%1$d хв</string>
+    <string name="menu_channel_settings">Налаштування каналу</string>
+    <string name="menu_conversation_settings">Налаштування розмови</string>
+    <string name="channel_settings_title">Налаштування: %1$s</string>
+    <string name="channel_settings_mute">Вимкнути сповіщення</string>
+    <string name="channel_settings_mute_desc">Звідси не надходять сповіщення. Лічильники непрочитаного залишаються.</string>
+    <string name="channel_settings_words">Слова для підсвічування</string>
+    <string name="channel_settings_words_desc">Підсвічувати тут і ці слова, крім указаних у налаштуваннях. Розділяйте їх комами.</string>
+    <string name="channel_settings_events_follow">Як у налаштуваннях</string>
+    <string name="channel_settings_events_custom">Власні для цього каналу</string>
+    <string name="channel_settings_reset">Скинути</string>
+    <string name="notif_self_name">Ви</string>
+    <string name="bubble_label">Розмова</string>
+    <string name="bubble_open_app">Відкрити в HexDroid</string>
+    <string name="bubble_message_hint">Повідомлення</string>
+    <string name="bubble_send">Надіслати</string>
+    <string name="menu_search_logs">Пошук у логах</string>
+    <string name="log_search_title">Пошук у логах</string>
+    <string name="log_search_hint">Шукати повідомлення</string>
+    <string name="log_search_help">Мають трапитися всі слова. Фразу візьміть у лапки, а from:nick покаже повідомлення однієї людини.</string>
+    <string name="log_search_scope_buffer">Ця розмова</string>
+    <string name="log_search_scope_network">Ця мережа</string>
+    <string name="log_search_scope_all">Усі мережі</string>
+    <string name="log_search_results">Знайдено: %1$d</string>
+    <string name="log_search_more">Показано %1$d найновіших. Уточніть пошук, щоб побачити старіші.</string>
+    <string name="log_search_none">Нічого не знайдено.</string>
+    <string name="log_search_logging_off">Запис логів вимкнено, тож шукати можна лише в раніше збережених логах.</string>
+    <string name="log_search_go">До повідомлення</string>
+    <string name="log_search_searching">Пошук…</string>
+    <string name="log_search_server_searching">Пошук в історії bouncer\'а…</string>
+    <string name="log_search_server_count">Переглянуто розмов на bouncer\'і: %1$d</string>
+    <string name="log_search_server_badge">Bouncer</string>
+    <string name="ignore_type_channel">Повідомлення в каналі</string>
+    <string name="ignore_type_private">Особисті повідомлення</string>
+    <string name="ignore_type_notices">Сповіщення (NOTICE)</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">Запрошення</string>
+    <string name="ignore_type_dcc">Пропозиції DCC</string>
+    <string name="ignore_type_events">Входи, виходи, відключення</string>
+    <string name="vm_ignore_types_usage">Додайте типи, щоб приховувати лише частину: PUBLIC, MSGS, NOTICES, CTCPS, INVITES, DCC, EVENTS або ALL.</string>
+    <string name="vm_backup_saved_with_passwords">Резервну копію збережено, паролі зашифровано вашою парольною фразою.\nСертифікати не включено.</string>
+    <string name="backup_export_title">Експорт резервної копії</string>
+    <string name="backup_include_passwords">Включити паролі</string>
+    <string name="backup_include_passwords_desc">Паролі сервера, SASL і проксі, зашифровані парольною фразою. Відновити їх можна лише з нею.</string>
+    <string name="backup_passphrase">Парольна фраза</string>
+    <string name="backup_passphrase_confirm">Повторіть парольну фразу</string>
+    <string name="backup_passphrase_short">Щонайменше %1$d символів.</string>
+    <string name="backup_passphrase_mismatch">Парольні фрази не збігаються.</string>
+    <string name="backup_export_action">Експортувати</string>
+    <string name="restore_passphrase_title">Паролі в резервній копії</string>
+    <string name="restore_passphrase_body">Ця резервна копія містить паролі, зашифровані парольною фразою. Введіть її, щоб відновити і їх.</string>
+    <string name="restore_passphrase_wrong">Ця парольна фраза не відкриває паролі.</string>
+    <string name="restore_with_passwords">Відновити</string>
+    <string name="restore_without_passwords">Відновити без паролів</string>
+    <string name="debug_info_title">Копіювати діагностичні дані</string>
+    <string name="debug_info_desc">Версія, відомості про з\'єднання, можливості та нещодавні помилки для звіту про помилку</string>
+    <string name="debug_info_raw">Включити останні сирі рядки</string>
+    <string name="debug_info_raw_desc">Останні %1$d надісланих і отриманих рядків у кожній мережі, паролі приховано. Вони можуть містити повідомлення.</string>
+    <string name="debug_info_check">Перегляньте текст, перш ніж публікувати його.</string>
+    <string name="debug_info_copy">Копіювати</string>
+    <string name="debug_info_copied">Діагностичні дані скопійовано</string>
 </resources>

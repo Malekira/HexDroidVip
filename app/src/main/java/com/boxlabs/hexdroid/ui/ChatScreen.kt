@@ -30,12 +30,10 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.foundation.Image
-import androidx.compose.ui.res.painterResource
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,13 +41,11 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -70,7 +66,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -78,21 +73,21 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.foundation.text.contextmenu.builder.TextContextMenuBuilderScope
+import androidx.compose.foundation.text.contextmenu.builder.item
+import androidx.compose.foundation.text.contextmenu.modifier.appendTextContextMenuComponents
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -103,39 +98,36 @@ import androidx.compose.material.icons.automirrored.filled.SendToMobile
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.AlternateEmail
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.FormatColorText
 import androidx.compose.material.icons.filled.Gavel
+import androidx.compose.material.icons.filled.IntegrationInstructions
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MarkChatRead
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.NotificationsOff
-import androidx.compose.material.icons.filled.RecentActors
-import androidx.compose.material.icons.filled.IntegrationInstructions
 import androidx.compose.material.icons.filled.PersonSearch
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.MarkChatRead
-import androidx.compose.material.icons.filled.UnfoldLess
-import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.RecentActors
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.filled.DoneAll
-import com.boxlabs.hexdroid.FontChoice
 import androidx.compose.material3.Badge
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -148,10 +140,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
@@ -171,18 +162,19 @@ import androidx.compose.material3.ripple
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -190,52 +182,43 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isAltPressed
-import androidx.compose.ui.input.key.isCtrlPressed
-import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.toClipEntry
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.Placeholder
-import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -244,916 +227,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.foundation.text.contextmenu.builder.TextContextMenuBuilderScope
-import androidx.compose.foundation.text.contextmenu.builder.item
-import androidx.compose.foundation.text.contextmenu.modifier.appendTextContextMenuComponents
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.zIndex
 import com.boxlabs.hexdroid.ChatFontStyle
-import com.boxlabs.hexdroid.NickStyle
+import com.boxlabs.hexdroid.FontChoice
 import com.boxlabs.hexdroid.R
 import com.boxlabs.hexdroid.UiMessage
 import com.boxlabs.hexdroid.UiSettings
 import com.boxlabs.hexdroid.UiState
-import com.boxlabs.hexdroid.isAsciiDigit
-import com.boxlabs.hexdroid.isAsciiHexDigit
-import com.boxlabs.hexdroid.parseAnsiRuns
+import com.boxlabs.hexdroid.data.eventPrefs
 import com.boxlabs.hexdroid.stripIrcFormatting
 import com.boxlabs.hexdroid.ui.components.LagBar
 import com.boxlabs.hexdroid.ui.theme.LocalAccentColors
 import com.boxlabs.hexdroid.ui.theme.fontFamilyForChoice
 import com.boxlabs.hexdroid.ui.tour.TourTarget
 import com.boxlabs.hexdroid.ui.tour.tourTarget
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.boxlabs.hexdroid.toSpanStyle as ansiToSpanStyle
-
-/** Commands with a short description shown in the hint popup. */
-private data class IrcCommand(
-    val name: String,
-    val usage: String,
-    /** Localized description for built-in commands. */
-    @param:androidx.annotation.StringRes val descriptionRes: Int? = null,
-    /** Runtime description for commands supplied by .hex scripts. */
-    val description: String? = null,
-)
-
-private val IRC_COMMANDS = listOf(
-    // Messaging
-    IrcCommand("me", "/me <action>", R.string.cmd_me),
-    IrcCommand("msg", "/msg <nick> <message>", R.string.cmd_msg),
-    IrcCommand("notice", "/notice <target> <text>", R.string.cmd_notice),
-    IrcCommand("react", "/react <emoji> [n]", R.string.cmd_react),
-    IrcCommand("unreact", "/unreact <emoji> [n]", R.string.cmd_unreact),
-    IrcCommand("amsg", "/amsg <message>", R.string.cmd_amsg),
-    IrcCommand("ame", "/ame <action>", R.string.cmd_ame),
-
-    // Channels
-    IrcCommand("join", "/join <channel> [key]", R.string.cmd_join),
-    IrcCommand("part", "/part [channel] [reason]", R.string.cmd_part),
-    IrcCommand("cycle", "/cycle [channel]", R.string.cmd_cycle),
-    IrcCommand("topic", "/topic [new topic]", R.string.cmd_topic),
-    IrcCommand("invite", "/invite <nick> [channel]", R.string.cmd_invite),
-    IrcCommand("knock", "/knock <channel> [reason]", R.string.cmd_knock),
-    IrcCommand("list", "/list", R.string.cmd_list),
-    IrcCommand("names", "/names [channel]", R.string.cmd_names),
-
-    // Buffer management
-    IrcCommand("clear", "/clear", R.string.cmd_clear),
-    IrcCommand("close", "/close", R.string.cmd_close),
-    IrcCommand("closekey", "/closekey <net::buffer>", R.string.cmd_closekey),
-    IrcCommand("find", "/find <text>", R.string.cmd_find),
-    IrcCommand("grep", "/grep <text>", R.string.cmd_grep),
-    IrcCommand("search", "/search <text>", R.string.cmd_search),
-    IrcCommand("gsearch", "/gsearch <text>", R.string.cmd_gsearch),
-    IrcCommand("gfind", "/gfind <text>", R.string.cmd_gfind),
-
-    // User & nick
-    IrcCommand("nick", "/nick <new nick>", R.string.cmd_nick),
-    IrcCommand("away", "/away [message]", R.string.cmd_away),
-    IrcCommand("back", "/back", R.string.cmd_back),
-    IrcCommand("whois", "/whois <nick>", R.string.cmd_whois),
-    IrcCommand("who", "/who <mask>", R.string.cmd_who),
-    IrcCommand("ignore", "/ignore [nick]", R.string.cmd_ignore),
-    IrcCommand("unignore", "/unignore <nick>", R.string.cmd_unignore),
-    IrcCommand("quit", "/quit [reason]", R.string.cmd_quit),
-
-    // Moderation
-    IrcCommand("kick", "/kick <nick> [reason]", R.string.cmd_kick),
-    IrcCommand("ban", "/ban <nick|mask> [n|u|h|d|a]", R.string.cmd_ban),
-    IrcCommand("unban", "/unban <nick|mask>", R.string.cmd_unban),
-    IrcCommand("kb", "/kb <nick> [n|u|h|d|a] [reason]", R.string.cmd_kb),
-    IrcCommand("kickban", "/kickban <nick> [type] [reason]", R.string.cmd_kickban),
-    IrcCommand("mute", "/mute <nick|mask> [n|u|h|d|a]", R.string.cmd_mute),
-    IrcCommand("quiet", "/quiet <nick|mask> [type]", R.string.cmd_quiet),
-    IrcCommand("unmute", "/unmute <nick|mask>", R.string.cmd_unmute),
-    IrcCommand("unquiet", "/unquiet <nick|mask>", R.string.cmd_unquiet),
-    IrcCommand("op", "/op <nick> [channel]", R.string.cmd_op),
-    IrcCommand("deop", "/deop <nick> [channel]", R.string.cmd_deop),
-    IrcCommand("voice", "/voice <nick> [channel]", R.string.cmd_voice),
-    IrcCommand("devoice", "/devoice <nick> [channel]", R.string.cmd_devoice),
-    IrcCommand("mode", "/mode [target] <modes>", R.string.cmd_mode),
-
-    // Mode lists
-    IrcCommand("banlist", "/banlist", R.string.cmd_banlist),
-    IrcCommand("quietlist", "/quietlist", R.string.cmd_quietlist),
-    IrcCommand("exceptlist", "/exceptlist", R.string.cmd_exceptlist),
-    IrcCommand("invexlist", "/invexlist", R.string.cmd_invexlist),
-
-    // CTCP
-    IrcCommand("ctcp", "/ctcp <nick> <command>", R.string.cmd_ctcp),
-    IrcCommand("ping", "/ping <nick>", R.string.cmd_ping),
-    IrcCommand("ctcpping", "/ctcpping <nick>", R.string.cmd_ctcpping),
-    IrcCommand("version", "/version [nick]", R.string.cmd_version),
-    IrcCommand("time", "/time [server]", R.string.cmd_time),
-    IrcCommand("finger", "/finger <nick>", R.string.cmd_finger),
-    IrcCommand("userinfo", "/userinfo <nick>", R.string.cmd_userinfo),
-    IrcCommand("clientinfo", "/clientinfo <nick>", R.string.cmd_clientinfo),
-
-    // Server queries
-    IrcCommand("motd", "/motd [server]", R.string.cmd_motd),
-    IrcCommand("admin", "/admin [server]", R.string.cmd_admin),
-    IrcCommand("info", "/info [server]", R.string.cmd_info),
-    IrcCommand("dns", "/dns <host|ip>", R.string.cmd_dns),
-
-    // DCC
-    IrcCommand("dcc", "/dcc chat|schat|send <nick>", R.string.cmd_dcc),
-
-    // IRC operator
-    IrcCommand("oper", "/oper <user> <password>", R.string.cmd_oper),
-    IrcCommand("sajoin", "/sajoin <nick> <channel>", R.string.cmd_sajoin),
-    IrcCommand("sapart", "/sapart <nick> [channel]", R.string.cmd_sapart),
-    IrcCommand("kill", "/kill <nick> [reason]", R.string.cmd_kill),
-    IrcCommand("kline", "/kline <mask> <duration> [reason]", R.string.cmd_kline),
-    IrcCommand("gline", "/gline <mask> <duration> [reason]", R.string.cmd_gline),
-    IrcCommand("zline", "/zline <ip> <duration> [reason]", R.string.cmd_zline),
-    IrcCommand("dline", "/dline <ip> <duration> [reason]", R.string.cmd_dline),
-    IrcCommand("eline", "/eline <mask> <duration> [reason]", R.string.cmd_eline),
-    IrcCommand("qline", "/qline <mask> <duration> [reason]", R.string.cmd_qline),
-    IrcCommand("shun", "/shun <mask> <duration> [reason]", R.string.cmd_shun),
-    IrcCommand("wallops", "/wallops <message>", R.string.cmd_wallops),
-    IrcCommand("globops", "/globops <message>", R.string.cmd_globops),
-    IrcCommand("locops", "/locops <message>", R.string.cmd_locops),
-    IrcCommand("operwall", "/operwall <message>", R.string.cmd_operwall),
-
-    // Misc
-    IrcCommand("alias", "/alias [list | add <name> <expansion> | remove <name>]", R.string.cmd_alias),
-    IrcCommand("slap", "/slap <nick>", R.string.cmd_slap),
-    IrcCommand("raw", "/raw <command>", R.string.cmd_raw),
-    IrcCommand("quote", "/quote <command>", R.string.cmd_quote),
-    IrcCommand("sysinfo", "/sysinfo", R.string.cmd_sysinfo),
-
-    // Query / services shorthands
-    IrcCommand("query", "/query <nick> [message]", R.string.cmd_query),
-    IrcCommand("ns", "/ns <command>", R.string.cmd_ns),
-    IrcCommand("cs", "/cs <command>", R.string.cmd_cs),
-    IrcCommand("as", "/as <command>", R.string.cmd_as),
-    IrcCommand("hs", "/hs <command>", R.string.cmd_hs),
-    IrcCommand("ms", "/ms <command>", R.string.cmd_ms),
-    IrcCommand("bs", "/bs <command>", R.string.cmd_bs),
-
-    // Bouncer shortcuts
-    IrcCommand("znc", "/znc <command>", R.string.cmd_znc),
-    IrcCommand("bouncerserv", "/bouncerserv <command>", R.string.cmd_bouncerserv),
-    IrcCommand("bnc", "/bnc <command>", R.string.cmd_bnc),
-
-    // IRCv3
-    IrcCommand("setname", "/setname <realname>", R.string.cmd_setname),
-    IrcCommand("markread", "/markread [target] [timestamp]", R.string.cmd_markread),
-    IrcCommand("monitor", "/monitor +nick | -nick | C | L | S", R.string.cmd_monitor),
-    IrcCommand("register", "/register [account] [email] <password>", R.string.cmd_register),
-    IrcCommand("verify", "/verify [account] <code>", R.string.cmd_verify),
-    IrcCommand("metadata", "/metadata [target] <sub> | <key> [value]", R.string.cmd_metadata),
-    IrcCommand("redact", "/redact [target] <msgid> [reason]", R.string.cmd_redact),
-)
-
-/**
- * Sub-command hints shown after a command whose first argument is a verb: services aliases (/ns,
- * /cs), ZNC's *status (/znc) and soju's BouncerServ (/bouncerserv, /bnc). Keys are the parent
- * command's short name; verbs are stored in display casing and matched case-insensitively. A
- * curated set of common verbs, not every one.
- */
-private val SUB_COMMANDS: Map<String, List<IrcCommand>> = mapOf(
-    // NickServ — Atheme/Anope-compatible verbs
-    "ns" to listOf(
-        IrcCommand("IDENTIFY", "IDENTIFY [account] <password>", R.string.cmd_ns_identify),
-        IrcCommand("LOGIN", "LOGIN [account] <password>", R.string.cmd_ns_login),
-        IrcCommand("REGISTER", "REGISTER <password> <email>", R.string.cmd_ns_register),
-        IrcCommand("GHOST", "GHOST <nick> [password]", R.string.cmd_ns_ghost),
-        IrcCommand("RECOVER", "RECOVER <nick> [password]", R.string.cmd_ns_recover),
-        IrcCommand("RELEASE", "RELEASE <nick> [password]", R.string.cmd_ns_release),
-        IrcCommand("GROUP", "GROUP <nick> <password>", R.string.cmd_ns_group),
-        IrcCommand("UNGROUP", "UNGROUP <nick>", R.string.cmd_ns_ungroup),
-        IrcCommand("SET", "SET <option> <value>", R.string.cmd_ns_set),
-        IrcCommand("CERT", "CERT [ADD|DEL|LIST] [fingerprint]", R.string.cmd_ns_cert),
-        IrcCommand("INFO", "INFO [nick]", R.string.cmd_ns_info),
-        IrcCommand("LIST", "LIST <pattern>", R.string.cmd_ns_list),
-        IrcCommand("DROP", "DROP <nick> [password]", R.string.cmd_ns_drop),
-        IrcCommand("LOGOUT", "LOGOUT", R.string.cmd_ns_logout),
-        IrcCommand("HELP", "HELP [command]", R.string.cmd_ns_help),
-    ),
-    // ChanServ — Atheme/Anope-compatible verbs
-    "cs" to listOf(
-        IrcCommand("REGISTER", "REGISTER <channel>", R.string.cmd_cs_register),
-        IrcCommand("DROP", "DROP <channel>", R.string.cmd_cs_drop),
-        IrcCommand("INFO", "INFO <channel>", R.string.cmd_cs_info),
-        IrcCommand("ACCESS", "ACCESS <channel> [LIST|ADD|DEL] [mask] [level]", R.string.cmd_cs_access),
-        IrcCommand("FLAGS", "FLAGS <channel> [target] [flags]", R.string.cmd_cs_flags),
-        IrcCommand("OP", "OP <channel> [nick]", R.string.cmd_cs_op),
-        IrcCommand("DEOP", "DEOP <channel> [nick]", R.string.cmd_cs_deop),
-        IrcCommand("VOICE", "VOICE <channel> [nick]", R.string.cmd_cs_voice),
-        IrcCommand("DEVOICE", "DEVOICE <channel> [nick]", R.string.cmd_cs_devoice),
-        IrcCommand("HALFOP", "HALFOP <channel> [nick]", R.string.cmd_cs_halfop),
-        IrcCommand("PROTECT", "PROTECT <channel> [nick]", R.string.cmd_cs_protect),
-        IrcCommand("OWNER", "OWNER <channel> [nick]", R.string.cmd_cs_owner),
-        IrcCommand("INVITE", "INVITE <channel> [nick]", R.string.cmd_cs_invite),
-        IrcCommand("UNBAN", "UNBAN <channel> [nick]", R.string.cmd_cs_unban),
-        IrcCommand("KICK", "KICK <channel> <nick> [reason]", R.string.cmd_cs_kick),
-        IrcCommand("BAN", "BAN <channel> <mask>", R.string.cmd_cs_ban),
-        IrcCommand("QUIET", "QUIET <channel> <mask>", R.string.cmd_cs_quiet),
-        IrcCommand("TOPIC", "TOPIC <channel> [topic]", R.string.cmd_cs_topic),
-        IrcCommand("CLEAR", "CLEAR <channel> <what>", R.string.cmd_cs_clear),
-        IrcCommand("RECOVER", "RECOVER <channel>", R.string.cmd_cs_recover),
-        IrcCommand("SET", "SET <channel> <option> <value>", R.string.cmd_cs_set),
-        IrcCommand("HELP", "HELP [command]", R.string.cmd_cs_help),
-    ),
-    // MemoServ — same verbs on Atheme/Anope
-    "ms" to listOf(
-        IrcCommand("SEND", "SEND <nick> <message>", R.string.cmd_ms_send),
-        IrcCommand("LIST", "LIST", R.string.cmd_ms_list),
-        IrcCommand("READ", "READ <number>", R.string.cmd_ms_read),
-        IrcCommand("DELETE", "DELETE <number|ALL>", R.string.cmd_ms_delete),
-        IrcCommand("FORWARD", "FORWARD <number> <nick>", R.string.cmd_ms_forward),
-        IrcCommand("IGNORE", "IGNORE [ADD|DEL|LIST] [mask]", R.string.cmd_ms_ignore),
-        IrcCommand("SET", "SET <option> <value>", R.string.cmd_ms_set),
-        IrcCommand("HELP", "HELP [command]", R.string.cmd_ms_help),
-    ),
-    // HostServ
-    "hs" to listOf(
-        IrcCommand("REQUEST", "REQUEST <vhost>", R.string.cmd_hs_request),
-        IrcCommand("ON", "ON", R.string.cmd_hs_on),
-        IrcCommand("OFF", "OFF", R.string.cmd_hs_off),
-        IrcCommand("TAKE", "TAKE <vhost>", R.string.cmd_hs_take),
-        IrcCommand("DROP", "DROP", R.string.cmd_hs_drop),
-        IrcCommand("INFO", "INFO [nick]", R.string.cmd_hs_info),
-        IrcCommand("HELP", "HELP [command]", R.string.cmd_hs_help),
-    ),
-    // BotServ — Anope; Atheme has a similar but narrower set
-    "bs" to listOf(
-        IrcCommand("ASSIGN", "ASSIGN <channel> <bot>", R.string.cmd_bs_assign),
-        IrcCommand("UNASSIGN", "UNASSIGN <channel>", R.string.cmd_bs_unassign),
-        IrcCommand("BOTLIST", "BOTLIST", R.string.cmd_bs_botlist),
-        IrcCommand("INFO", "INFO <channel|bot>", R.string.cmd_bs_info),
-        IrcCommand("KICK", "KICK <channel> <option> [args]", R.string.cmd_bs_kick),
-        IrcCommand("SET", "SET <channel> <option> <value>", R.string.cmd_bs_set),
-        IrcCommand("SAY", "SAY <channel> <text>", R.string.cmd_bs_say),
-        IrcCommand("ACT", "ACT <channel> <action>", R.string.cmd_bs_act),
-        IrcCommand("HELP", "HELP [command]", R.string.cmd_bs_help),
-    ),
-    // AuthServ/X3
-    "as" to listOf(
-        IrcCommand("AUTH", "AUTH <account> <password>", R.string.cmd_as_auth),
-        IrcCommand("REGISTER", "REGISTER <account> <password> <email>", R.string.cmd_as_register),
-        IrcCommand("HELP", "HELP [command]", R.string.cmd_as_help),
-    ),
-    "x3" to listOf(
-        IrcCommand("REGISTER", "REGISTER <channel>", R.string.cmd_as_register_2),
-        IrcCommand("DROP", "DROP <channel>", R.string.cmd_as_drop),
-        IrcCommand("INFO", "INFO <channel|user>", R.string.cmd_as_info),
-        IrcCommand("OP", "OP <channel> <user>", R.string.cmd_as_op),
-        IrcCommand("DEOP", "DEOP <channel> <user>", R.string.cmd_as_deop),
-        IrcCommand("VOICE", "VOICE <channel> <user>", R.string.cmd_as_voice),
-        IrcCommand("DEVOICE", "DEVOICE <channel> <user>", R.string.cmd_as_devoice),
-        IrcCommand("HALFOP", "HALFOP <channel> <user>", R.string.cmd_as_halfop),
-        IrcCommand("INVITE", "INVITE <channel> [user]", R.string.cmd_as_invite),
-        IrcCommand("KICK", "KICK <channel> <user> [reason]", R.string.cmd_as_kick),
-        IrcCommand("BAN", "BAN <channel> <mask>", R.string.cmd_as_ban),
-        IrcCommand("UNBAN", "UNBAN <channel> [mask]", R.string.cmd_as_unban),
-        IrcCommand("TOPIC", "TOPIC <channel> [topic]", R.string.cmd_as_topic),
-        IrcCommand("FLAGS", "FLAGS <channel> <user> [flags]", R.string.cmd_as_flags),
-        IrcCommand("ACCESS", "ACCESS <channel> [LIST|ADD|DEL] [user] [level]", R.string.cmd_as_access),
-        IrcCommand("HELP", "HELP [command]", R.string.cmd_as_help),
-    ),
-    // ZNC *status — curated from https://wiki.znc.in/Using_commands
-    "znc" to listOf(
-        IrcCommand("Help", "Help [filter]", R.string.cmd_znc_help),
-        IrcCommand("Version", "Version", R.string.cmd_znc_version),
-        IrcCommand("ListNetworks", "ListNetworks", R.string.cmd_znc_listnetworks),
-        IrcCommand("JumpNetwork", "JumpNetwork <network>", R.string.cmd_znc_jumpnetwork),
-        IrcCommand("AddNetwork", "AddNetwork <name>", R.string.cmd_znc_addnetwork),
-        IrcCommand("DelNetwork", "DelNetwork <name>", R.string.cmd_znc_delnetwork),
-        IrcCommand("ListServers", "ListServers", R.string.cmd_znc_listservers),
-        IrcCommand("AddServer", "AddServer <host> [+port] [pass]", R.string.cmd_znc_addserver),
-        IrcCommand("DelServer", "DelServer <host> [port] [pass]", R.string.cmd_znc_delserver),
-        IrcCommand("Connect", "Connect", R.string.cmd_znc_connect),
-        IrcCommand("Disconnect", "Disconnect [message]", R.string.cmd_znc_disconnect),
-        IrcCommand("Jump", "Jump [server]", R.string.cmd_znc_jump),
-        IrcCommand("ListChans", "ListChans", R.string.cmd_znc_listchans),
-        IrcCommand("ListClients", "ListClients", R.string.cmd_znc_listclients),
-        IrcCommand("ListMods", "ListMods", R.string.cmd_znc_listmods),
-        IrcCommand("ListAvailMods", "ListAvailMods", R.string.cmd_znc_listavailmods),
-        IrcCommand("LoadMod", "LoadMod <module> [args]", R.string.cmd_znc_loadmod),
-        IrcCommand("UnloadMod", "UnloadMod <module>", R.string.cmd_znc_unloadmod),
-        IrcCommand("ReloadMod", "ReloadMod <module> [args]", R.string.cmd_znc_reloadmod),
-        IrcCommand("Attach", "Attach <#chan>", R.string.cmd_znc_attach),
-        IrcCommand("Detach", "Detach <#chan>", R.string.cmd_znc_detach),
-        IrcCommand("PlayBuffer", "PlayBuffer <#chan>", R.string.cmd_znc_playbuffer),
-        IrcCommand("ClearBuffer", "ClearBuffer <#chan>", R.string.cmd_znc_clearbuffer),
-        IrcCommand("ClearAllChannelBuffers", "ClearAllChannelBuffers", R.string.cmd_znc_clearallchannelbuffers),
-        IrcCommand("ClearAllQueryBuffers", "ClearAllQueryBuffers", R.string.cmd_znc_clearallquerybuffers),
-        IrcCommand("SetBuffer", "SetBuffer <#chan> [lines]", R.string.cmd_znc_setbuffer),
-        IrcCommand("Topics", "Topics", R.string.cmd_znc_topics),
-        IrcCommand("Uptime", "Uptime", R.string.cmd_znc_uptime),
-        IrcCommand("Traffic", "Traffic", R.string.cmd_znc_traffic),
-        IrcCommand("Rehash", "Rehash", R.string.cmd_znc_rehash),
-        IrcCommand("SaveConfig", "SaveConfig", R.string.cmd_znc_saveconfig),
-        IrcCommand("ShowMOTD", "ShowMOTD", R.string.cmd_znc_showmotd),
-    ),
-    // soju BouncerServ — curated from soju(1) manpage; commands parsed as shell tokens
-    "bouncerserv" to listOf(
-        IrcCommand("help", "help [command]", R.string.cmd_soju_help),
-        IrcCommand("network create", "network create -addr <uri> -name <name> [-nick <nick>] [-pass <pw>]", R.string.cmd_soju_network_create),
-        IrcCommand("network update", "network update <name> [options]", R.string.cmd_soju_network_update),
-        IrcCommand("network delete", "network delete <name>", R.string.cmd_soju_network_delete),
-        IrcCommand("network status", "network status", R.string.cmd_soju_network_status),
-        IrcCommand("network quote", "network quote <name> <raw line>", R.string.cmd_soju_network_quote),
-        IrcCommand("channel status", "channel status [-network <name>]", R.string.cmd_soju_channel_status),
-        IrcCommand("channel update", "channel update <name> [options]", R.string.cmd_soju_channel_update),
-        IrcCommand("channel delete", "channel delete <name>", R.string.cmd_soju_channel_delete),
-        IrcCommand("certfp generate", "certfp generate [-network <name>]", R.string.cmd_soju_certfp_generate),
-        IrcCommand("certfp fingerprint", "certfp fingerprint [-network <name>]", R.string.cmd_soju_certfp_fingerprint),
-        IrcCommand("sasl status", "sasl status [-network <name>]", R.string.cmd_soju_sasl_status),
-        IrcCommand("sasl set-plain", "sasl set-plain [-network <name>] <user> <pass>", R.string.cmd_soju_sasl_set_plain),
-        IrcCommand("sasl reset", "sasl reset [-network <name>]", R.string.cmd_soju_sasl_reset),
-        IrcCommand("user update", "user update [options]", R.string.cmd_soju_user_update),
-        IrcCommand("server status", "server status", R.string.cmd_soju_server_status),
-    ),
-)
-
-/**
- * Parent commands that share a subcommand set. /bnc delegates to the soju
- * BouncerServ set because /bnc is just an alias for /bouncerserv.
- */
-private val SUB_COMMAND_ALIASES: Map<String, String> = mapOf(
-    "bnc" to "bouncerserv",
-)
-
-/**
- * For each parent command, the most spaces any of its sub-verbs contains, so the hint bar hides
- * once the typed sub-verb has more and can't match.
- */
-private val SUB_COMMAND_MAX_SPACES: Map<String, Int> =
-    SUB_COMMANDS.mapValues { (_, verbs) ->
-        verbs.maxOfOrNull { it.name.count { c -> c == ' ' } } ?: 0
-    }
-
-/**
- * Resolve the subcommand list for [parentCmd], following aliases. Returns null
- * if the parent command has no subcommand hints configured.
- */
-private fun subCommandsFor(parentCmd: String): List<IrcCommand>? {
-    val key = parentCmd.lowercase()
-    val resolved = SUB_COMMAND_ALIASES[key] ?: key
-    return SUB_COMMANDS[resolved]
-}
-
-/**
- * Maximum number of spaces permitted in a partial sub-verb for [parentCmd]
- * before we give up and hide the bar. Returns 0 when the parent has no entry.
- */
-private fun subCommandMaxSpaces(parentCmd: String): Int {
-    val key = parentCmd.lowercase()
-    val resolved = SUB_COMMAND_ALIASES[key] ?: key
-    return SUB_COMMAND_MAX_SPACES[resolved] ?: 0
-}
-
-/**
- * Command-completion bar shown above the input while typing a /command. Tapping an entry completes
- * the command name and a trailing space.
- */
-@Composable
-private fun CommandHints(
-    query: String,           // text after the leading '/' - must be non-empty
-    scriptCommands: List<IrcCommand> = emptyList(), // user-facing commands from loaded .hex scripts
-    onPick: (String) -> Unit // called with "/command " ready to type args
-) {
-    val matches = remember(query, scriptCommands) {
-        (IRC_COMMANDS + scriptCommands).filter { it.name.startsWith(query, ignoreCase = true) }
-    }
-
-    // Track which chip the user has highlighted (defaults to first match)
-    var highlighted by remember(matches) { mutableStateOf(matches.firstOrNull()) }
-
-    AnimatedVisibility(
-        visible = matches.isNotEmpty(),
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit  = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-    ) {
-        Surface(
-            tonalElevation = 6.dp,
-            shadowElevation = 4.dp,
-            shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column {
-                // Tabs
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(matches.distinctBy { it.name }, key = { it.name }) { cmd ->
-                        val isHighlighted = highlighted?.name == cmd.name
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isHighlighted)
-                                MaterialTheme.colorScheme.primaryContainer
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.focusHighlight(RoundedCornerShape(50)).clickable {
-                                highlighted = cmd
-                                onPick("/${cmd.name} ")
-                            }
-                        ) {
-                            Text(
-                                text = "/${cmd.name}",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isHighlighted)
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Detail row for the highlighted command
-                highlighted?.let { cmd ->
-                    HorizontalDivider(thickness = 0.5.dp)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusHighlight(RoundedCornerShape(8.dp))
-                            .clickable { onPick("/${cmd.name} ") }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Usage signature (args portion after the command name)
-                        val argsText = cmd.usage.removePrefix("/${cmd.name}").trim()
-                        Text(
-                            text = "/${cmd.name}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        if (argsText.isNotEmpty()) {
-                            Text(
-                                text = argsText,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
-                        Text(
-                            text = cmd.descriptionRes?.let { stringResource(it) } ?: cmd.description.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Sub-command completion bar, shown after a parent command with a curated verb list (/ns, /cs, /ms,
- * /hs, /bs, /as, /znc, /bouncerserv, /bnc) and a space. Typing narrows the list ("/ns id" to
- * IDENTIFY); tapping produces "/parent VERB ".
- */
-@Composable
-private fun SubCommandHints(
-    parentCmd: String,          // e.g. "ns", "znc", "bouncerserv" — must have a SUB_COMMANDS entry
-    query: String,              // text typed after the first space (may be empty)
-    onPick: (String) -> Unit    // called with "/parent subverb " ready for args
-) {
-    val subCmds = remember(parentCmd) { subCommandsFor(parentCmd) ?: emptyList() }
-    val matches = remember(subCmds, query) {
-        if (query.isEmpty()) subCmds
-        else subCmds.filter { it.name.startsWith(query, ignoreCase = true) }
-    }
-
-    // Track which chip the user has highlighted (defaults to first match)
-    var highlighted by remember(matches) { mutableStateOf(matches.firstOrNull()) }
-
-    AnimatedVisibility(
-        visible = matches.isNotEmpty(),
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit  = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-    ) {
-        Surface(
-            tonalElevation = 6.dp,
-            shadowElevation = 4.dp,
-            shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column {
-                // Chip row
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(matches.distinctBy { it.name }, key = { it.name }) { cmd ->
-                        val isHighlighted = highlighted?.name == cmd.name
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isHighlighted)
-                                MaterialTheme.colorScheme.primaryContainer
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.focusHighlight(RoundedCornerShape(50)).clickable {
-                                highlighted = cmd
-                                onPick("/$parentCmd ${cmd.name} ")
-                            }
-                        ) {
-                            Text(
-                                // Bare sub-verb — no leading slash — since it's
-                                // rendered as a second-token suggestion.
-                                text = cmd.name,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isHighlighted)
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Detail row for the highlighted sub-verb
-                highlighted?.let { cmd ->
-                    HorizontalDivider(thickness = 0.5.dp)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusHighlight()
-                            .clickable { onPick("/$parentCmd ${cmd.name} ") }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Show "/parent SUBVERB" as the label so the user sees
-                        // the whole command they'd send.
-                        Text(
-                            text = "/$parentCmd ${cmd.name}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        // Args portion of the usage string, stripped of the
-                        // sub-verb prefix so it reads naturally.
-                        val argsText = cmd.usage.removePrefix(cmd.name).trim()
-                        if (argsText.isNotEmpty()) {
-                            Text(
-                                text = argsText,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        } else {
-                            Spacer(Modifier.weight(1f))
-                        }
-                        Text(
-                            text = cmd.descriptionRes?.let { stringResource(it) } ?: cmd.description.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Nick-completion bar shown above the input when "@" plus at least one character is typed in a
- * channel. Tapping replaces the token with "@nick " (or "nick: " at the start of the line).
- */
-@Composable
-private fun NickHints(
-    prefix: String,          // characters typed after "@" - must be non-empty
-    nicks: List<String>,     // full nicklist for this buffer (may include mode prefixes like @/+)
-    inputText: String,       // current raw input text (to decide "nick: " vs "@nick ")
-    onPick: (String) -> Unit // called with the replacement text (already stripped of @-prefix)
-) {
-    // Strip mode-prefix characters for matching; preserve original for display.
-    fun base(n: String) = n.trimStart('~', '&', '@', '%', '+')
-
-    val matches = remember(prefix, nicks) {
-        nicks.filter { base(it).startsWith(prefix, ignoreCase = true) }
-             .sortedWith(compareBy { base(it).lowercase() })
-             .take(16)
-    }
-
-    var highlighted by remember(matches) { mutableStateOf(matches.firstOrNull()) }
-
-    AnimatedVisibility(
-        visible = matches.isNotEmpty(),
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit  = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-    ) {
-        Surface(
-            tonalElevation = 6.dp,
-            shadowElevation = 4.dp,
-            shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(matches.distinct(), key = { it }) { nick ->
-                        val isHighlighted = highlighted == nick
-                        val baseNickText = base(nick)
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (isHighlighted)
-                                MaterialTheme.colorScheme.primaryContainer
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.focusHighlight().clickable {
-                                highlighted = nick
-                                // "nick: " if cursor is at start of blank input, "nick " otherwise
-                                val completion = if (inputText.trimStart().startsWith("@$prefix", ignoreCase = true) &&
-                                                     inputText.trimStart().length <= prefix.length + 1)
-                                    "$baseNickText: "
-                                else
-                                    "$baseNickText "
-                                onPick(completion)
-                            }
-                        ) {
-                            Text(
-                                text = nick,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isHighlighted)
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                            )
-                        }
-                    }
-                }
-                highlighted?.let { nick ->
-                    HorizontalDivider(thickness = 0.5.dp)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusHighlight()
-                            .clickable {
-                                val baseNickText = base(nick)
-                                val completion = if (inputText.trimStart().startsWith("@$prefix", ignoreCase = true) &&
-                                                     inputText.trimStart().length <= prefix.length + 1)
-                                    "$baseNickText: "
-                                else
-                                    "$baseNickText "
-                                onPick(completion)
-                            }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "@${base(nick)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = stringResource(R.string.nick_hint_tap_to_mention),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-private sealed class SidebarItem(val stableKey: String) {
-    data class Header(val netId: String, val title: String, val expanded: Boolean = true) : SidebarItem("h:$netId")
-    data class Buffer(
-        val key: String,
-        val label: String,
-        val indent: Dp,
-        val isNetworkHeader: Boolean = false,
-        val netId: String? = null,
-        val expanded: Boolean = true,
-    ) : SidebarItem("b:$key")
-    data class DividerItem(val netId: String) : SidebarItem("d:$netId")
-}
-
-
-/**
- * A tab-completion in progress, so a second Tab cycles to the next match rather than
- * completing the word the first one produced.
- *
- * [text] and [cursor] are what the last completion left in the field: the cycle is only
- * continued when the field still holds exactly that, so any edit in between starts over.
- */
-private data class NickCycle(
-    val start: Int,
-    val hadAt: Boolean,
-    val matches: List<String>,
-    val index: Int,
-    val text: String,
-    val cursor: Int,
-)
-
-/** Drag handle for sidebar network rows. Long-press to start drag.
- *  onDrag receives the CUMULATIVE y offset from the drag start position. */
-@Composable
-private fun SidebarDragHandle(
-    onStart: () -> Unit,
-    onDrag: (totalOffsetY: Float) -> Unit,
-    onEnd: () -> Unit,
-    onCancel: () -> Unit = onEnd,
-    onMoveUp: () -> Unit = {},
-    onMoveDown: () -> Unit = {},
-) {
-    // The gesture block is set up once and then outlives every recomposition, so it
-    // reads the callbacks through state rather than capturing the first ones it saw,
-    // which would leave a drag acting on the network order as it was at first draw.
-    val start by rememberUpdatedState(onStart)
-    val drag by rememberUpdatedState(onDrag)
-    val end by rememberUpdatedState(onEnd)
-    val cancel by rememberUpdatedState(onCancel)
-    Box(
-        modifier = Modifier
-            .size(24.dp)
-            .dpadReorder(onMoveUp = onMoveUp, onMoveDown = onMoveDown)
-            .pointerInput(Unit) {
-                var accumulated = 0f
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { accumulated = 0f; start() },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        accumulated += dragAmount.y
-                        drag(accumulated)
-                    },
-                    onDragEnd = { end() },
-                    onDragCancel = { cancel() }
-                )
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            Icons.Default.DragHandle,
-            contentDescription = stringResource(R.string.chat_drag_reorder),
-            modifier = Modifier.size(14.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-        )
-    }
-}
-
-/**
- * Quoted preview above a message with a reply tag. The parent is found through [msgStrToDisplayIdx]
- * and [msgIdToText]. [canScroll] is true when the parent is loaded, making the quote tappable;
- * otherwise it is shown as a non-tappable placeholder.
- */
-@Composable
-private fun ReplyQuote(
-    replyToMsgId: String,
-    msgIdToText: Map<String, Pair<String?, String>>,
-    canScroll: Boolean,
-    onTap: () -> Unit,
-    onFetch: (() -> Unit)? = null,
-) {
-    val entry = msgIdToText[replyToMsgId]  // O(1)
-    val label = when {
-        entry == null          -> "↩ " + stringResource(R.string.chat_reply_not_loaded)
-        entry.first != null    -> "↩ ${entry.first}: ${stripIrcFormatting(entry.second).take(80)}"
-        else                   -> "↩ ${stripIrcFormatting(entry.second).take(80)}"
-    }
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier
-            .fillMaxWidth()
-            .focusHighlight(RoundedCornerShape(4.dp))
-            // Jumps to the original, or fetches it when outside the loaded window.
-            .clickable(
-                enabled = canScroll || (entry == null && onFetch != null),
-                onClick = if (canScroll) onTap else (onFetch ?: {}),
-            )
-            .background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                RoundedCornerShape(4.dp)
-            )
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-/**
- * Top-of-scrollback row offering the next page of stored history.
- *
- * Shown only for buffers whose server has chathistory and hasn't reported itself out of
- * older messages.
- */
-@Composable
-private fun LoadOlderHistoryRow(
-    loading: Boolean,
-    onLoad: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (loading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = stringResource(R.string.chat_history_loading),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
-            TextButton(
-                onClick = onLoad,
-                modifier = Modifier.focusHighlight(RoundedCornerShape(16.dp)),
-            ) {
-                Text(
-                    text = stringResource(R.string.chat_history_load_older),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-        }
-    }
-}
-
-/**
- * Horizontal divider shown above the first unread message in a buffer.
- * Driven by the server's draft/read-marker or soju.im/read timestamp.
- * Also integrated into the app.
- */
-@Composable
-private fun UnreadSeparator() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        HorizontalDivider(
-            modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-            thickness = 1.dp
-        )
-        Text(
-            text = stringResource(R.string.chat_unread_divider),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.75f),
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.8.sp
-        )
-        HorizontalDivider(
-            modifier = Modifier.weight(1f),
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f),
-            thickness = 1.dp
-        )
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1515,7 +614,6 @@ fun ChatScreen(
         }
     }
 
-
     val timeFmt = remember(state.settings.timestampFormat) {
         try {
             SimpleDateFormat(state.settings.timestampFormat, Locale.getDefault())
@@ -1694,6 +792,8 @@ fun ChatScreen(
     var longPressedMessage by remember { mutableStateOf<UiMessage?>(null) }
     /** msgid awaiting a typed reaction, or null when the prompt is closed. */
     var customReactionFor by remember { mutableStateOf<String?>(null) }
+    // The message whose reactions are being shown, and the reaction picked (null for all).
+    var reactionDetails by remember { mutableStateOf<ReactionDetailsTarget?>(null) }
 
     /** When true, message rows show checkboxes for multi-message copy selection. */
     var copyRangeMode by remember { mutableStateOf(false) }
@@ -1719,6 +819,8 @@ fun ChatScreen(
      * switches buffer (the `remember(selected)` resets it to false).
      */
     var showEncryptionDialog by remember(selected) { mutableStateOf(false) }
+    var showChannelSettings by remember(selected) { mutableStateOf(false) }
+    var showLogSearch by remember { mutableStateOf(false) }
     // Metadata editor and guided account-registration dialogs. Keyed to the selected
     // network so switching networks dismisses a stale dialog.
     var showMetadataEditor by remember(selNetId) { mutableStateOf(false) }
@@ -2665,6 +1767,7 @@ fun ChatScreen(
             copyRangeMode = false
             selectedMsgIds = emptySet()
         }
+        reactionDetails = null
     }
 
     // Drive scroll and flicker. Re-runs when the anchor changes, the list grows (scrollback
@@ -3087,6 +2190,9 @@ fun ChatScreen(
                             val entries = buildList {
                                 add(MenuEntry(stringResource(R.string.menu_channel_list)) { overflowExpanded = false; onOpenList() })
                                 add(MenuEntry(stringResource(R.string.menu_file_transfers)) { overflowExpanded = false; onOpenTransfers() })
+                                if (viewModel != null) {
+                                    add(MenuEntry(stringResource(R.string.menu_search_logs)) { overflowExpanded = false; showLogSearch = true })
+                                }
                                 // Encryption is only meaningful for channel/query buffers, not the
                                 // *server*/*status* tab. selNetId can be blank if no networks exist
                                 // yet; viewModel can be null in preview/test.
@@ -3097,6 +2203,9 @@ fun ChatScreen(
                                     selBufName != "*status*"
                                 ) {
                                     add(MenuEntry("Secure Chat") { overflowExpanded = false; showEncryptionDialog = true })
+                                    add(MenuEntry(stringResource(
+                                        if (isChannel) R.string.menu_channel_settings else R.string.menu_conversation_settings
+                                    )) { overflowExpanded = false; showChannelSettings = true })
                                 }
                                 // draft/metadata-2 editor and draft/account-registration dialog,
                                 // shown only when the connected server negotiated the cap.
@@ -3554,6 +2663,7 @@ fun ChatScreen(
                             onAddReaction = if (hasReactionSupport) {
                                 { id: String -> customReactionFor = id }
                             } else null,
+                            onShowReactions = { reaction -> reactionDetails = ReactionDetailsTarget(m.id, reaction) },
                             msgIdToText = msgIdToTextHoisted,
                             scope = scope,
                             chatTextStyle = chatTextStyle,
@@ -3931,6 +3041,8 @@ fun ChatScreen(
             // Find the last "@" that starts a word token before the cursor
             val atIdx = t.lastIndexOf('@')
             if (atIdx < 0) return@remember null
+            // An @ inside a word, as in an email address, is not a mention.
+            if (atIdx > 0 && t[atIdx - 1].let { it.isLetterOrDigit() || it in "._+-" }) return@remember null
             val token = t.substring(atIdx + 1)
             // Only trigger if the token after "@" is non-empty and contains no spaces (still typing)
             if (token.isNotEmpty() && !token.contains(' ')) token else null
@@ -4101,19 +3213,25 @@ fun ChatScreen(
             Column(Modifier.fillMaxWidth()) {
             // Typing indicator: shown above the input row whenever someone is composing.
             // Visible even while the user is typing their own message.
+            // The last non-empty set, so the bar keeps its text while it animates out.
+            val lastTypers = remember { mutableStateOf(typingNicks) }
+            SideEffect { if (typingNicks.isNotEmpty()) lastTypers.value = typingNicks }
             AnimatedVisibility(
                 visible = typingNicks.isNotEmpty(),
                 enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
                 exit = fadeOut() + slideOutVertically(targetOffsetY = { it })
             ) {
-                val typingLabel = when (typingNicks.size) {
-                    1 -> "${typingNicks.first()} is typing"
+                val typers = typingNicks.ifEmpty { lastTypers.value }
+                // The dots are animated below, so the strings' own ellipsis is dropped.
+                val typingLabel = when (typers.size) {
+                    0 -> ""
+                    1 -> stringResource(R.string.typing_one, typers.first())
                     2 -> {
-                        val (a, b) = typingNicks.toList()
-                        "$a and $b are typing"
+                        val (a, b) = typers.toList()
+                        stringResource(R.string.typing_two, a, b)
                     }
-                    else -> "Several people are typing"
-                }
+                    else -> stringResource(R.string.typing_several)
+                }.trimEnd('…', '.')
                 // Animate three dots cycling 0→1→2→3 dots every 500ms.
                 val dotCount by produceState(initialValue = 0) {
                     while (true) {
@@ -4260,7 +3378,7 @@ fun ChatScreen(
                         )
                     } else {
                         IconButton(
-                            onClick = { filePicker.launch(arrayOf("*/*")) },
+                            onClick = { filePicker.launchPicker(ctxUpload, arrayOf("*/*")) },
                             modifier = Modifier.size(28.dp).focusHighlight(),
                         ) {
                             Icon(
@@ -4413,7 +3531,6 @@ fun ChatScreen(
 					}
 				)
 
-
                 if (isChannel && (canKick || canBan || canTopic)) {
                     val opsInteraction = remember { MutableInteractionSource() }
                     val opsPressed by opsInteraction.collectIsPressedAsState()
@@ -4444,7 +3561,6 @@ fun ChatScreen(
                         )
                     }
                 }
-
 
                 run {
                     val sendInteraction = remember { MutableInteractionSource() }
@@ -4616,17 +3732,20 @@ fun ChatScreen(
                 delay(1600)
                 showResizeHint = false
             }
-            val inf = rememberInfiniteTransition(label = "splitHint")
-            val pulseAlpha by inf.animateFloat(
-                initialValue = 0.25f,
-                targetValue = 0.85f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(700),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "pulseAlpha"
-            )
-            val handleAlpha = if (showResizeHint) pulseAlpha else 0.25f
+            // Composed only while hinting: a running infinite transition asks for every frame.
+            val handleAlpha = if (showResizeHint) {
+                val inf = rememberInfiniteTransition(label = "splitHint")
+                val pulseAlpha by inf.animateFloat(
+                    initialValue = 0.25f,
+                    targetValue = 0.85f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(700),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "pulseAlpha"
+                )
+                pulseAlpha
+            } else 0.25f
 
             @Composable
             fun SplitHandle(
@@ -4673,7 +3792,6 @@ fun ChatScreen(
                     )
                 }
             }
-
 
             val bufferPaneW = (screenW * bufferFrac).coerceIn(minBufferDp, maxBufferDp)
             val nickPaneW = (screenW * nickFrac).coerceIn(minNickDp, maxNickDp)
@@ -5084,214 +4202,7 @@ fun ChatScreen(
 
     // IRCop tools
     if (showIrcOpTools) {
-        // Insets are handled by the content, not the sheet: see the note on the channel
-        // tools sheet above.
-        ModalBottomSheet(
-            onDismissRequest = { showIrcOpTools = false },
-            contentWindowInsets = { WindowInsets(0) },
-        ) {
-            val scrollState = rememberScrollState()
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.92f)
-                    .padding(16.dp)
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .verticalScroll(scrollState),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Default.AdminPanelSettings,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary)
-                    Text(stringResource(R.string.chat_ircop_tools), style = MaterialTheme.typography.titleLarge)
-                }
-                Text("$selNetName", style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                HorizontalDivider()
-
-                var opTarget by remember { mutableStateOf("") }
-                var opReason by remember { mutableStateOf("") }
-                var opDuration by remember { mutableStateOf("") }
-                var opServer by remember { mutableStateOf("") }
-                var opMessage by remember { mutableStateOf("") }
-
-                // Target / Reason fields
-                Text(stringResource(R.string.chat_target_label), fontWeight = FontWeight.Bold)
-                OutlinedTextField(
-                    value = opTarget, onValueChange = { opTarget = it },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    label = { Text(stringResource(R.string.chat_nick_mask_label)) }
-                )
-                OutlinedTextField(
-                    value = opReason, onValueChange = { opReason = it },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    label = { Text(stringResource(R.string.chat_reason)) }
-                )
-                // Duration for the timed *-line / shun commands. Format is server-specific
-                // (e.g. "1d", "2h", "30" minutes); "0" usually means permanent.
-                OutlinedTextField(
-                    value = opDuration, onValueChange = { opDuration = it },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    label = { Text(stringResource(R.string.chat_duration_label)) },
-                    supportingText = { Text(stringResource(R.string.chat_duration_hint)) }
-                )
-
-                // Kill / K-line / Z-line
-                Text(stringResource(R.string.chat_punishments), fontWeight = FontWeight.Bold)
-                val noReasonStr = stringResource(R.string.chat_no_reason)
-                // The timed line/shun commands take <mask> <duration> [reason]; require both a
-                // target and a duration so we never send a bare "<mask> <reason>" that the
-                // server would misparse.
-                val canLine = opTarget.isNotBlank() && opDuration.isNotBlank()
-                // FlowRow so the buttons wrap onto extra lines on narrow screens instead of
-                // overflowing off the right edge. Both rows of punishments are merged into one
-                // wrapping group.
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            val t = opTarget.trim()
-                            if (t.isNotBlank()) {
-                                val r = opReason.trim().ifBlank { noReasonStr }
-                                onSend("/kill $t $r")
-                                showIrcOpTools = false
-                            }
-                        },
-                        enabled = opTarget.isNotBlank(), modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_kill)) }
-                    OutlinedButton(
-                        onClick = {
-                            val t = opTarget.trim(); val d = opDuration.trim()
-                            if (t.isNotBlank() && d.isNotBlank()) {
-                                val r = opReason.trim().ifBlank { noReasonStr }
-                                onSend("/kline $t $d $r")
-                                showIrcOpTools = false
-                            }
-                        },
-                        enabled = canLine, modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_kline)) }
-                    OutlinedButton(
-                        onClick = {
-                            val t = opTarget.trim(); val d = opDuration.trim()
-                            if (t.isNotBlank() && d.isNotBlank()) {
-                                val r = opReason.trim().ifBlank { noReasonStr }
-                                onSend("/zline $t $d $r")
-                                showIrcOpTools = false
-                            }
-                        },
-                        enabled = canLine, modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_zline)) }
-                    OutlinedButton(
-                        onClick = {
-                            val t = opTarget.trim(); val d = opDuration.trim()
-                            if (t.isNotBlank() && d.isNotBlank()) {
-                                val r = opReason.trim().ifBlank { noReasonStr }
-                                onSend("/gline $t $d $r")
-                                showIrcOpTools = false
-                            }
-                        },
-                        enabled = canLine, modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_gline)) }
-                    OutlinedButton(
-                        onClick = {
-                            val t = opTarget.trim(); val d = opDuration.trim()
-                            if (t.isNotBlank() && d.isNotBlank()) {
-                                val r = opReason.trim().ifBlank { noReasonStr }
-                                onSend("/shun $t $d $r")
-                            }
-                        },
-                        enabled = canLine, modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_shun)) }
-                    OutlinedButton(
-                        onClick = {
-                            val t = opTarget.trim(); val d = opDuration.trim()
-                            if (t.isNotBlank() && d.isNotBlank()) {
-                                val r = opReason.trim().ifBlank { noReasonStr }
-                                onSend("/dline $t $d $r")
-                            }
-                        },
-                        enabled = canLine, modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_dline)) }
-                }
-
-                HorizontalDivider()
-
-                // Force join/part
-                Text(stringResource(R.string.chat_force_joinpart), fontWeight = FontWeight.Bold)
-                OutlinedTextField(
-                    value = opServer, onValueChange = { opServer = it },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    label = { Text(stringResource(R.string.chat_channel_label)) }
-                )
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            val t = opTarget.trim(); val ch = opServer.trim()
-                            if (t.isNotBlank() && ch.isNotBlank()) onSend("/sajoin $t $ch")
-                        },
-                        enabled = opTarget.isNotBlank() && opServer.isNotBlank(), modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_sajoin)) }
-                    OutlinedButton(
-                        onClick = {
-                            val t = opTarget.trim(); val ch = opServer.trim()
-                            if (t.isNotBlank() && ch.isNotBlank()) onSend("/sapart $t $ch")
-                        },
-                        enabled = opTarget.isNotBlank() && opServer.isNotBlank(), modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_sapart)) }
-                }
-
-                HorizontalDivider()
-
-                // Broadcast messages
-                Text(stringResource(R.string.chat_broadcast), fontWeight = FontWeight.Bold)
-                OutlinedTextField(
-                    value = opMessage, onValueChange = { opMessage = it },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    label = { Text(stringResource(R.string.chat_message_label)) }
-                )
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { if (opMessage.isNotBlank()) onSend("/wallops ${opMessage.trim()}") },
-                        enabled = opMessage.isNotBlank(), modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_wallops)) }
-                    OutlinedButton(
-                        onClick = { if (opMessage.isNotBlank()) onSend("/globops ${opMessage.trim()}") },
-                        enabled = opMessage.isNotBlank(), modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_globops)) }
-                    OutlinedButton(
-                        onClick = { if (opMessage.isNotBlank()) onSend("/locops ${opMessage.trim()}") },
-                        enabled = opMessage.isNotBlank(), modifier = Modifier.focusHighlight(RoundedCornerShape(50))
-                    ) { Text(stringResource(R.string.ircop_locops)) }
-                }
-
-                HorizontalDivider()
-
-                // Server queries
-                Text(stringResource(R.string.chat_server_queries), fontWeight = FontWeight.Bold)
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(onClick = { onSend("/motd"); showIrcOpTools = false }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.ircop_motd)) }
-                    OutlinedButton(onClick = { onSend("/admin"); showIrcOpTools = false }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.ircop_admin)) }
-                    OutlinedButton(onClick = { onSend("/stats u"); showIrcOpTools = false }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.ircop_uptime)) }
-                    OutlinedButton(onClick = { onSend("/stats l"); showIrcOpTools = false }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.ircop_links)) }
-                }
-
-                Spacer(Modifier.height(8.dp))
-            }
-        }
+        IrcOpToolsSheet(netName = selNetName, onSend = onSend, onDismiss = { showIrcOpTools = false })
     }
 
     // mIRC colour/style picker sheet
@@ -5749,7 +4660,6 @@ fun ChatScreen(
                 val noExceptSupportStr = stringResource(R.string.chat_no_except_support)
                 val noInvexSupportStr = stringResource(R.string.chat_no_invex_support)
 
-
                 PrimaryTabRow(selectedTabIndex = chanListTab) {
                     Tab(
                         selected = chanListTab == 0,
@@ -5939,8 +4849,6 @@ fun ChatScreen(
         }
     }
 
-
-
     // Per-target end-to-end encryption dialog. Reached from the overflow menu when
     // the active buffer is a channel or query (the menu entry hides itself on the
     // server buffer because it has no remote correspondent). The dialog itself
@@ -5953,6 +4861,30 @@ fun ChatScreen(
             target = selBufName,
             viewModel = viewModel,
             onDismiss = { showEncryptionDialog = false },
+        )
+    }
+
+    if (showLogSearch && viewModel != null) {
+        LogSearchDialog(
+            viewModel = viewModel,
+            bufferKey = selected.takeIf { it.isNotBlank() && selBufName.isNotBlank() },
+            bufferName = selBufName.takeIf { it.isNotBlank() },
+            loggingEnabled = state.settings.loggingEnabled,
+            onDismiss = { showLogSearch = false },
+        )
+    }
+
+    if (showChannelSettings && viewModel != null && selected.isNotBlank()) {
+        ChannelSettingsDialog(
+            name = selBufName,
+            isChannel = isChannel,
+            prefs = viewModel.channelPrefsFor(selected),
+            globalEvents = state.settings.eventPrefs(),
+            onSave = { p ->
+                viewModel.setChannelPrefs(selected, p)
+                showChannelSettings = false
+            },
+            onDismiss = { showChannelSettings = false },
         )
     }
 
@@ -6047,6 +4979,34 @@ fun ChatScreen(
         )
     }
 
+    // Who reacted to a message. Read from the buffer each time, so it follows reactions
+    // arriving while it is open, and closes once the message has none left.
+    reactionDetails?.let { target ->
+        val reacted = remember(messages, target.messageId) {
+            messages.firstOrNull { it.id == target.messageId }
+        }
+        if (reacted == null || reacted.reactions.isEmpty()) {
+            LaunchedEffect(target) { reactionDetails = null }
+        } else {
+            ReactionDetailsSheet(
+                reactions = reacted.reactions,
+                selected = target.reaction?.takeIf { it in reacted.reactions },
+                onSelect = { r -> reactionDetails = target.copy(reaction = r) },
+                myNick = myNick,
+                nickLabel = ::displayNick,
+                nickColor = ::nickColor,
+                displayName = { n ->
+                    val b = baseNick(n)
+                    metadataDisplayNames[b.lowercase()]?.takeIf { !it.equals(b, ignoreCase = true) }
+                },
+                onNickClick = { n ->
+                    reactionDetails = null
+                    openNickActions(n)
+                },
+                onDismiss = { reactionDetails = null },
+            )
+        }
+    }
 
     // Message long-press context sheet; Copy and Reply actions.
     val ctxMsg = longPressedMessage
@@ -6073,6 +5033,7 @@ fun ChatScreen(
                 )
                 // Quick reactions; only for messages with a server msgId (requires message-tags)
                 if (ctxMsg.msgId != null) {
+                    val reactionsUnsupported = stringResource(R.string.chat_reactions_unsupported)
                     HorizontalDivider()
                     Row(
                         modifier = Modifier
@@ -6096,7 +5057,7 @@ fun ChatScreen(
                                         } else {
                                             scope.launch {
                                                 snackbarHostState.showSnackbar(
-                                                    "This server doesn't support reactions",
+                                                    reactionsUnsupported,
                                                     duration = androidx.compose.material3.SnackbarDuration.Short,
                                                 )
                                             }
@@ -6122,7 +5083,7 @@ fun ChatScreen(
                                     } else {
                                         scope.launch {
                                             snackbarHostState.showSnackbar(
-                                                "This server doesn't support reactions",
+                                                reactionsUnsupported,
                                                 duration = androidx.compose.material3.SnackbarDuration.Short,
                                             )
                                         }
@@ -6133,6 +5094,24 @@ fun ChatScreen(
                     }
                 }
                 HorizontalDivider()
+                if (ctxMsg.reactions.isNotEmpty()) {
+                    val summary = remember(ctxMsg.reactions) {
+                        ctxMsg.reactions.entries
+                            .sortedWith(compareByDescending<Map.Entry<String, Set<String>>> { it.value.size }.thenBy { it.key })
+                            .joinToString("  ") { (text, nicks) -> "$text ${nicks.size}" }
+                    }
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.chat_reactions_who)) },
+                        supportingContent = { Text(summary, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingContent = {
+                            Icon(Icons.Filled.EmojiEmotions, contentDescription = null)
+                        },
+                        modifier = Modifier.focusHighlight().clickable {
+                            reactionDetails = ReactionDetailsTarget(ctxMsg.id, null)
+                            longPressedMessage = null
+                        }
+                    )
+                }
                 // Reply; only for channel/PM messages that have a real sender
                 if (ctxMsg.from != null && !ctxMsg.isMotd) {
                     ListItem(
@@ -6607,1624 +5586,4 @@ fun ChatScreen(
             }
         }
     }
-}
-
-/**
- * Renders one [UiMessage] in the chat list. A separate composable so Compose can skip it when its
- * parameters are unchanged; they are all primitives, stable data classes or lambdas. State changes
- * surface as callbacks, so it holds no state beyond the per-item [swipeOffsetX] animation.
- */
-@Composable
-private fun SingleMessageItem(
-    m: UiMessage,
-    /** Our message has been read by the other person (read receipts). */
-    readByPeer: Boolean = false,
-    ts: String,
-    /** Brackets drawn around the sender's nick. */
-    nickStyle: NickStyle,
-    /** Colour for the timestamp span, or null to use the message colour. */
-    timestampColor: Color?,
-    // Pre-computed booleans so the item doesn't capture find/flicker state objects.
-    isFlickering: Boolean,
-    flickerAlphaValue: Float,       // Float, not Animatable, so Compose sees a stable param
-    isFindMatch: Boolean,
-    isFindCurrent: Boolean,
-    findHighlight: String?,
-    isSelectedForCopy: Boolean,
-    /** True when the user has tapped "show more" on this message. */
-    isExpanded: Boolean,
-    onToggleExpanded: () -> Unit,
-    copyRangeMode: Boolean,
-    selBufName: String,
-    messages: List<UiMessage>,
-    reversedMessages: List<UiMessage>,
-    listState: LazyListState,
-    msgIdToDisplayIdx: Map<Long, Int>,
-    /** IRCv3 msgid (String) → display index — used for O(1) reply-quote scroll. */
-    msgStrToDisplayIdx: Map<String, Int>,
-    /** Fetch the messages around a reply's parent when it is older than the loaded window. */
-    onFetchReplyContext: ((String) -> Unit)? = null,
-    /** Our nick, so a reaction we are part of is drawn as ours. */
-    myNick: String? = null,
-    /** Add or remove our own reaction: msgid, reaction text, whether it is currently ours. */
-    onToggleReaction: ((String, String, Boolean) -> Unit)? = null,
-    /** Open the typed-reaction prompt for a message that already has reactions. */
-    onAddReaction: ((String) -> Unit)? = null,
-    /** IRCv3 msgid (String) → (from, text) — used for O(1) reply label rendering. */
-    msgIdToText: Map<String, Pair<String?, String>>,
-    scope: CoroutineScope,
-    chatTextStyle: androidx.compose.ui.text.TextStyle,
-    /** Space above this message, from the chat line spacing setting. 0.dp on Tight. */
-    itemGap: androidx.compose.ui.unit.Dp = 0.dp,
-    motdStyle: androidx.compose.ui.text.TextStyle,
-    motdFontSizeSp: Float,
-    linkStyle: SpanStyle,
-    onAnnotationClick: (String, String) -> Unit,
-    colorizeNicks: Boolean,
-    mircColorsEnabled: Boolean,
-    ansiColorsEnabled: Boolean,
-    imagePreviewsEnabled: Boolean,
-    imagePreviewsWifiOnly: Boolean,
-    nickColor: (String) -> Color,
-    displayNick: (String) -> String,
-    // Callbacks for state mutations that live in the parent.
-    onToggleSelected: () -> Unit,
-    onLongPress: () -> Unit,
-    onSwipeReply: () -> Unit,
-    /**
-     * draft/metadata-2 display-name for this message's sender, already sanitised,
-     * or null when unset / identical to the nick. Rendered AFTER the real nick
-     * rather than replacing it: a display name is attacker-chosen free text, so
-     * substituting it for the nick would let anyone impersonate another user.
-     */
-    displayName: String? = null,
-) {
-    val fromNick = m.from
-    // Local copy of ChatScreen's baseNick — strips IRC mode prefixes from a display nick.
-    fun baseNick(display: String) = display.trimStart('~', '&', '@', '%', '+')
-    val swipeOffsetX = remember { Animatable(0f) }
-    val canSwipeReply = fromNick != null && !m.isMotd
-
-    // Encryption badge: a Material icon at the start of the line, as an InlineTextContent
-    // placeholder so the line stays one Text node and selection, copy and link offsets are
-    // unaffected.
-    //   AGM  -> filled Lock    (AES-256-GCM, PSK)                primary tint
-    //   AGE  -> filled Shield  (double ratchet, forward secret)  primary tint
-    //   +OK  -> outlined Lock  (Blowfish/FiSH, legacy)           amber tint
-    val encScheme = m.encryption
-    val encAlt = when (encScheme) {
-        com.boxlabs.hexdroid.crypto.E2eScheme.AGM      -> "\uD83D\uDD12"  // 🔒 fallback / copy text
-        com.boxlabs.hexdroid.crypto.E2eScheme.AGE      -> "\uD83D\uDEE1" // 🛡
-        com.boxlabs.hexdroid.crypto.E2eScheme.BLOWFISH -> "\uD83D\uDD13" // 🔓 (legacy)
-        null                                           -> ""
-    }
-    val botInline: Map<String, InlineTextContent> = if (!m.fromBot) emptyMap() else mapOf(
-        BOT_INLINE_ID to InlineTextContent(
-            Placeholder(
-                width = 1.3.em,
-                height = 1.0.em,
-                placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
-            )
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_robot_2),
-                contentDescription = null,
-                tint = Color(0xFF7E9CD8),
-                modifier = Modifier.fillMaxHeight().aspectRatio(1f),
-            )
-        }
-    )
-
-    val encInline: Map<String, InlineTextContent> = encScheme?.let { scheme ->
-        mapOf(
-            ENC_INLINE_ID to InlineTextContent(
-                Placeholder(
-                    width = 1.3.em,
-                    height = 1.0.em,
-                    placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
-                )
-            ) {
-                val (icon, tint) = when (scheme) {
-                    com.boxlabs.hexdroid.crypto.E2eScheme.AGM      ->
-                        Icons.Filled.Lock to MaterialTheme.colorScheme.primary
-                    com.boxlabs.hexdroid.crypto.E2eScheme.AGE      ->
-                        Icons.Filled.Shield to MaterialTheme.colorScheme.primary
-                    com.boxlabs.hexdroid.crypto.E2eScheme.BLOWFISH ->
-                        Icons.Outlined.Lock to Color(0xFFE0A030)
-                }
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.fillMaxHeight().aspectRatio(1f),
-                )
-            }
-        )
-    } ?: emptyMap()
-
-    // Read receipt: a double tick after our message. Its alternate text is what screen readers announce.
-    val readLabel = stringResource(R.string.chat_status_read)
-    val statusInline: Map<String, InlineTextContent> = if (!readByPeer) emptyMap() else mapOf(
-        STATUS_INLINE_ID to InlineTextContent(
-            Placeholder(
-                width = 1.2.em,
-                height = 1.0.em,
-                placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
-            )
-        ) {
-            Icon(
-                imageVector = Icons.Filled.DoneAll,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.fillMaxHeight().aspectRatio(1f),
-            )
-        }
-    )
-
-    val inlineBadges = encInline + botInline + statusInline
-
-    // Collapse multiline messages to the first COLLAPSE_LINES and offer to expand.
-    val bodyLineCount = remember(m.text) { m.text.count { it == '\n' } + 1 }
-    val isTv = isTvDevice()
-    val collapsible = m.multiline && bodyLineCount > COLLAPSE_LINES
-    val hiddenLines = bodyLineCount - COLLAPSE_LINES
-    val bodyText = remember(m.text, collapsible, isExpanded) {
-        if (collapsible && !isExpanded) {
-            m.text.lineSequence().take(COLLAPSE_LINES).joinToString("\n")
-        } else {
-            m.text
-        }
-    }
-
-    androidx.compose.foundation.layout.Column(
-        // Held +AGE echoes are dimmed until the bridge flushes them to the wire (m.pending), so an
-        // optimistic echo reads clearly as "not yet delivered" rather than as a sent message.
-        // m.failed is the same idea after the fact: the server rejected the send.
-        modifier = Modifier
-            .fillMaxWidth()
-            // Chat line spacing. MOTD lines opt out: the server banner is a character
-            // grid, and spacing its rows apart shears the art.
-            .padding(top = if (m.isMotd) 0.dp else itemGap)
-            .alpha(if (m.pending || m.failed) 0.5f else 1f)
-    ) {
-        if (m.failed) {
-            Text(
-                stringResource(R.string.chat_not_delivered),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-        if (m.replyToMsgId != null) {
-            val replyDisplayIdx = msgStrToDisplayIdx[m.replyToMsgId] ?: -1
-            ReplyQuote(
-                replyToMsgId = m.replyToMsgId,
-                msgIdToText = msgIdToText,
-                canScroll = replyDisplayIdx >= 0,
-                onFetch = onFetchReplyContext?.let { fetch -> { fetch(m.replyToMsgId) } },
-                onTap = {
-                    // O(1): index already resolved above via msgStrToDisplayIdx.
-                    if (replyDisplayIdx >= 0) {
-                        scope.launch { listState.animateScrollToItem(replyDisplayIdx) }
-                    }
-                },
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusHighlight()
-                .then(
-                    when {
-                        isFlickering  -> Modifier.background(
-                            MaterialTheme.colorScheme.primary.copy(alpha = flickerAlphaValue)
-                        )
-                        isFindCurrent -> Modifier.background(
-                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f)
-                        )
-                        isFindMatch   -> Modifier.background(
-                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.10f)
-                        )
-                        else          -> Modifier
-                    }
-                )
-                .then(
-                    if (canSwipeReply) Modifier.pointerInput(m.id) {
-                        val deadZonePx = 64.dp.toPx()
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            if (down.position.x < deadZonePx) return@awaitEachGesture
-                            var dx = 0f
-                            var dy = 0f
-                            var started = false
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                if (!change.pressed) break
-                                val pos = change.positionChange()
-                                dx += pos.x; dy += pos.y
-                                val absDx = kotlin.math.abs(dx); val absDy = kotlin.math.abs(dy)
-                                if (!started) {
-                                    if (absDx < viewConfiguration.touchSlop && absDy < viewConfiguration.touchSlop) continue
-                                    if (absDy > absDx || dx < 0f) break
-                                    started = true
-                                }
-                                if (started) {
-                                    change.consume()
-                                    val newVal = (swipeOffsetX.value + pos.x).coerceIn(0f, 200f)
-                                    scope.launch { swipeOffsetX.snapTo(newVal) }
-                                }
-                            }
-                            val triggered = swipeOffsetX.value >= 72f
-                            scope.launch {
-                                swipeOffsetX.animateTo(0f,
-                                    animationSpec = androidx.compose.animation.core.spring())
-                            }
-                            if (triggered) onSwipeReply()
-                        }
-                    } else Modifier
-                )
-                // A remote has no dependable long press, so select opens the message
-                // actions there. Touch keeps long press, where a select-to-open row
-                // would fight with tapping links inside the message.
-                .then(if (isTv) Modifier.focusHighlight(RoundedCornerShape(4.dp)) else Modifier)
-                .combinedClickable(
-                    onClick = {
-                        when {
-                            copyRangeMode -> onToggleSelected()
-                            isTv -> onLongPress()
-                        }
-                    },
-                    onLongClick = { if (copyRangeMode) onToggleSelected() else onLongPress() }
-                )
-        ) {
-            if (copyRangeMode && isSelectedForCopy) {
-                Box(
-                    Modifier
-                        .matchParentSize()
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                )
-            }
-            if (canSwipeReply && swipeOffsetX.value > 8f) {
-                val iconAlpha = (swipeOffsetX.value / 72f).coerceIn(0f, 1f)
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Reply,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = iconAlpha),
-                    modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .padding(start = 4.dp)
-                        .size(20.dp)
-                        .offset(x = (swipeOffsetX.value * 0.3f).dp)
-                )
-            }
-
-            if (fromNick == null) {
-                if (m.isMotd && selBufName == "*server*") {
-                    MotdLine(
-                        text = bodyText,
-                        fontSizeSp = motdFontSizeSp,
-                        style = motdStyle,
-                        mircColorsEnabled = mircColorsEnabled,
-                        ansiColorsEnabled = ansiColorsEnabled,
-                        linkStyle = linkStyle,
-                        onAnnotationClick = onAnnotationClick,
-                    )
-                } else {
-                    val hlBg = if (isSystemInDarkTheme())
-                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f)
-                    else
-                        androidx.compose.ui.graphics.Color(0xFFFFD54F)
-                    val hlFg = if (isSystemInDarkTheme())
-                        MaterialTheme.colorScheme.onTertiary
-                    else
-                        androidx.compose.ui.graphics.Color.Black
-                    IrcLinkifiedText(
-                        text = ts + bodyText,
-                        mircColorsEnabled = mircColorsEnabled,
-                        ansiColorsEnabled = ansiColorsEnabled,
-                        linkStyle = linkStyle,
-                        onAnnotationClick = onAnnotationClick,
-                        style = chatTextStyle,
-                        findHighlight = findHighlight,
-                        findHighlightBg = hlBg,
-                        findHighlightFg = hlFg,
-                        prefixLength = ts.length,
-                        prefixColor = timestampColor,
-                    )
-                }
-            } else if (m.isAction) {
-                val fromDisplay = displayNick(fromNick)
-                val fromBase = baseNick(fromDisplay)
-                val botPrefix = stringResource(R.string.chat_bot_prefix)
-                val annotated = remember(ts, fromDisplay, fromBase, bodyText, colorizeNicks,
-                    mircColorsEnabled, ansiColorsEnabled, linkStyle, encScheme, m.fromOper, m.fromBot, displayName, botPrefix,
-                    timestampColor, readByPeer, readLabel) {
-                    buildAnnotatedString {
-                        if (encScheme != null) { appendInlineContent(ENC_INLINE_ID, encAlt); append(" ") }
-                        appendTimestamp(ts, timestampColor); append("* ")
-                        // draft/oper-tag: amber star marks messages from IRC operators.
-                        if (m.fromOper) withStyle(SpanStyle(color = Color(0xFFE0A030))) { append("\u2605") }
-                        // Bot Mode: a robot icon marks messages from bots.
-                        if (m.fromBot) { appendInlineContent(BOT_INLINE_ID, botPrefix); }
-                        pushStringAnnotation(tag = ANN_NICK, annotation = fromBase)
-                        withStyle(SpanStyle(color = if (colorizeNicks) nickColor(fromBase) else Color.Unspecified)) {
-                            append(fromDisplay)
-                        }
-                        pop()
-                        if (displayName != null) {
-                            withStyle(SpanStyle(color = Color.Gray)) { append(" ($displayName)") }
-                        }
-                        append(" ")
-                        appendIrcStyledLinkified(bodyText, linkStyle, mircColorsEnabled, ansiColorsEnabled)
-                        if (readByPeer) { append(" "); appendInlineContent(STATUS_INLINE_ID, readLabel) }
-                    }
-                }
-                AnnotatedClickableText(text = annotated, onAnnotationClick = onAnnotationClick, style = chatTextStyle, inlineContent = inlineBadges)
-            } else {
-                val fromDisplay = displayNick(fromNick)
-                val fromBase = baseNick(fromDisplay)
-                val botPrefix = stringResource(R.string.chat_bot_prefix)
-                val annotated = remember(ts, fromDisplay, fromBase, bodyText, colorizeNicks,
-                    mircColorsEnabled, ansiColorsEnabled, linkStyle, encScheme, m.fromOper, m.fromBot, displayName, botPrefix,
-                    timestampColor, nickStyle, readByPeer, readLabel) {
-                    buildAnnotatedString {
-                        if (encScheme != null) { appendInlineContent(ENC_INLINE_ID, encAlt); append(" ") }
-                        appendTimestamp(ts, timestampColor); append(nickStyle.open)
-                        // draft/oper-tag: amber star marks messages from IRC operators.
-                        if (m.fromOper) withStyle(SpanStyle(color = Color(0xFFE0A030))) { append("\u2605") }
-                        // Bot Mode: a robot icon marks messages from bots.
-                        if (m.fromBot) { appendInlineContent(BOT_INLINE_ID, botPrefix); }
-                        pushStringAnnotation(tag = ANN_NICK, annotation = fromBase)
-                        withStyle(SpanStyle(color = if (colorizeNicks) nickColor(fromBase) else Color.Unspecified)) {
-                            append(fromDisplay)
-                        }
-                        pop()
-                        if (displayName != null) {
-                            withStyle(SpanStyle(color = Color.Gray)) { append(" ($displayName)") }
-                        }
-                        append(nickStyle.close); append(" ")
-                        appendIrcStyledLinkified(bodyText, linkStyle, mircColorsEnabled, ansiColorsEnabled)
-                        if (readByPeer) { append(" "); appendInlineContent(STATUS_INLINE_ID, readLabel) }
-                    }
-                }
-                AnnotatedClickableText(text = annotated, onAnnotationClick = onAnnotationClick, style = chatTextStyle, inlineContent = inlineBadges)
-            }
-        } // end Box
-
-        if (collapsible) {
-            Text(
-                text = if (isExpanded) {
-                    stringResource(R.string.chat_show_less)
-                } else {
-                    pluralStringResource(R.plurals.chat_show_more, hiddenLines, hiddenLines)
-                },
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .focusHighlight()
-                    .clickable(enabled = !copyRangeMode, onClick = onToggleExpanded)
-                    .padding(top = 2.dp, bottom = 2.dp),
-            )
-        }
-
-        if (imagePreviewsEnabled) {
-            // m.text, not bodyText: a link below the fold is still worth previewing, and
-            // the preview list must not shuffle when the user expands the message.
-            val msgUrls = remember(m.id, m.text) {
-                messageUrls(m.text).take(3).toList()
-            }
-            for (previewUrl in msgUrls) {
-                InlinePreview(url = previewUrl, previewsEnabled = true, wifiOnly = imagePreviewsWifiOnly)
-            }
-        }
-        if (m.reactions.isNotEmpty()) {
-            ReactionRow(
-                reactions = m.reactions,
-                myNick = myNick,
-                onToggle = m.msgId?.let { id -> { text: String, mine: Boolean -> onToggleReaction?.invoke(id, text, mine) } },
-                onAdd = m.msgId?.let { id -> onAddReaction?.let { add -> { add(id) } } },
-            )
-        }
-
-        if (!m.isMotd || selBufName != "*server*") {
-            Spacer(Modifier.height(4.dp))
-        }
-    } // end Column
-}
-
-/**
- * The reactions on a message, as chips beneath it. Sized to their content, since draft/react
- * takes a short word as readily as an emoji, and truncated so one cannot take the row. A chip
- * the user is part of is filled, and tapping toggles their own reaction.
- */
-@Composable
-private fun ReactionRow(
-    reactions: Map<String, Set<String>>,
-    myNick: String?,
-    onToggle: ((String, Boolean) -> Unit)?,
-    onAdd: (() -> Unit)? = null,
-) {
-    FlowRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 8.dp, top = 2.dp, end = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        // Stable order, so a chip does not move under the user's finger.
-        val ordered = reactions.entries.sortedWith(
-            compareByDescending<Map.Entry<String, Set<String>>> { it.value.size }.thenBy { it.key }
-        )
-        for ((text, nicks) in ordered) {
-            val mine = myNick != null && nicks.any { it.equals(myNick, ignoreCase = true) }
-            val shape = RoundedCornerShape(10.dp)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(shape)
-                    .background(
-                        if (mine) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                    )
-                    .then(
-                        if (onToggle == null) Modifier
-                        else Modifier
-                            .focusHighlight(shape)
-                            .clickable { onToggle(text, mine) }
-                    )
-                    .padding(horizontal = 6.dp, vertical = 1.dp),
-            ) {
-                Text(
-                    text = text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.widthIn(max = 120.dp),
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                // Always shown, so a chip does not resize when someone joins it.
-                Text(
-                    text = " ${nicks.size}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        // Add another without going through the message menu.
-        if (onAdd != null) {
-            val shape = RoundedCornerShape(10.dp)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
-                    .focusHighlight(shape)
-                    .clickable(onClick = onAdd)
-                    .padding(horizontal = 6.dp, vertical = 1.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.chat_react_custom),
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-/** Messages longer than this many lines collapse behind a "show more" toggle. */
-private const val COLLAPSE_LINES = 8
-
-private const val ANN_URL = "URL"
-private const val ANN_CHAN = "CHAN"
-private const val ANN_NICK = "NICK"
-private const val ENC_INLINE_ID = "encbadge"
-
-/** Inline slot for the robot badge on a bot's messages. */
-/**
- * An icon button that is exactly [size], for placing in a bar shorter than 48dp.
- *
- * Material's IconButton enforces a 48dp minimum touch target and reports that size to its
- * parent, so in a shorter bar it is clipped and the focus ring loses its top and bottom.
- */
-@Composable
-private fun BarIconButton(
-    size: Dp,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    initialFocus: Boolean = true,
-    content: @Composable () -> Unit,
-) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .then(if (initialFocus) Modifier.tvInitialFocus() else Modifier)
-            .focusHighlight(CircleShape)
-            .clip(CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { content() }
-}
-
-/**
- * Wrap the selection of [v] in the toggle [code] (bold, italic, underline), or unwrap it when it's
- * already wrapped. With nothing selected, insert [code] at the cursor so it applies to what's typed
- * next. The selection stays on the same text.
- */
-private fun toggleFormat(v: TextFieldValue, code: Char): TextFieldValue {
-    val t = v.text
-    val s = v.selection.min
-    val e = v.selection.max
-    if (s == e) return TextFieldValue(t.substring(0, s) + code + t.substring(s), TextRange(s + 1))
-    if (s > 0 && e < t.length && t[s - 1] == code && t[e] == code) {
-        return TextFieldValue(t.substring(0, s - 1) + t.substring(s, e) + t.substring(e + 1), TextRange(s - 1, e - 1))
-    }
-    val inner = t.substring(s, e)
-    if (inner.length >= 2 && inner.first() == code && inner.last() == code) {
-        return TextFieldValue(t.substring(0, s) + inner.substring(1, inner.length - 1) + t.substring(e), TextRange(s, e - 2))
-    }
-    return TextFieldValue(t.substring(0, s) + code + inner + code + t.substring(e), TextRange(s + 1, e + 1))
-}
-
-/**
- * Colour the selection of [v] with mIRC colour [fg] and/or background [bg]; with nothing
- * selected, colour what's typed next. A digit or comma straight after a colour code would be read
- * as part of it, so an empty bold pair separates them where needed.
- */
-private fun colourFormat(v: TextFieldValue, fg: Int?, bg: Int?): TextFieldValue {
-    val code = buildString {
-        append('\u0003')
-        append((fg ?: 99).toString().padStart(2, '0'))
-        if (bg != null) append(',').append(bg.toString().padStart(2, '0'))
-    }
-    fun guard(next: Char?) = if (next != null && (next.isAsciiDigit() || next == ',')) "\u0002\u0002" else ""
-    val t = v.text
-    val s = v.selection.min
-    val e = v.selection.max
-    if (s == e) {
-        val open = code + guard(t.getOrNull(s))
-        return TextFieldValue(t.substring(0, s) + open + t.substring(s), TextRange(s + open.length))
-    }
-    val inner = t.substring(s, e)
-    val open = code + guard(inner.firstOrNull())
-    val close = "\u0003" + guard(t.getOrNull(e))
-    return TextFieldValue(
-        t.substring(0, s) + open + inner + close + t.substring(e),
-        TextRange(s + open.length, s + open.length + inner.length),
-    )
-}
-
-private val FORMAT_CODES = Regex("\u0003(?:\\d{1,2}(?:,\\d{1,2})?)?|\u0004(?:[0-9a-fA-F]{6})?|[\u0002\u000F\u0011\u0016\u001D\u001E\u001F]")
-
-/** Remove formatting codes from the selection of [v], or from the whole input when nothing is selected. */
-private fun clearFormat(v: TextFieldValue): TextFieldValue {
-    val t = v.text
-    val s = v.selection.min
-    val e = v.selection.max
-    if (s == e) {
-        val nt = FORMAT_CODES.replace(t, "")
-        return TextFieldValue(nt, TextRange(nt.length))
-    }
-    val inner = FORMAT_CODES.replace(t.substring(s, e), "")
-    return TextFieldValue(t.substring(0, s) + inner + t.substring(e), TextRange(s, s + inner.length))
-}
-
-/** Shows mIRC formatting in the input as it will look, with the control codes hidden. */
-private class MircInputTransformation : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        val raw = text.text
-        if (raw.none { it < ' ' && it != '\n' && it != '\t' }) return TransformedText(text, OffsetMapping.Identity)
-        val out = AnnotatedString.Builder(raw.length)
-        val toOut = IntArray(raw.length + 1)
-        val toRaw = ArrayList<Int>(raw.length + 1)
-        var bold = false
-        var italic = false
-        var underline = false
-        var fg: Int? = null
-        var bg: Int? = null
-        var i = 0
-        while (i < raw.length) {
-            toOut[i] = out.length
-            val c = raw[i]
-            if (c == '\u0003') {
-                var j = i + 1
-                val fgDigits = StringBuilder()
-                while (j < raw.length && fgDigits.length < 2 && raw[j].isAsciiDigit()) fgDigits.append(raw[j++])
-                val bgDigits = StringBuilder()
-                if (fgDigits.isNotEmpty() && j + 1 < raw.length && raw[j] == ',' && raw[j + 1].isAsciiDigit()) {
-                    j++
-                    while (j < raw.length && bgDigits.length < 2 && raw[j].isAsciiDigit()) bgDigits.append(raw[j++])
-                }
-                if (fgDigits.isEmpty()) { fg = null; bg = null }
-                else {
-                    fg = fgDigits.toString().toInt()
-                    if (bgDigits.isNotEmpty()) bg = bgDigits.toString().toInt()
-                }
-                for (x in i until j) toOut[x] = out.length
-                i = j
-                continue
-            }
-            when (c) {
-                '\u0002' -> bold = !bold
-                '\u001D' -> italic = !italic
-                '\u001F' -> underline = !underline
-                '\u000F' -> { bold = false; italic = false; underline = false; fg = null; bg = null }
-                else -> if (c < ' ' && c != '\n' && c != '\t') Unit else {
-                    toRaw.add(i)
-                    out.withStyle(
-                        SpanStyle(
-                            fontWeight = if (bold) FontWeight.Bold else null,
-                            fontStyle = if (italic) FontStyle.Italic else null,
-                            textDecoration = if (underline) TextDecoration.Underline else null,
-                            color = fg?.let { mircColor(it) } ?: Color.Unspecified,
-                            background = bg?.let { mircColor(it) } ?: Color.Unspecified,
-                        )
-                    ) { append(c) }
-                }
-            }
-            i++
-        }
-        toOut[raw.length] = out.length
-        toRaw.add(raw.length)
-        val mapping = object : OffsetMapping {
-            override fun originalToTransformed(offset: Int) = toOut[offset.coerceIn(0, raw.length)]
-            override fun transformedToOriginal(offset: Int) = toRaw[offset.coerceIn(0, toRaw.size - 1)]
-        }
-        return TransformedText(out.toAnnotatedString(), mapping)
-    }
-}
-
-private const val BOT_INLINE_ID = "botbadge"
-private const val STATUS_INLINE_ID = "readreceipt"
-
-
-private val urlRegex = Regex("https?://\\S+")
-private val chanRegex = Regex("#\\S+")
-private val trailingPunct = setOf('.', ',', ';', ':', '!', '?', ')', ']', '}', '"', '\'')
-
-private data class LinkSpan(
-    val start: Int,
-    val originalEnd: Int,
-    val display: String,
-    val tag: String,
-    val annotation: String,
-)
-
-/**
- * Split sentence punctuation off the end of [token]. A closing bracket that pairs with an opening
- * one in the token stays, as in `https://en.wikipedia.org/wiki/Foo_(bar)`.
- */
-private fun splitTrailingPunctuation(token: String): Pair<String, String> {
-    var t = token
-    val sb = StringBuilder()
-    while (t.isNotEmpty() && trailingPunct.contains(t.last())) {
-        val open = when (t.last()) { ')' -> '('; ']' -> '['; '}' -> '{'; else -> null }
-        if (open != null && t.count { it == open } >= t.count { it == t.last() }) break
-        sb.insert(0, t.last())
-        t = t.dropLast(1)
-    }
-    return t to sb.toString()
-}
-
-/** The URLs in a message's text, without formatting codes or trailing punctuation. */
-private fun messageUrls(text: String): Sequence<String> =
-    urlRegex.findAll(stripIrcFormatting(text))
-        .map { splitTrailingPunctuation(it.value).first }
-        .filter { it.contains("://") && !it.endsWith("://") }
-
-private fun computeLinkSpans(text: String): List<LinkSpan> {
-    // Fast path: this runs two regexes, and mIRC-coloured text (especially ASCII art) is split
-    // into hundreds of short runs that each call here. If a run can't contain a URL ("://") or a
-    // channel ("#"), there's nothing to find and skip the regex work entirely. Same result, far
-    // less CPU when building/scrolling heavily-coloured lines.
-    if (!text.contains("://") && text.indexOf('#') < 0) return emptyList()
-    // Find URLs first; then find channels that are NOT inside URLs.
-    val urlMatches = urlRegex.findAll(text).mapNotNull { m ->
-        val raw = m.value
-        val (token, _) = splitTrailingPunctuation(raw)
-        if (token.isBlank()) return@mapNotNull null
-        val originalEnd = m.range.last + 1
-        LinkSpan(
-            start = m.range.first,
-            originalEnd = originalEnd,
-            display = token,
-            tag = ANN_URL,
-            annotation = token,
-        )
-    }.toList()
-
-    val urlRanges = urlMatches.map { it.start until it.originalEnd }
-
-    val chanMatches = chanRegex.findAll(text).mapNotNull { m ->
-        val start = m.range.first
-        // Skip if the match is inside a URL.
-        if (urlRanges.any { start in it }) return@mapNotNull null
-        val raw = m.value
-        val (token, _) = splitTrailingPunctuation(raw)
-        if (token.isBlank()) return@mapNotNull null
-        val originalEnd = m.range.last + 1
-        LinkSpan(
-            start = start,
-            originalEnd = originalEnd,
-            display = token,
-            tag = ANN_CHAN,
-            annotation = token,
-        )
-    }.toList()
-
-    return (urlMatches + chanMatches).sortedBy { it.start }
-}
-
-private fun appendLinkified(builder: AnnotatedString.Builder, text: String, linkStyle: SpanStyle) {
-    val spans = computeLinkSpans(text)
-    var i = 0
-    for (s in spans) {
-        if (s.start < i) continue
-        if (s.start > text.length) continue
-        builder.append(text.substring(i, s.start))
-
-        val displayStart = builder.length
-        builder.withStyle(linkStyle) { append(s.display) }
-        builder.addStringAnnotation(
-            tag = s.tag,
-            annotation = s.annotation,
-            start = displayStart,
-            end = displayStart + s.display.length
-        )
-
-        val trailingStartInSrc = s.start + s.display.length
-        if (trailingStartInSrc < s.originalEnd) {
-            builder.append(text.substring(trailingStartInSrc, s.originalEnd))
-        }
-        i = s.originalEnd
-    }
-    if (i < text.length) builder.append(text.substring(i))
-}
-
-// mIRC colour/style rendering
-private data class MircStyleState(
-    var fg: Int? = null,
-    var bg: Int? = null,
-    /** 24-bit foreground from \u0004, as 0xAARRGGBB. Takes precedence over [fg]. */
-    var fgHex: Int? = null,
-    /** 24-bit background from \u0004, as 0xAARRGGBB. Takes precedence over [bg]. */
-    var bgHex: Int? = null,
-    var bold: Boolean = false,
-    var italic: Boolean = false,
-    var underline: Boolean = false,
-    var reverse: Boolean = false,
-) {
-    fun reset() {
-        fg = null
-        bg = null
-        fgHex = null
-        bgHex = null
-        bold = false
-        italic = false
-        underline = false
-        reverse = false
-    }
-
-    /** Set the palette foreground, dropping any 24-bit one it replaces. */
-    fun applyFg(code: Int?) { fg = code; fgHex = null }
-
-    /** Set the palette background, dropping any 24-bit one it replaces. */
-    fun applyBg(code: Int?) { bg = code; bgHex = null }
-
-    /** Set the 24-bit foreground, dropping any palette one it replaces. */
-    fun applyFgHex(argb: Int?) { fgHex = argb; fg = null }
-
-    /** Set the 24-bit background, dropping any palette one it replaces. */
-    fun applyBgHex(argb: Int?) { bgHex = argb; bg = null }
-
-    fun snapshot(): MircStyleState =
-        MircStyleState(fg, bg, fgHex, bgHex, bold, italic, underline, reverse)
-
-    fun hasAnyStyle(): Boolean =
-        fg != null || bg != null || fgHex != null || bgHex != null ||
-            bold || italic || underline || reverse
-}
-
-private data class MircRun(val text: String, val style: MircStyleState)
-
-/**
- * The 99-entry mIRC colour palette (codes 0-98), from
- * https://modern.ircdocs.horse/formatting.html#color. 0-15 are the original colours, 16-97 the
- * extended grid, and 98 is "default", rendered as white.
- */
-private val MIRC_PALETTE: IntArray = intArrayOf(
-    // ── 0–15: classic mIRC palette ────────────────────────────────────────────
-    0xFFFFFFFF.toInt(), //  0  White
-    0xFF000000.toInt(), //  1  Black
-    0xFF00007F.toInt(), //  2  Blue (navy)
-    0xFF009300.toInt(), //  3  Green
-    0xFFFF0000.toInt(), //  4  Red
-    0xFF7F0000.toInt(), //  5  Brown (maroon)
-    0xFF9C009C.toInt(), //  6  Purple
-    0xFFFC7F00.toInt(), //  7  Orange
-    0xFFFFFF00.toInt(), //  8  Yellow
-    0xFF00FC00.toInt(), //  9  Light green (lime)
-    0xFF009393.toInt(), // 10  Teal
-    0xFF00FFFF.toInt(), // 11  Light cyan (aqua)
-    0xFF0000FC.toInt(), // 12  Light blue (royal)
-    0xFFFF00FF.toInt(), // 13  Pink (magenta / fuchsia)
-    0xFF7F7F7F.toInt(), // 14  Grey
-    0xFFD2D2D2.toInt(), // 15  Light grey
-    // ── 16–27: darkest shades (row 1 of extended block) ──────────────────────
-    0xFF470000.toInt(), // 16  Dark maroon
-    0xFF472100.toInt(), // 17  Very dark orange
-    0xFF474700.toInt(), // 18  Dark olive
-    0xFF324700.toInt(), // 19  Very dark green
-    0xFF004732.toInt(), // 20  Very dark teal-green
-    0xFF00472C.toInt(), // 21  Very dark teal (alt)
-    0xFF004747.toInt(), // 22  Very dark teal
-    0xFF002747.toInt(), // 23  Very dark slate blue
-    0xFF000047.toInt(), // 24  Very dark navy
-    0xFF2E0047.toInt(), // 25  Very dark violet
-    0xFF470047.toInt(), // 26  Very dark purple-magenta
-    0xFF47002A.toInt(), // 27  Very dark crimson
-    // ── 28–39: dark shades (row 2) ───────────────────────────────────────────
-    0xFF740000.toInt(), // 28  Dark red
-    0xFF743A00.toInt(), // 29  Dark brown-orange
-    0xFF747400.toInt(), // 30  Dark yellow-olive
-    0xFF517400.toInt(), // 31  Dark chartreuse
-    0xFF007400.toInt(), // 32  Dark green
-    0xFF007449.toInt(), // 33  Dark sea-green
-    0xFF007474.toInt(), // 34  Dark teal
-    0xFF004074.toInt(), // 35  Dark dodger blue
-    0xFF000074.toInt(), // 36  Dark blue
-    0xFF4B0074.toInt(), // 37  Dark purple-blue
-    0xFF740074.toInt(), // 38  Dark magenta
-    0xFF740045.toInt(), // 39  Dark hot pink
-    // ── 40–51: mid shades (row 3) ────────────────────────────────────────────
-    0xFFB50000.toInt(), // 40  Medium red
-    0xFFB56300.toInt(), // 41  Medium orange
-    0xFFB5B500.toInt(), // 42  Medium yellow-green
-    0xFF7DB500.toInt(), // 43  Chartreuse
-    0xFF00B500.toInt(), // 44  Medium green
-    0xFF00B573.toInt(), // 45  Medium mint
-    0xFF00B5B5.toInt(), // 46  Medium teal
-    0xFF0063B5.toInt(), // 47  Medium dodger blue
-    0xFF0000B5.toInt(), // 48  Medium blue
-    0xFF7500B5.toInt(), // 49  Medium violet
-    0xFFB500B5.toInt(), // 50  Medium magenta
-    0xFFB5006B.toInt(), // 51  Medium hot pink
-    // ── 52–63: bright / saturated (row 4) ────────────────────────────────────
-    0xFFFF0000.toInt(), // 52  Bright red
-    0xFFFF9200.toInt(), // 53  Bright orange / gold
-    0xFFFFFF00.toInt(), // 54  Bright yellow
-    0xFFB9FF00.toInt(), // 55  Bright yellow-green
-    0xFF00FF00.toInt(), // 56  Bright lime green
-    0xFF00FFA8.toInt(), // 57  Bright spring green
-    0xFF00FFFF.toInt(), // 58  Bright cyan / aqua
-    0xFF009BFF.toInt(), // 59  Bright azure / sky blue
-    0xFF0000FF.toInt(), // 60  Bright blue
-    0xFFAD00FF.toInt(), // 61  Bright electric purple
-    0xFFFF00FF.toInt(), // 62  Bright magenta / fuchsia
-    0xFFFF0092.toInt(), // 63  Bright rose / hot pink
-    // ── 64–75: light / pastel (row 5) ────────────────────────────────────────
-    0xFFFF6666.toInt(), // 64  Light red
-    0xFFFFB466.toInt(), // 65  Light orange / peach
-    0xFFFFFF66.toInt(), // 66  Light yellow
-    0xFFCCFF66.toInt(), // 67  Light chartreuse
-    0xFF66FF66.toInt(), // 68  Light green
-    0xFF66FFB4.toInt(), // 69  Light mint
-    0xFF66FFFF.toInt(), // 70  Light cyan
-    0xFF66B4FF.toInt(), // 71  Light sky blue
-    0xFF6666FF.toInt(), // 72  Light blue-purple
-    0xFFCC66FF.toInt(), // 73  Light violet
-    0xFFFF66FF.toInt(), // 74  Light magenta / orchid
-    0xFFFF66B4.toInt(), // 75  Light pink
-    // ── 76–87: very light / near-white pastels (row 6) ───────────────────────
-    0xFFFFB4B4.toInt(), // 76  Very light red / salmon
-    0xFFFFDEB4.toInt(), // 77  Very light orange / bisque
-    0xFFFFFFB4.toInt(), // 78  Very light yellow / cream
-    0xFFE6FFB4.toInt(), // 79  Very light chartreuse / honeydew
-    0xFFB4FFB4.toInt(), // 80  Very light green / mint cream
-    0xFFB4FFE6.toInt(), // 81  Very light mint / azure-mint
-    0xFFB4FFFF.toInt(), // 82  Very light cyan / azure
-    0xFFB4DEFF.toInt(), // 83  Very light sky blue / alice blue
-    0xFFB4B4FF.toInt(), // 84  Very light lavender
-    0xFFDEB4FF.toInt(), // 85  Very light violet / lavender blush
-    0xFFFFB4FF.toInt(), // 86  Very light magenta / thistle
-    0xFFFFB4DE.toInt(), // 87  Very light pink / lavender rose
-    // ── 88–98: greyscale ramp (row 7) ────────────────────────────────────────
-    0xFF000000.toInt(), // 88  Black
-    0xFF141414.toInt(), // 89  Near-black
-    0xFF282828.toInt(), // 90  Very dark grey
-    0xFF3C3C3C.toInt(), // 91  Dark grey
-    0xFF505050.toInt(), // 92  Dark-mid grey
-    0xFF646464.toInt(), // 93  Mid grey
-    0xFF787878.toInt(), // 94  Mid-light grey
-    0xFF8C8C8C.toInt(), // 95  Light-mid grey
-    0xFFA0A0A0.toInt(), // 96  Light grey
-    0xFFB4B4B4.toInt(), // 97  Pale grey
-    0xFFC8C8C8.toInt(), // 98  Silver / near-white (spec "default" alias)
-)
-
-private fun mircColor(code: Int): Color? =
-    MIRC_PALETTE.getOrNull(code)?.let { Color(it.toLong() and 0xFFFFFFFFL) }
-
-/** How many mIRC colour codes are defined (0-based, inclusive of 0). */
-private const val MIRC_COLOR_COUNT = 99
-
-private fun MircStyleState.toSpanStyle(): SpanStyle {
-    val fgCode = if (reverse) bg else fg
-    val bgCode = if (reverse) fg else bg
-    val fgArgb = if (reverse) bgHex else fgHex
-    val bgArgb = if (reverse) fgHex else bgHex
-    val fgColor = fgArgb?.let { Color(it) } ?: fgCode?.let(::mircColor) ?: Color.Unspecified
-    val bgColor = bgArgb?.let { Color(it) } ?: bgCode?.let(::mircColor) ?: Color.Unspecified
-
-    return SpanStyle(
-        color = fgColor,
-        background = bgColor,
-        fontWeight = if (bold) FontWeight.Bold else null,
-        fontStyle = if (italic) FontStyle.Italic else null,
-        textDecoration = if (underline) TextDecoration.Underline else null,
-    )
-}
-
-private fun parseMircRuns(input: String): List<MircRun> {
-    if (input.isEmpty()) return emptyList()
-
-    val out = mutableListOf<MircRun>()
-    val buf = StringBuilder()
-    val st = MircStyleState()
-
-    fun flush() {
-        if (buf.isNotEmpty()) {
-            out += MircRun(buf.toString(), st.snapshot())
-            buf.setLength(0)
-        }
-    }
-
-    fun parseOneOrTwoDigits(startIndex: Int): Pair<Int?, Int> {
-        var i = startIndex
-        if (i >= input.length || !input[i].isAsciiDigit()) return (null to i)
-        val first = input[i]
-        i++
-        if (i < input.length && input[i].isAsciiDigit()) {
-            val num = ("$first${input[i]}").toIntOrNull()
-            i++
-            return (num to i)
-        }
-        return (first.toString().toIntOrNull() to i)
-    }
-
-    fun isHexDigit(c: Char): Boolean = c.isAsciiHexDigit()
-
-    /**
-     * Read up to six hex digits, returning the opaque colour they spell and the index after
-     * them. Fewer than six is not a colour, but the digits are still consumed so this stays
-     * in step with stripIrcFormatting, which the width measurement and the logs go through.
-     */
-    fun parseHexColor(startIndex: Int): Pair<Int?, Int> {
-        var i = startIndex
-        var n = 0
-        while (i < input.length && n < 6 && isHexDigit(input[i])) { i++; n++ }
-        if (n < 6) return (null to i)
-        val rgb = input.substring(i - 6, i).toIntOrNull(16) ?: return (null to i)
-        return ((0xFF shl 24) or rgb to i)
-    }
-
-    var i = 0
-    while (i < input.length) {
-        when (val c = input[i]) {
-            '\u0003' -> { // colour
-                flush()
-                i++
-                val (fg, ni) = parseOneOrTwoDigits(i)
-                i = ni
-                // Optional ,bg; only consume the comma when at least one digit follows it,
-                // so text like "\x035,word" keeps its comma. Read whether or not a
-                // foreground was given: art sets the background on its own with "\x03,15",
-                // and leaving that form unconsumed prints the digits into the picture.
-                var sawBg = false
-                if (i < input.length && input[i] == ',' &&
-                    i + 1 < input.length && input[i + 1].isAsciiDigit()) {
-                    i++
-                    val (bg, n2) = parseOneOrTwoDigits(i)
-                    i = n2
-                    st.applyBg(bg)
-                    sawBg = true
-                }
-                when {
-                    fg != null -> st.applyFg(fg)
-                    // \x03 on its own resets colours; \x03,bg leaves the foreground alone.
-                    !sawBg -> { st.applyFg(null); st.applyBg(null) }
-                }
-            }
-
-            '\u0004' -> { // 24-bit colour: \x04RRGGBB[,RRGGBB]
-                flush()
-                i++
-                val (fgHex, ni) = parseHexColor(i)
-                i = ni
-                var sawBg = false
-                if (i < input.length && input[i] == ',' &&
-                    i + 1 < input.length && isHexDigit(input[i + 1])) {
-                    i++
-                    val (bgHex, n2) = parseHexColor(i)
-                    i = n2
-                    st.applyBgHex(bgHex)
-                    sawBg = true
-                }
-                when {
-                    fgHex != null -> st.applyFgHex(fgHex)
-                    !sawBg -> { st.applyFgHex(null); st.applyBgHex(null) }
-                }
-            }
-
-            '\u000F' -> { // reset
-                flush()
-                st.reset()
-                i++
-            }
-
-            '\u0002' -> { // bold
-                flush(); st.bold = !st.bold; i++
-            }
-
-            '\u001D' -> { // italic
-                flush(); st.italic = !st.italic; i++
-            }
-
-            '\u001F' -> { // underline
-                flush(); st.underline = !st.underline; i++
-            }
-
-            '\u0016' -> { // reverse
-                flush(); st.reverse = !st.reverse; i++
-            }
-
-            else -> {
-                // Drop other C0 controls (except common whitespace).
-                if (c.code < 0x20 && c != '\n' && c != '\t' && c != '\r') {
-                    i++
-                } else {
-                    buf.append(c)
-                    i++
-                }
-            }
-        }
-    }
-    flush()
-    return out
-}
-
-private fun AnnotatedString.Builder.appendIrcStyledLinkified(
-    text: String,
-    linkStyle: SpanStyle,
-    mircColorsEnabled: Boolean,
-    ansiColorsEnabled: Boolean = false,
-) {
-    val hasAnsi = ansiColorsEnabled && text.contains('\u001b')
-    val hasMirc = mircColorsEnabled && !hasAnsi &&
-        (text.contains('\u0003') || text.contains('\u0004') || text.contains('\u0002') ||
-         text.contains('\u001D') || text.contains('\u001F') || text.contains('\u0016'))
-
-    when {
-        hasAnsi -> {
-            val runs = parseAnsiRuns(text)
-            if (runs.isEmpty()) return
-            for (r in runs) {
-                if (r.style.hasAnyStyle()) {
-                    withStyle(r.style.ansiToSpanStyle()) { appendLinkified(this, r.text, linkStyle) }
-                } else {
-                    appendLinkified(this, r.text, linkStyle)
-                }
-            }
-        }
-        hasMirc -> {
-            val runs = parseMircRuns(text)
-            if (runs.isEmpty()) return
-            for (r in runs) {
-                if (r.style.hasAnyStyle()) {
-                    withStyle(r.style.toSpanStyle()) { appendLinkified(this, r.text, linkStyle) }
-                } else {
-                    appendLinkified(this, r.text, linkStyle)
-                }
-            }
-        }
-        else -> appendLinkified(this, stripIrcFormatting(text), linkStyle)
-    }
-}
-
-@Composable
-private fun AnnotatedClickableText(
-    text: AnnotatedString,
-    onAnnotationClick: (String, String) -> Unit,
-    modifier: Modifier = Modifier,
-    style: androidx.compose.ui.text.TextStyle = LocalTextStyle.current,
-    maxLines: Int = Int.MAX_VALUE,
-    overflow: TextOverflow = TextOverflow.Clip,
-    inlineContent: Map<String, InlineTextContent> = emptyMap(),
-    onTextLayout: ((TextLayoutResult) -> Unit)? = null,
-) {
-    var layout: TextLayoutResult? by remember { mutableStateOf(null) }
-    // rememberUpdatedState lets the gesture handler always see the latest text and
-    // callback without restarting the pointerInput coroutine when they change.
-    val currentText by rememberUpdatedState(text)
-    val currentOnClick by rememberUpdatedState(onAnnotationClick)
-    Text(
-        text = text,
-        style = style,
-        maxLines = maxLines,
-        overflow = overflow,
-        inlineContent = inlineContent,
-        onTextLayout = {
-            layout = it
-            onTextLayout?.invoke(it)
-        },
-        modifier = modifier.pointerInput(Unit) {
-            val vc = viewConfiguration
-            awaitEachGesture {
-                // Don't consume gestures: allow selection (long-press/drag) to work.
-                val down = awaitFirstDown(requireUnconsumed = false)
-                val downPos = down.position
-                val downTime = down.uptimeMillis
-
-                val up = waitForUpOrCancellation() ?: return@awaitEachGesture
-                val dt = up.uptimeMillis - downTime
-                val dist = (up.position - downPos).getDistance()
-
-                // Treat only quick taps as clicks so selection gestures don't accidentally open links.
-                if (dt <= 200 && dist <= vc.touchSlop) {
-                    val l = layout ?: return@awaitEachGesture
-                    val offset = l.getOffsetForPosition(up.position)
-                    val ann = currentText.getStringAnnotations(start = offset, end = offset).firstOrNull()
-                    if (ann != null) currentOnClick(ann.tag, ann.item)
-                }
-            }
-        }
-    )
-}
-
-/** Appends the timestamp, tinted when the user has picked a colour for it. */
-private fun AnnotatedString.Builder.appendTimestamp(ts: String, color: Color?) {
-    if (ts.isEmpty()) return
-    if (color == null) append(ts) else withStyle(SpanStyle(color = color)) { append(ts) }
-}
-
-@Composable
-private fun IrcLinkifiedText(
-    text: String,
-    mircColorsEnabled: Boolean,
-    ansiColorsEnabled: Boolean = false,
-    linkStyle: SpanStyle,
-    onAnnotationClick: (String, String) -> Unit,
-    modifier: Modifier = Modifier,
-    style: androidx.compose.ui.text.TextStyle = LocalTextStyle.current,
-    maxLines: Int = Int.MAX_VALUE,
-    overflow: TextOverflow = TextOverflow.Clip,
-    onTextLayout: ((TextLayoutResult) -> Unit)? = null,
-    findHighlight: String? = null,  // when non-null, highlight all occurrences of this query
-    findHighlightBg: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color(0xFFFFD54F),
-    findHighlightFg: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Black,
-    /** Leading characters of [text] holding the timestamp, tinted with [prefixColor]. */
-    prefixLength: Int = 0,
-    prefixColor: androidx.compose.ui.graphics.Color? = null,
-) {
-    val annotated = remember(text, linkStyle, mircColorsEnabled, ansiColorsEnabled, findHighlight, findHighlightBg,
-        prefixLength, prefixColor) {
-        val styled = buildAnnotatedString { appendIrcStyledLinkified(text, linkStyle, mircColorsEnabled, ansiColorsEnabled) }
-        val base = if (prefixColor != null && prefixLength > 0 && prefixLength <= styled.length) {
-            buildAnnotatedString {
-                append(styled)
-                addStyle(SpanStyle(color = prefixColor), 0, prefixLength)
-            }
-        } else {
-            styled
-        }
-        if (findHighlight.isNullOrBlank()) return@remember base
-        val plain = base.text
-        val query = findHighlight.lowercase()
-        val hlStyle = SpanStyle(background = findHighlightBg, color = findHighlightFg)
-        buildAnnotatedString {
-            append(base)
-            var idx = plain.lowercase().indexOf(query)
-            while (idx >= 0) {
-                addStyle(hlStyle, idx, idx + query.length)
-                idx = plain.lowercase().indexOf(query, idx + 1)
-            }
-        }
-    }
-    AnnotatedClickableText(
-        text = annotated,
-        onAnnotationClick = onAnnotationClick,
-        modifier = modifier,
-        style = style,
-        maxLines = maxLines,
-        overflow = overflow,
-        onTextLayout = onTextLayout,
-    )
-}
-
-/**
- * This exists to stop colour-heavy *text* (relay bots that paint the network
- * tag and nick, lively coloured chat) from being misclassified as ASCII/ANSI
- * art and shrunk to an unreadable size.
- */
-private fun looksLikeProse(plain: String): Boolean {
-    var words = 0
-    var run = 0
-    var wordChars = 0
-    var nonSpace = 0
-    for (ch in plain) {
-        if (ch.isLetter()) {
-            run++
-            wordChars++
-        } else {
-            if (run >= 2) words++
-            run = 0
-            // Numbers are ordinary in prose ("14°C", "67%", "24-09").
-            if (ch.isDigit()) wordChars++
-        }
-        if (!ch.isWhitespace()) nonSpace++
-    }
-    if (run >= 2) words++
-    val wordRatio = if (nonSpace > 0) wordChars.toFloat() / nonSpace else 0f
-    return words >= 3 && wordRatio >= 0.55f
-}
-
-/**
- * [s] without emoji: pictographs, flags, skin tones, keycaps, ZWJ joins and any symbol given emoji
- * presentation (followed by U+FE0F). Emoji are neither art structure nor fixed-width, so they are
- * left out of the art heuristics entirely.
- */
-private fun stripEmoji(s: String): String {
-    val out = StringBuilder(s.length)
-    var i = 0
-    while (i < s.length) {
-        val cp = s.codePointAt(i)
-        val n = Character.charCount(cp)
-        val next = if (i + n < s.length) s.codePointAt(i + n) else -1
-        val emoji = cp in 0x1F000..0x1FAFF || cp in 0xE0020..0xE007F ||
-            cp == 0x200D || cp == 0xFE0F || cp == 0x20E3 ||
-            next == 0xFE0F || next == 0x20E3
-        if (!emoji) out.appendCodePoint(cp)
-        i += n
-    }
-    return out.toString()
-}
-
-/**
- * Returns true when a chat message line looks like it belongs to a bot-generated
- * ASCII/ANSI art block rather than normal coloured conversation.
- */
-private fun looksLikeArt(text: String): Boolean {
-    // Examine stripped content for structural shape, plus ANSI SGR and mIRC colour
-    // codes as additional signals. The block-size gate (≥2 consecutive lines from
-    // non-action senders) does the primary false-positive filtering.
-    val plain = stripEmoji(stripIrcFormatting(text))
-    if (plain.length < 3) return false
-
-    // Single pass: detect ANSI SGR and count mIRC colour codes. ANSI SGR (ESC[…m) is almost never
-    // in normal IRC text, so one is a strong signal; other ANSI escapes (ESC[3~, ESC[A) are not
-    // art, so only the SGR final byte 'm' counts. mIRC colour codes are common in chat, so it takes
-    // four or more on a line.
-    var mircCount = 0
-    var i = 0
-    while (i < text.length) {
-        when (text[i]) {
-            '' -> {
-                if (i + 1 < text.length && text[i + 1] == '[') {
-                    var j = i + 2
-                    while (j < text.length && (text[j].isAsciiDigit() || text[j] == ';' || text[j] == ':')) j++
-                    if (j < text.length && text[j] == 'm') return true  // ANSI SGR colour
-                    i = j + 1
-                } else i++
-            }
-            '' -> { mircCount++; i++ }
-            else -> i++
-        }
-    }
-
-    // Prose gate: colour-heavy but word-shaped lines (relay bots painting the network
-    // tag and nick, lively coloured chat) must never be classified as art. Only the
-    // unambiguous signals - ANSI SGR above and the Unicode box-drawing first char
-    // below - bypass this; every heuristic that can plausibly match real sentences
-    // is gated on the line NOT reading as prose.
-    val isProse = looksLikeProse(plain)
-
-    if (!isProse && mircCount >= 4) return true
-
-    // Signal 1: two or more leading spaces and a structural line. A box-drawing or block character
-    // (U+2500-U+2BFF) first qualifies outright; ASCII structure needs both ends non-alphanumeric,
-    // so "|  text  |" counts but "  * bullet text" doesn't.
-    if (plain.length >= 3 && plain[0] == ' ' && plain[1] == ' ') {
-        val trimmed = plain.trimStart()
-        if (trimmed.isNotEmpty()) {
-            val first = trimmed[0]
-            if (!first.isLetterOrDigit()) {
-                // Box-drawing, block elements, geometric shapes, misc symbols (U+2500–U+2BFF)
-                if (first.code in 0x2500..0x2BFF) return true
-                // ASCII structural: both ends non-alphanumeric → symmetrically framed line
-                val lastCh = trimmed.trimEnd().lastOrNull()
-                if (!isProse && lastCh != null && !lastCh.isLetterOrDigit()) return true
-            }
-        }
-    }
-
-    // Signal 2: structural-symbol density, with tiered thresholds for short dense lines and longer
-    // mixed ones:
-    //   Short  (>= 4 non-space):  density >= 80% (border lines like "_____")
-    //   Medium (>= 8 non-space):  density >= 45% ("H   _|\_/|_   H")
-    //   Long   (>= 16 non-space): density >= 30%
-    // Normal chat scores under 20%.
-    var artCount = 0
-    var alphaCount = 0
-    for (ch in plain) {
-        if (ch == ' ') continue
-        if (ch.isLetterOrDigit()) alphaCount++ else artCount++
-    }
-    val nonSpace = artCount + alphaCount
-    val density = if (nonSpace > 0) artCount.toFloat() / nonSpace else 0f
-    if (!isProse) {
-        if (nonSpace >= 4  && density >= 0.80f) return true   // short dense:  "_____", "|_ _|"
-        if (nonSpace >= 8  && density >= 0.45f) return true   // medium mixed: "H _|\/|_ H"
-        if (nonSpace >= 16 && density >= 0.30f) return true   // long:         original threshold
-    }
-
-    // Signal 3: single-space indent + border character patterns.
-    // Expanded border set to include common art characters (*#@~^<>{}) beyond the
-    // original "|/\_-=+[]".
-    if (!isProse && plain.length >= 4 && plain[0] == ' ' && plain[1] != ' ') {
-        val c1 = plain[1]; val c2 = plain[2]
-        val border = "|/\\_-=+[]{}~^<>*#@"
-        // 3a: border char followed immediately by space or another border char.
-        if (c1 in border && (c2 == ' ' || c2 in border)) return true
-        // 3b: framed label — first AND last non-space chars are both border chars.
-        val lastNs = plain.trimEnd().lastOrNull()
-        if (lastNs != null && c1 in border && lastNs in border) return true
-    }
-
-    return false
-}
-
-/**
- * A chat list item before sizing: [Single] is one message, [Art] a run of consecutive art lines
- * rendered as one gap-free block.
- */
-private sealed class RawItem {
-    data class Single(val msg: UiMessage) : RawItem()
-    data class Art(val msgs: List<UiMessage>) : RawItem()  // chronological
-}
-
-private sealed class DisplayItem {
-    abstract val key: Any
-    data class Single(val msg: UiMessage) : DisplayItem() {
-        // Type-tagged string keys can't collide across types: "S:<id>" for a single message,
-        // "A:<firstId>:<size>" for an art block, whose key changes as the block grows or shrinks.
-        override val key: Any = "S:${msg.id}"
-    }
-    data class Art(
-        val msgs: List<UiMessage>,  // chronological: oldest first
-        val fontSizeSp: Float,
-        /** Too wide for the pane even at the minimum size, so the block scrolls sideways. */
-        val overflows: Boolean = false,
-    ) : DisplayItem() {
-        override val key: Any = "A:${msgs.first().id}:${msgs.size}"
-    }
-}
-
-/**
- * Builds the [DisplayItem] list for the chat LazyColumn, merging consecutive art lines into one
- * [DisplayItem.Art]. Phase 1 detects blocks with string operations only, keyed on the message
- * list. Phase 2 measures each block once and scales it to the pane width, so resizing costs no
- * measurement.
- */
-@Composable
-private fun rememberDisplayItems(
-    reversedMessages: List<UiMessage>,
-    availableWidthPx: Float,
-    style: androidx.compose.ui.text.TextStyle,
-    minFontSp: Float = 4f,
-    artDetectionEnabled: Boolean = true,
-    /** First message ids of art blocks to show as ordinary lines instead. */
-    shownAsText: Set<Long> = emptySet(),
-): List<DisplayItem> {
-    val textMeasurer = rememberTextMeasurer()
-    val naturalSizeSp = style.fontSize.value.takeIf { !it.isNaN() && it > 0f } ?: 14f
-
-    // ── Phase 1: block detection, string ops only ───────────────────────
-    // Keyed on the reversedMessages list by reference, so it invalidates exactly when the content
-    // changes; a merge can reorder messages while the size and end ids stay the same. Phase 1 costs
-    // microseconds at the scrollback cap, and Phase 2's measurements are cached separately below.
-    val rawItems: List<RawItem> = remember(reversedMessages, artDetectionEnabled) {
-        if (reversedMessages.isEmpty()) return@remember emptyList()
-        // Detection disabled: every message renders as a normal chat line. Mapping
-        // straight to Singles keeps the DisplayItem pipeline (keys, unread separator
-        // indexing, reply-quote scroll) identical to the enabled path.
-        if (!artDetectionEnabled) {
-            return@remember reversedMessages.map { RawItem.Single(it) }
-        }
-        val result  = mutableListOf<RawItem>()
-        val artRun  = mutableListOf<UiMessage>()  // accumulated in reversed (newest-first) order
-
-        fun flushArtRun() {
-            if (artRun.size >= 2) result.add(RawItem.Art(artRun.asReversed().toList()))
-            else artRun.forEach { result.add(RawItem.Single(it)) }
-            artRun.clear()
-        }
-
-        // Maximum time gap between consecutive art lines before the block is split.
-        // Art bots paste lines in rapid succession; a gap of ≥60 s almost certainly
-        // means two separate art pastes that should not be rendered as one block.
-        val ART_TIME_GAP_MS = 60_000L
-
-        for (msg in reversedMessages) {
-            // /me action messages are excluded: their text is rendered with a "* nick"
-            // prefix in normal chat, so absorbing them into an art block would strip that
-            // prefix and display the raw action text without context.
-            // Server messages (from == null) are also excluded.
-            if (msg.from != null && !msg.isAction && looksLikeArt(msg.text)) {
-                // If there is a large time gap between this message and the previous art
-                // line, flush the current run and start a new block. reversedMessages is
-                // newest-first, so artRun.last() is the message directly preceding this
-                // one in time (it is newer than msg).
-                if (artRun.isNotEmpty() && artRun.last().timeMs - msg.timeMs > ART_TIME_GAP_MS) {
-                    flushArtRun()
-                }
-                artRun.add(msg)
-            } else {
-                flushArtRun()
-                result.add(RawItem.Single(msg))
-            }
-        }
-        flushArtRun()
-        result
-    }
-
-    // ── Phase 2: font sizing ─────────────────────────────────────────────
-    // Each block is measured once, at the natural size: text width scales linearly with font
-    // size, so fitting a new pane width is arithmetic and resizing never re-measures. The cache
-    // is keyed on the style, and each block on its ids and text.
-    val naturalWidthCache = remember(style) { HashMap<Long, Float>() }
-
-    fun naturalWidest(msgs: List<UiMessage>): Float {
-        var key = (msgs.first().id shl 17) or msgs.size.toLong()
-        for (m in msgs) key = key * 31 + m.text.hashCode()
-        naturalWidthCache[key]?.let { return it }
-        if (naturalWidthCache.size >= 500) naturalWidthCache.clear()
-        val natural = style.copy(fontSize = naturalSizeSp.sp)
-        val widest = msgs.maxOfOrNull { m ->
-            val line = stripIrcFormatting(m.text)
-            if (line.isEmpty()) 0f else textMeasurer.measure(
-                text = line,
-                style = natural,
-                constraints = Constraints(maxWidth = Int.MAX_VALUE),
-                maxLines = 1,
-                softWrap = false,
-            ).size.width.toFloat()
-        } ?: 0f
-        naturalWidthCache[key] = widest
-        return widest
-    }
-
-    /** Font size for an art block, and whether it still overflows the pane at that size. */
-    fun fontSizeForBlock(msgs: List<UiMessage>): Pair<Float, Boolean> {
-        val widest = naturalWidest(msgs)
-        if (widest <= 0f || availableWidthPx <= 0f) return naturalSizeSp to false
-        // A little slack, so rounding at the new size can't push the last column past the edge.
-        val usable = availableWidthPx * 0.99f - 1f
-        if (widest <= usable) return naturalSizeSp to false
-        // Rounded down to a quarter point, so a resize only relays out a block when its size steps.
-        val fitted = kotlin.math.floor(naturalSizeSp * usable / widest * 4f) / 4f
-        val sp = fitted.coerceAtLeast(minFontSp)
-        return sp to (widest * sp / naturalSizeSp > availableWidthPx)
-    }
-
-    return rawItems.flatMap { raw ->
-        when (raw) {
-            is RawItem.Single -> listOf(DisplayItem.Single(raw.msg))
-            // The list runs newest first, the block oldest first.
-            is RawItem.Art -> if (raw.msgs.first().id in shownAsText) {
-                raw.msgs.asReversed().map { DisplayItem.Single(it) }
-            } else {
-                fontSizeForBlock(raw.msgs).let { (sp, overflows) ->
-                    listOf(DisplayItem.Art(raw.msgs, sp, overflows))
-                }
-            }
-        }
-    }
-}
-
-/**
- * Computes the single font size (in sp) that makes the widest MOTD line fit within
- * [availableWidthPx] at the given [style]. Every MOTD line must be rendered at this
- * same size so that monospace ASCII art columns stay aligned.
- *
- * Returns [style]'s natural size when all lines already fit, or [minFontSp] as a floor.
- */
-@Composable
-private fun rememberMotdFontSizeSp(
-    motdLines: List<String>,
-    style: androidx.compose.ui.text.TextStyle,
-    availableWidthPx: Float,
-    minFontSp: Float = 6f,
-): Float {
-    val textMeasurer = rememberTextMeasurer()
-    val naturalSizeSp = style.fontSize.value.takeIf { !it.isNaN() && it > 0f } ?: 14f
-
-    // Strip IRC formatting from every line for measurement (formatting chars have no width).
-    val plainLines = remember(motdLines) { motdLines.map { stripIrcFormatting(it) } }
-
-    return remember(plainLines, availableWidthPx, naturalSizeSp) {
-        if (availableWidthPx <= 0f || plainLines.isEmpty()) return@remember naturalSizeSp
-
-        // Find the widest line at the natural font size.
-        val widestAtNatural = plainLines.maxOf { line ->
-            textMeasurer.measure(
-                text = line,
-                style = style.copy(fontSize = naturalSizeSp.sp),
-                constraints = Constraints(maxWidth = Int.MAX_VALUE),
-                maxLines = 1,
-                softWrap = false,
-            ).size.width
-        }
-        if (widestAtNatural <= availableWidthPx) return@remember naturalSizeSp
-
-        // Binary-search a single shared size that fits even the widest line.
-        var lo = minFontSp
-        var hi = naturalSizeSp
-        repeat(8) {
-            val mid = (lo + hi) / 2f
-            val widest = plainLines.maxOf { line ->
-                textMeasurer.measure(
-                    text = line,
-                    style = style.copy(fontSize = mid.sp),
-                    constraints = Constraints(maxWidth = Int.MAX_VALUE),
-                    maxLines = 1,
-                    softWrap = false,
-                ).size.width
-            }
-            if (widest <= availableWidthPx) lo = mid else hi = mid
-        }
-        lo
-    }
-}
-
-/**
- * Renders a single MOTD line at [fontSizeSp]. The caller is responsible for computing
- * a shared font size across all MOTD lines (via [rememberMotdFontSizeSp]) so that
- * monospace ASCII art columns remain aligned across lines of different lengths.
- */
-@Composable
-private fun MotdLine(
-    text: String,
-    fontSizeSp: Float,
-    style: androidx.compose.ui.text.TextStyle,
-    mircColorsEnabled: Boolean,
-    ansiColorsEnabled: Boolean = false,
-    linkStyle: SpanStyle,
-    onAnnotationClick: (String, String) -> Unit,
-) {
-    IrcLinkifiedText(
-        text = text,
-        mircColorsEnabled = mircColorsEnabled,
-        ansiColorsEnabled = ansiColorsEnabled,
-        linkStyle = linkStyle,
-        onAnnotationClick = onAnnotationClick,
-        style = style.copy(fontSize = fontSizeSp.sp),
-        maxLines = 1,
-        overflow = TextOverflow.Clip,
-    )
-}
-
-/**
- * The character a key event types, or null when the event is a shortcut, a
- * modifier or a control key rather than text. Space counts as null because it
- * activates whatever control has focus.
- */
-private fun typedCharacter(ev: KeyEvent): Char? {
-    if (ev.type != KeyEventType.KeyDown) return null
-    if (ev.isCtrlPressed || ev.isAltPressed || ev.isMetaPressed) return null
-    val code = ev.utf16CodePoint
-    if (code == 0 || code == ' '.code || Character.isISOControl(code)) return null
-    return code.toChar()
 }

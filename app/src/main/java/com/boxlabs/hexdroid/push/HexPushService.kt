@@ -20,6 +20,9 @@ package com.boxlabs.hexdroid.push
 
 import com.boxlabs.hexdroid.IrcParser
 import com.boxlabs.hexdroid.NotificationHelper
+import com.boxlabs.hexdroid.isBufferActivelyVisible
+import com.boxlabs.hexdroid.networkForPushTarget
+import com.boxlabs.hexdroid.onPushEndpointChanged
 import com.boxlabs.hexdroid.stripIrcFormatting
 import com.boxlabs.hexdroid.vibrateForHighlight
 import org.unifiedpush.android.connector.FailedReason
@@ -79,7 +82,8 @@ class HexPushService : PushService() {
         when (msg.command.uppercase()) {
             "PRIVMSG", "NOTICE" -> {
                 val target = msg.params.getOrNull(0) ?: return
-                val body = msg.trailing?.takeIf { it.isNotBlank() } ?: return
+                // A one-word message may arrive without the colon, as a plain last parameter.
+                val body = (msg.trailing ?: msg.params.getOrNull(1))?.takeIf { it.isNotBlank() } ?: return
                 val text = displayText(from, body) ?: return
                 notifyMessage(from, target, text, anchor, policy)
             }
@@ -141,6 +145,7 @@ class HexPushService : PushService() {
         // Sender on the highlight-ignore list: the message still reaches the buffer over
         // the connection, it just raises no alert.
         if (policy.mutesNick(netId, from)) return
+        if (policy.mutesBuffer(netId, buffer)) return
 
         val posted = if (isChannel) {
             if (!policy.notifyHighlights) return
@@ -154,6 +159,7 @@ class HexPushService : PushService() {
                 originalText = text,
                 msgAnchor = msgAnchor,
                 networkName = netName,
+                body = text,
             )
         } else {
             if (!policy.notifyPrivateMessages) return
@@ -166,6 +172,7 @@ class HexPushService : PushService() {
                 originalText = text,
                 msgAnchor = msgAnchor,
                 networkName = netName,
+                body = text,
             )
         }
 
@@ -181,13 +188,11 @@ class HexPushService : PushService() {
         // against and the notification is deliberately network-less. Only the master
         // notification switch applies; the highlight and PM toggles are about
         // conversations the user is already in.
-        NotificationHelper(applicationContext).notifyHighlight(
+        NotificationHelper(applicationContext).notifySimple(
             networkId = "",
             buffer = channel,
+            title = channel,
             text = getString(com.boxlabs.hexdroid.R.string.push_invite, from, channel),
-            playSound = false,
-            displayTitle = channel,
-            from = from,
         )
     }
 

@@ -69,7 +69,20 @@
     <string name="setting_show_timestamps">Tijdstempels tonen</string>
     <string name="setting_timestamp_format">Tijdstempelopmaak (Java)</string>
     <string name="setting_hide_motd">MOTD verbergen bij verbinding</string>
-    <string name="setting_hide_joinpartquit">Berichten bij betreden/verlaten/afsluiten verbergen</string>
+    <string name="setting_channel_events">Kanaalgebeurtenissen</string>
+    <string name="setting_events_all_shown">Alle zichtbaar</string>
+    <string name="setting_events_all_hidden">Alle verborgen</string>
+    <string name="setting_events_some_shown">%1$d van %2$d zichtbaar</string>
+    <string name="setting_events_hide_all">Alles verbergen</string>
+    <string name="setting_events_show_all">Alles tonen</string>
+    <string name="setting_channel_events_own">Je eigen nickwijzigingen en kicks tegen jou worden altijd getoond.</string>
+    <string name="event_joins">Binnenkomst</string>
+    <string name="event_parts">Vertrek</string>
+    <string name="event_quits">Afsluiten</string>
+    <string name="event_nick_changes">Nickwijzigingen</string>
+    <string name="event_topic_changes">Onderwerpwijzigingen</string>
+    <string name="event_kicks">Kicks</string>
+    <string name="event_mode_changes">Moduswijzigingen</string>
     <string name="setting_hide_away_notify">Afwezig/terug-meldingen verbergen</string>
     <string name="setting_color_channel_events">Gekleurde kanaalgebeurtenissen</string>
     <string name="setting_hide_topic_on_entry">Onderwerp bij binnenkomst verbergen</string>
@@ -191,8 +204,14 @@
     <string name="chat_ban_type_account">Account</string>
     <string name="chat_ban_type_domain">Domein</string>
     <string name="chat_react_custom">Eigen reactie</string>
+    <string name="chat_reactions_unsupported">Deze server ondersteunt geen reacties</string>
     <string name="chat_react_custom_hint">Emoji of woord</string>
     <string name="chat_react_send">Reageren</string>
+    <string name="chat_reactions_title">Reacties</string>
+    <string name="chat_reactions_all">Alle</string>
+    <string name="chat_reactions_who">Bekijk wie reageerde</string>
+    <string name="chat_reaction_you">jij</string>
+    <string name="chat_reaction_cd">%1$s, gereageerd door %2$s</string>
     <string name="chat_reply_not_loaded">Antwoord op een eerder bericht</string>
 
     <!-- Network screens -->
@@ -421,9 +440,7 @@
     <string name="networks_drag_reorder">Slepen om te herordenen</string>
     <string name="networks_insecure_title">Onveilige verbinding geblokkeerd</string>
     <string name="networks_local_title">Lokale netwerktoegang vereist</string>
-    <string name="networks_local_body">Verbinden met {0} vereist de toestemming Lokaal netwerk.
-
-        Dit is een nieuwe vereiste van Android 17 voor verbindingen met servers op je lokale netwerk (thuisnetwerk, bouncer, enz.).</string>
+    <string name="networks_local_body">Verbinden met %1$s vereist de toestemming Lokaal netwerk.\n\nDit is een nieuwe vereiste van Android 17 voor verbindingen met servers op je lokale netwerk (thuisnetwerk, bouncer, enz.).</string>
     <string name="networks_local_grant">Toestemming verlenen</string>
     <string name="networks_insecure_body">Onversleutelde IRC-verbindingen zijn niet beveiligd en kunnen uw berichten en wachtwoord blootstellen.</string>
     <string name="networks_insecure_body2">Om verbinding te maken met %1$s zonder TLS, moet u onversleutelde verbindingen expliciet toestaan voor dit netwerk.</string>
@@ -516,7 +533,7 @@
 
     <!-- Ignore list screen -->
     <string name="ignore_title">Negeerlijst</string>
-    <string name="ignore_nick_label">Te negeren nick</string>
+    <string name="ignore_nick_label">Nick of nick!user@host-masker</string>
     <string name="ignore_no_nicks">Geen genegeerde nicks.</string>
     <string name="ignore_no_networks">Nog geen netwerken geconfigureerd.</string>
     <string name="ignore_add">Toevoegen</string>
@@ -649,7 +666,7 @@
     <string name="setting_dcc_downloads_default">Downloads (standaard)</string>
     <string name="setting_dcc_downloads_custom">Aangepaste map</string>
     <string name="section_backup_restore">Back-up &amp; Herstel</string>
-    <string name="setting_backup_export_desc">Exporteer uw netwerkconfiguraties en app-instellingen naar een JSON-bestand. Wachtwoorden en TLS-certificaten zijn niet inbegrepen.</string>
+    <string name="setting_backup_export_desc">Exporteer je netwerkconfiguraties en app-instellingen naar een JSON-bestand. Wachtwoorden kunnen worden meegenomen, versleuteld met een wachtwoordzin. TLS-certificaten zijn niet inbegrepen.</string>
     <string name="setting_restore_desc">Herstellen vervangt alle huidige netwerken en instellingen.</string>
     <string name="setting_restore_confirm">Dit vervangt alle huidige netwerken en instellingen door die in het back-upbestand. Wachtwoorden waren niet inbegrepen in de back-up en moeten opnieuw worden ingevoerd. Dit kan niet ongedaan worden gemaakt.</string>
     <string name="setting_backup_error">Fout</string>
@@ -756,7 +773,7 @@
     <string name="nick_devoice">Voice afnemen (-v)</string>
     <!-- IgnoreListScreen -->
     <string name="ignore_network_label">Netwerk</string>
-    <string name="ignore_list_desc">Genegeerde nicks worden hoofdletterongevoelig vergeleken en zijn van toepassing op chat, berichten en inkomende DCC-aanbiedingen in dit netwerk.</string>
+    <string name="ignore_list_desc">Elk item is een nick of een masker zoals *!*@example.com, zonder onderscheid tussen hoofd- en kleine letters. Kies wat elk item op dit netwerk weglaat.</string>
     <string name="ignore_list_tip">Tip: u kunt ook iemand negeren vanuit de nicklijst of door op hun naam in de chat te tikken.</string>
     <!-- ListScreen -->
     <string name="list_loading">Laden… (%1$d)</string>
@@ -821,6 +838,25 @@
     <string name="bouncer_networks_already_imported">Al geïmporteerd</string>
     <string name="bouncer_networks_unnamed">(naamloze upstream)</string>
     <string name="bouncer_networks_clone_dismiss">Sluiten</string>
+    <string name="bouncer_networks_add">Netwerk toevoegen</string>
+    <string name="bouncer_networks_import_all">Alles importeren</string>
+    <string name="bouncer_networks_tls">TLS</string>
+    <string name="bouncer_networks_plaintext">onversleuteld</string>
+    <string name="bouncer_networks_error">Fout: %1$s</string>
+    <string name="bouncer_networks_actions">Acties voor %1$s</string>
+    <string name="bouncer_net_dialog_add_title">Bouncernetwerk toevoegen</string>
+    <string name="bouncer_net_dialog_edit_title">%1$s bewerken</string>
+    <string name="bouncer_net_field_name_hint">Leeg laten om de host te gebruiken</string>
+    <string name="bouncer_net_field_port_hint">Leeg laten voor de standaard</string>
+    <string name="bouncer_net_field_pass_keep">Leeg laten om het huidige te houden</string>
+    <string name="bouncer_net_optional">Lege velden gebruiken de standaardwaarden van de bouncer.</string>
+    <string name="bouncer_net_import_after">Als profiel importeren</string>
+    <string name="bouncer_net_host_required">Vul de hostnaam van de server in.</string>
+    <string name="bouncer_net_port_invalid">De poort moet een getal van 1 tot 65535 zijn.</string>
+    <string name="bouncer_net_add">Toevoegen</string>
+    <string name="bouncer_net_delete_title">%1$s verwijderen?</string>
+    <string name="bouncer_net_delete_body">De bouncer verbreekt de verbinding met dit netwerk en vergeet het, samen met de geschiedenis die hij bewaarde.</string>
+    <string name="bouncer_net_delete_profile">Ook het geïmporteerde profiel verwijderen</string>
 
     <!-- Bouncer-aware password field hint -->
     <string name="network_server_password_bouncer_hint">Voor bouncers wordt SASL aanbevolen. Gebruik je in plaats daarvan dit PASS-veld, voer dan alleen het wachtwoord in; de bouncergebruikersnaam en het netwerk uit de velden hierboven worden automatisch ervoor gezet. De volledige <b>username/network:password</b> intypen werkt ook.</string>
@@ -1099,6 +1135,17 @@
     <string name="vm_caps_removed">De server heeft capabilities verwijderd: %1$s</string>
     <string name="vm_bouncer_removed">Bouncernetwerk verwijderd: %1$s</string>
     <string name="vm_bouncer_state">Bouncernetwerk %1$s: %2$s%3$s [%4$s]</string>
+    <string name="vm_bouncer_upstream_error">Bouncernetwerk %1$s: %2$s</string>
+    <string name="vm_bouncer_renamed">Bouncernetwerk %1$s heet nu %2$s. Profiel \"%3$s\" volgt het.</string>
+    <string name="vm_bouncer_import_none">Alle bouncernetwerken zijn al geïmporteerd.</string>
+    <string name="vm_bouncer_import_all">Geïmporteerde bouncernetwerken: %1$d. Zet automatisch verbinden aan voor de netwerken die je wilt gebruiken.</string>
+    <string name="vm_bouncer_not_connected">Maak verbinding met de bouncer om zijn netwerken te beheren.</string>
+    <string name="vm_bouncer_refused">De bouncer weigerde: %1$s</string>
+    <string name="vm_bouncer_refused_attr">De bouncer weigerde %1$s: %2$s</string>
+    <string name="vm_bouncer_added">\"%1$s\" toegevoegd aan de bouncer.</string>
+    <string name="vm_bouncer_changed">\"%1$s\" bijgewerkt op de bouncer.</string>
+    <string name="vm_bouncer_deleted">\"%1$s\" verwijderd van de bouncer.</string>
+    <string name="vm_bouncer_deleted_profiles">\"%1$s\" verwijderd van de bouncer, samen met het profiel.</string>
     <string name="vm_deleted_message">%1$s heeft een bericht verwijderd</string>
     <string name="vm_names_none">NAMES voor %1$s: (geen)</string>
     <string name="vm_names_header">NAMES voor %1$s (%2$s):</string>
@@ -1132,7 +1179,8 @@
     <string name="vm_dcc_no_chat_offer">Geen openstaand DCC CHAT-aanbod van %1$s.</string>
     <string name="dcc_send_pick_title">Een bestand naar %1$s sturen?</string>
     <string name="dcc_send_pick_body">Kies een bestand om %1$s op %2$s via DCC aan te bieden.</string>
-    <string name="vm_dcc_no_file_picker">Er is geen bestandskiezer beschikbaar op dit apparaat.</string>
+    <string name="no_file_picker">Er is geen bestandskiezer beschikbaar op dit apparaat.</string>
+    <string name="no_app_for_action">Geen app op dit apparaat kan dit doen.</string>
     <string name="vm_dcc_offering_active">%1$s aanbieden aan %2$s via DCC%3$s (actief, poort %4$s)…</string>
     <string name="vm_dcc_offering_passive">%1$s aanbieden aan %2$s via DCC%3$s (passief)…</string>
     <string name="vm_dcc_accepted_resume">%1$s accepteerde; hervatten vanaf %2$s bytes…</string>
@@ -1172,6 +1220,7 @@
     <string name="vm_auth_sasl_bouncer">SASL-authenticatie geweigerd. Bouncers hebben geldige SASL nodig om de verbinding door te sturen. Controleer de SASL-gebruikersnaam en het wachtwoord (of het clientcertificaat) van dit profiel.</string>
     <string name="vm_auth_sasl_rejected">SASL-authenticatie geweigerd. Controleer de SASL-gebruikersnaam en het wachtwoord (of het clientcertificaat) van dit profiel.</string>
     <string name="vm_auth_rejected">Authenticatie geweigerd.</string>
+    <string name="vm_auth_account_required">Deze server vereist een account. Zet SASL aan voor dit netwerk of stel het serverwachtwoord in.</string>
     <string name="vm_auth_halt_suffix">Automatisch opnieuw verbinden gestopt; tik op «Opnieuw verbinden» nadat je de inloggegevens hebt gecorrigeerd.</string>
     <string name="vm_ref">(ref: %1$s)</string>
 
@@ -1827,4 +1876,68 @@
     <string name="vm_ev_has_left_nohost">%1$s heeft %2$s verlaten</string>
     <string name="vm_ev_has_quit_nohost">%1$s is vertrokken</string>
     <string name="push_encrypted">Versleuteld bericht</string>
+    <string name="setting_smart_filter">Slim filter</string>
+    <string name="setting_smart_filter_desc">Binnenkomst, vertrek, afsluiten en nickwijzigingen worden alleen getoond voor mensen die onlangs iets zeiden. Zegt iemand kort na binnenkomst iets, dan wordt de binnenkomst alsnog getoond.</string>
+    <string name="setting_smart_filter_window">Sprak in de afgelopen</string>
+    <string name="setting_smart_filter_minutes">%1$d min</string>
+    <string name="menu_channel_settings">Kanaalinstellingen</string>
+    <string name="menu_conversation_settings">Gespreksinstellingen</string>
+    <string name="channel_settings_title">Instellingen voor %1$s</string>
+    <string name="channel_settings_mute">Meldingen dempen</string>
+    <string name="channel_settings_mute_desc">Niets hier geeft een melding. Ongelezen-tellers blijven zichtbaar.</string>
+    <string name="channel_settings_words">Markeerwoorden</string>
+    <string name="channel_settings_words_desc">Ook op deze woorden markeren, naast die in Instellingen. Scheid ze met komma\'s.</string>
+    <string name="channel_settings_events_follow">Zoals in Instellingen</string>
+    <string name="channel_settings_events_custom">Eigen voor dit kanaal</string>
+    <string name="channel_settings_reset">Herstellen</string>
+    <string name="notif_self_name">Jij</string>
+    <string name="bubble_label">Gesprek</string>
+    <string name="bubble_open_app">Openen in HexDroid</string>
+    <string name="bubble_message_hint">Bericht</string>
+    <string name="bubble_send">Versturen</string>
+    <string name="menu_search_logs">Logs doorzoeken</string>
+    <string name="log_search_title">Logs doorzoeken</string>
+    <string name="log_search_hint">Berichten zoeken</string>
+    <string name="log_search_help">Alle woorden moeten voorkomen. Zet een zinsdeel tussen aanhalingstekens en gebruik from:nick voor de berichten van één persoon.</string>
+    <string name="log_search_scope_buffer">Dit gesprek</string>
+    <string name="log_search_scope_network">Dit netwerk</string>
+    <string name="log_search_scope_all">Alle netwerken</string>
+    <string name="log_search_results">Resultaten: %1$d</string>
+    <string name="log_search_more">De nieuwste %1$d worden getoond. Verfijn de zoekopdracht om oudere te zien.</string>
+    <string name="log_search_none">Geen resultaten.</string>
+    <string name="log_search_logging_off">Loggen staat uit, dus alleen eerder opgeslagen logs kunnen worden doorzocht.</string>
+    <string name="log_search_go">Naar bericht</string>
+    <string name="log_search_searching">Zoeken…</string>
+    <string name="log_search_server_searching">Geschiedenis van de bouncer doorzoeken…</string>
+    <string name="log_search_server_count">Gesprekken doorzocht op de bouncer: %1$d</string>
+    <string name="log_search_server_badge">Bouncer</string>
+    <string name="ignore_type_channel">Kanaalberichten</string>
+    <string name="ignore_type_private">Privéberichten</string>
+    <string name="ignore_type_notices">Notices</string>
+    <string name="ignore_type_ctcp">CTCP</string>
+    <string name="ignore_type_invites">Uitnodigingen</string>
+    <string name="ignore_type_dcc">DCC-aanbiedingen</string>
+    <string name="ignore_type_events">Binnenkomst, vertrek, afsluiten</string>
+    <string name="vm_ignore_types_usage">Voeg typen toe om maar een deel weg te laten: PUBLIC, MSGS, NOTICES, CTCPS, INVITES, DCC, EVENTS of ALL.</string>
+    <string name="vm_backup_saved_with_passwords">Back-up opgeslagen, met de wachtwoorden versleuteld met je wachtwoordzin.\nCertificaten zijn niet inbegrepen.</string>
+    <string name="backup_export_title">Back-up exporteren</string>
+    <string name="backup_include_passwords">Wachtwoorden meenemen</string>
+    <string name="backup_include_passwords_desc">Server-, SASL- en proxywachtwoorden, versleuteld met een wachtwoordzin. Ze kunnen alleen daarmee worden hersteld.</string>
+    <string name="backup_passphrase">Wachtwoordzin</string>
+    <string name="backup_passphrase_confirm">Wachtwoordzin herhalen</string>
+    <string name="backup_passphrase_short">Minstens %1$d tekens.</string>
+    <string name="backup_passphrase_mismatch">De wachtwoordzinnen komen niet overeen.</string>
+    <string name="backup_export_action">Exporteren</string>
+    <string name="restore_passphrase_title">Wachtwoorden in de back-up</string>
+    <string name="restore_passphrase_body">Deze back-up bevat wachtwoorden die met een wachtwoordzin zijn versleuteld. Voer die in om ze ook te herstellen.</string>
+    <string name="restore_passphrase_wrong">Met die wachtwoordzin gaan de wachtwoorden niet open.</string>
+    <string name="restore_with_passwords">Herstellen</string>
+    <string name="restore_without_passwords">Herstellen zonder wachtwoorden</string>
+    <string name="debug_info_title">Debuginfo kopiëren</string>
+    <string name="debug_info_desc">Versie, verbindingsgegevens, capabilities en recente fouten, voor een bugmelding</string>
+    <string name="debug_info_raw">Recente ruwe regels meenemen</string>
+    <string name="debug_info_raw_desc">De laatste %1$d verzonden en ontvangen regels van elk netwerk, met wachtwoorden verborgen. Ze kunnen berichten bevatten.</string>
+    <string name="debug_info_check">Lees het door voordat je het openbaar deelt.</string>
+    <string name="debug_info_copy">Kopiëren</string>
+    <string name="debug_info_copied">Debuginfo gekopieerd</string>
 </resources>

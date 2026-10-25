@@ -21,6 +21,8 @@ package com.boxlabs.hexdroid.push
 import android.content.Context
 import com.boxlabs.hexdroid.UiSettings
 import com.boxlabs.hexdroid.VibrateIntensity
+import com.boxlabs.hexdroid.data.ChannelPrefs
+import com.boxlabs.hexdroid.data.ChannelPrefsCodec
 import com.boxlabs.hexdroid.data.NetworkProfile
 import com.boxlabs.hexdroid.data.NotifyMasks
 import org.json.JSONArray
@@ -39,6 +41,7 @@ object PushNotifyPolicy {
     private const val KEY_VIBRATE = "vibrate"
     private const val KEY_INTENSITY = "vibrate_intensity"
     private const val KEY_MASKS = "mute_masks"
+    private const val KEY_MUTED_BUFFERS = "muted_buffers"
 
     /**
      * The gate a pushed message passes through, with the highlight-ignore masks of every
@@ -52,6 +55,8 @@ object PushNotifyPolicy {
         val vibrate: Boolean,
         val vibrateIntensity: VibrateIntensity,
         val muteMasks: Map<String, List<String>>,
+        /** Muted buffers, as [ChannelPrefsCodec.keyFor] keys. */
+        val mutedBuffers: Set<String> = emptySet(),
     ) {
         /**
          * True when [nick] is muted for [netId]. An empty [netId] (push not attributable to a
@@ -61,13 +66,29 @@ object PushNotifyPolicy {
             val masks = if (netId.isBlank()) muteMasks.values.flatten() else muteMasks[netId].orEmpty()
             return NotifyMasks.mutesNick(masks, nick)
         }
+
+        /**
+         * True when [buffer] is muted on [netId]. An empty [netId] matches the buffer name on
+         * any network.
+         */
+        fun mutesBuffer(netId: String, buffer: String): Boolean {
+            if (mutedBuffers.isEmpty() || buffer.isBlank()) return false
+            if (netId.isNotBlank()) return ChannelPrefsCodec.keyFor("$netId::$buffer") in mutedBuffers
+            val suffix = ChannelPrefsCodec.keyFor("::$buffer")
+            return mutedBuffers.any { it.endsWith(suffix) }
+        }
     }
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** Mirror the alert-gating fields of [settings] and [networks] for the push service. */
-    fun store(ctx: Context, settings: UiSettings, networks: List<NetworkProfile>) {
+    fun store(
+        ctx: Context,
+        settings: UiSettings,
+        networks: List<NetworkProfile>,
+        channelPrefs: Map<String, ChannelPrefs> = emptyMap(),
+    ) {
         val masks = JSONObject()
         for (net in networks) {
             val list = net.highlightIgnoreMasks.filter { it.isNotBlank() }
@@ -81,6 +102,7 @@ object PushNotifyPolicy {
             .putBoolean(KEY_VIBRATE, settings.vibrateOnHighlight)
             .putString(KEY_INTENSITY, settings.vibrateIntensity.name)
             .putString(KEY_MASKS, masks.toString())
+            .putStringSet(KEY_MUTED_BUFFERS, channelPrefs.filterValues { it.muted }.keys.toSet())
             .apply()
     }
 
@@ -111,6 +133,7 @@ object PushNotifyPolicy {
                 VibrateIntensity.valueOf(p.getString(KEY_INTENSITY, defaults.vibrateIntensity.name)!!)
             }.getOrDefault(defaults.vibrateIntensity),
             muteMasks = masks,
+            mutedBuffers = runCatching { p.getStringSet(KEY_MUTED_BUFFERS, null)?.toSet() }.getOrNull().orEmpty(),
         )
     }
 }
