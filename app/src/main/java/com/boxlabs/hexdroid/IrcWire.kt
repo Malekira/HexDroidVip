@@ -365,10 +365,13 @@ internal fun parseZncListNetworksLine(line: String): IrcEvent.BouncerNetwork? {
     attrs["name"] = name
     if (server.isNotEmpty()) {
         val colon = server.lastIndexOf(':')
+        val hostPart = if (colon > 0) server.substring(0, colon) else ""
         val portPart = if (colon > 0) server.substring(colon + 1) else ""
         val port = portPart.removePrefix("+").toIntOrNull()
-        if (port != null) {
-            attrs["host"] = server.substring(0, colon)
+        // A bare IPv6 address has colons of its own; only a bracketed one is followed by a port.
+        val splits = !hostPart.contains(':') || (hostPart.startsWith('[') && hostPart.endsWith(']'))
+        if (port != null && hostPart.isNotEmpty() && splits) {
+            attrs["host"] = hostPart.removeSurrounding("[", "]")
             attrs["port"] = port.toString()
             attrs["tls"] = if (portPart.startsWith("+")) "1" else "0"
         } else {

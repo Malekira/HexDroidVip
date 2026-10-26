@@ -163,6 +163,21 @@ class IrcClientSojuTest {
     }
 
     @Test
+    fun aFullLogSearchOfUnlabeledRequestsKeepsEachReplyWithItsRequest() {
+        val h = soju(caps = SOJU_CAPS.replace("labeled-response ", ""))
+        val ids = (0 until 30).map { i -> h.run { h.client.searchMessages("#c$i", "x") }!! }
+        h.server.expect { it.startsWith("SEARCH in=#c29;") }
+        for (i in 0 until 30) {
+            h.server.send(":srv BATCH +s$i soju.im/search")
+            h.server.send("@batch=s$i;time=2026-01-02T03:04:05.000Z :bob!b@h PRIVMSG #c$i :x $i")
+            h.server.send(":srv BATCH -s$i")
+        }
+        for ((i, id) in ids.withIndex()) {
+            assertEquals(listOf("x $i"), h.await<IrcEvent.SearchResults> { it.requestId == id }.hits.map { it.text })
+        }
+    }
+
+    @Test
     fun accountRequiredStopsReconnecting() {
         val h = soju()
         h.server.send(":srv FAIL * ACCOUNT_REQUIRED :Authentication required")
@@ -180,6 +195,13 @@ class IrcClientSojuTest {
         val plain = parseZncListNetworksLine("| oftc | No | irc.oftc.net:6667 | |")!!
         assertEquals("0", plain.attrs["tls"])
         assertEquals("disconnected", plain.state)
+        val v6 = parseZncListNetworksLine("| v6 | Yes | 2001:db8::1 | |")!!
+        assertEquals("2001:db8::1", v6.host)
+        assertNull(v6.attrs["port"])
+        val v6port = parseZncListNetworksLine("| v6p | Yes | [2001:db8::1]:+6697 | |")!!
+        assertEquals("2001:db8::1", v6port.host)
+        assertEquals("6697", v6port.attrs["port"])
+        assertEquals("1", v6port.attrs["tls"])
     }
 
     @Test
@@ -208,6 +230,10 @@ class IrcClientSojuTest {
         assertTrue(profile("b", networkName = "old", networkId = "5").importsUpstream(parent, upstream))
         assertFalse(profile("c", networkName = "oftc", networkId = "6").importsUpstream(parent, upstream))
         assertFalse(profile("d", networkName = "libera").copy(port = 6698).importsUpstream(parent, upstream))
+        // Another account on the same bouncer has its own "libera".
+        assertFalse(profile("e", networkName = "libera").copy(username = "bot").importsUpstream(parent, upstream))
+        val sasl = profile("f", networkName = "libera").copy(username = "ident", saslEnabled = true, saslAuthcid = "U/libera@phone")
+        assertTrue(sasl.importsUpstream(parent, upstream))
     }
 
     @Test

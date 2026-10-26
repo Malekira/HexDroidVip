@@ -25,3 +25,12 @@
 # are not shipped.
 -dontwarn kotlinx.coroutines.debug.**
 -keepclassmembers class kotlinx.coroutines.** { volatile <fields>; }
+
+# These large composables keep their compiled signatures: R8 removing their Compose-generated
+# $changed and $default arguments produces code that fails verification on device.
+-keep,allowobfuscation class com.boxlabs.hexdroid.ui.ChatScreenKt {
+    public static void ChatScreen(...);
+}
+-keep,allowobfuscation class com.boxlabs.hexdroid.ui.ChatMessageItemKt {
+    *** SingleMessageItem*(...);
+}

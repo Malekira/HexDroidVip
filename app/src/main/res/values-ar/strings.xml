@@ -1899,7 +1899,6 @@
     <string name="log_search_title">البحث في السجلات</string>
     <string name="log_search_hint">البحث في الرسائل</string>
     <string name="log_search_help">يجب أن تظهر كل الكلمات. ضع العبارة بين علامتي اقتباس، واستخدم from:nick لرسائل شخص واحد.</string>
-    <string name="log_search_scope_buffer">هذه المحادثة</string>
     <string name="log_search_scope_network">هذه الشبكة</string>
     <string name="log_search_scope_all">كل الشبكات</string>
     <string name="log_search_results">النتائج: %1$d</string>

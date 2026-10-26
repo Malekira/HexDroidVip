@@ -1899,7 +1899,6 @@
     <string name="log_search_title">Logs durchsuchen</string>
     <string name="log_search_hint">Nachrichten suchen</string>
     <string name="log_search_help">Alle Wörter müssen vorkommen. Setze eine Wortfolge in Anführungszeichen und nutze from:nick für die Nachrichten einer Person.</string>
-    <string name="log_search_scope_buffer">Diese Unterhaltung</string>
     <string name="log_search_scope_network">Dieses Netzwerk</string>
     <string name="log_search_scope_all">Alle Netzwerke</string>
     <string name="log_search_results">Treffer: %1$d</string>

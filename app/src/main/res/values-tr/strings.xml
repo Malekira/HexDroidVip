@@ -1899,7 +1899,6 @@
     <string name="log_search_title">Kayıtlarda ara</string>
     <string name="log_search_hint">Mesaj ara</string>
     <string name="log_search_help">Tüm sözcükler geçmelidir. Bir ifadeyi tırnak içine alın, bir kişinin mesajları için from:nick kullanın.</string>
-    <string name="log_search_scope_buffer">Bu sohbet</string>
     <string name="log_search_scope_network">Bu ağ</string>
     <string name="log_search_scope_all">Tüm ağlar</string>
     <string name="log_search_results">Sonuç: %1$d</string>

@@ -1899,7 +1899,6 @@
     <string name="log_search_title">Поиск по логам</string>
     <string name="log_search_hint">Искать сообщения</string>
     <string name="log_search_help">Должны встретиться все слова. Фразу возьмите в кавычки, а from:nick покажет сообщения одного человека.</string>
-    <string name="log_search_scope_buffer">Эта беседа</string>
     <string name="log_search_scope_network">Эта сеть</string>
     <string name="log_search_scope_all">Все сети</string>
     <string name="log_search_results">Найдено: %1$d</string>

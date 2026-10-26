@@ -387,8 +387,8 @@ private fun BouncerNetworkDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                if (adding) stringResource(R.string.bouncer_net_dialog_add_title)
-                else stringResource(R.string.bouncer_net_dialog_edit_title, upstream?.name ?: upstream?.id.orEmpty())
+                if (upstream == null) stringResource(R.string.bouncer_net_dialog_add_title)
+                else stringResource(R.string.bouncer_net_dialog_edit_title, upstream.name ?: upstream.id)
             )
         },
         text = {

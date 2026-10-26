@@ -1899,7 +1899,6 @@
     <string name="log_search_title">Cerca nei log</string>
     <string name="log_search_hint">Cerca messaggi</string>
     <string name="log_search_help">Devono comparire tutte le parole. Metti una frase tra virgolette e usa from:nick per i messaggi di una persona.</string>
-    <string name="log_search_scope_buffer">Questa conversazione</string>
     <string name="log_search_scope_network">Questa rete</string>
     <string name="log_search_scope_all">Tutte le reti</string>
     <string name="log_search_results">Risultati: %1$d</string>

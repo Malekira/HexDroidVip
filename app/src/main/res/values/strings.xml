@@ -863,7 +863,7 @@
     <string name="network_server_password_bouncer_hint">For bouncers, SASL is recommended. If you do use this PASS field instead, just enter the password; the bouncer username and network from the fields above are prepended automatically. Typing the full <b>username/network:password</b> also works.</string>
 
     <!-- IRCv3 metadata editor (draft/metadata-2) -->
-    <string name="menu_edit_metadata">Edit metadata</string>
+    <string name="menu_edit_metadata">Metadata</string>
     <string name="metadata_editor_title">Your metadata</string>
     <string name="metadata_editor_subtitle">Profile details other clients on this network can see. Leave a field blank to clear it.</string>
     <string name="metadata_editor_clear_hint">Emptying a field and saving removes that value from the server.</string>
@@ -1879,8 +1879,8 @@
     <string name="setting_smart_filter_desc">Joins, parts, quits and nick changes show only for people who spoke recently. If someone speaks soon after joining, their join is shown then.</string>
     <string name="setting_smart_filter_window">Spoke within the last</string>
     <string name="setting_smart_filter_minutes">%1$d min</string>
-    <string name="menu_channel_settings">Channel settings</string>
-    <string name="menu_conversation_settings">Conversation settings</string>
+    <string name="menu_channel_settings"># settings</string>
+    <string name="menu_conversation_settings">PM settings</string>
     <string name="channel_settings_title">Settings for %1$s</string>
     <string name="channel_settings_mute">Mute notifications</string>
     <string name="channel_settings_mute_desc">Nothing here raises a notification. Unread counts still show.</string>
@@ -1898,7 +1898,6 @@
     <string name="log_search_title">Search logs</string>
     <string name="log_search_hint">Search messages</string>
     <string name="log_search_help">All words must appear. Put a phrase in quotes, and use from:nick for one person\'s messages.</string>
-    <string name="log_search_scope_buffer">This conversation</string>
     <string name="log_search_scope_network">This network</string>
     <string name="log_search_scope_all">All networks</string>
     <string name="log_search_results">Results: %1$d</string>

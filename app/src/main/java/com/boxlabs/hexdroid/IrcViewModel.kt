@@ -1035,24 +1035,29 @@ class IrcViewModel(
         logSearchJob = viewModelScope.launch {
             val job = coroutineContext.job
             // A bouncer that keeps history is searched alongside the files.
-            val server = startServerSearches(query, scope, bufferKey)
-            val (hits, more) = withContext(Dispatchers.IO) {
-                runCatching {
-                    logs.search(query, networkFilter, bufferFilter, folder, cancelled = { !job.isActive })
-                }.getOrDefault(emptyList<LogSearchHit>() to false)
-            }
-            if (!job.isActive) return@launch
-            _logSearch.value = LogSearchState(
-                running = false, query = raw, hits = hits, truncated = more, searched = true,
-                serverRunning = server.isNotEmpty(),
-            )
-            if (server.isEmpty()) return@launch
-            val (all, answered, truncated) = finishServerSearches(query, server, hits, more)
-            if (job.isActive) {
+            val server = ArrayList<ServerSearch>()
+            try {
+                server += startServerSearches(query, scope, bufferKey)
+                val (hits, more) = withContext(Dispatchers.IO) {
+                    runCatching {
+                        logs.search(query, networkFilter, bufferFilter, folder, cancelled = { !job.isActive })
+                    }.getOrDefault(emptyList<LogSearchHit>() to false)
+                }
+                if (!job.isActive) return@launch
                 _logSearch.value = LogSearchState(
-                    running = false, query = raw, hits = all, truncated = truncated, searched = true,
-                    serverSearched = answered,
+                    running = false, query = raw, hits = hits, truncated = more, searched = true,
+                    serverRunning = server.isNotEmpty(),
                 )
+                if (server.isEmpty()) return@launch
+                val (all, answered, truncated) = finishServerSearches(query, server, hits, more)
+                if (job.isActive) {
+                    _logSearch.value = LogSearchState(
+                        running = false, query = raw, hits = all, truncated = truncated, searched = true,
+                        serverSearched = answered,
+                    )
+                }
+            } finally {
+                server.forEach { serverSearchWaits.remove(it.id) }
             }
         }
     }
@@ -1077,24 +1082,20 @@ class IrcViewModel(
         val key = resolveBufferKey(net.id, hit.buffer)
         setActiveNetwork(net.id)
         openBuffer(key)
-        val msgId = hit.msgId
-        if (hit.fromServer && msgId != null) {
-            _state.value = _state.value.copy(
-                pendingHighlightAnchor = "msgid:$msgId",
-                pendingHighlightSetAtMs = System.currentTimeMillis(),
-                pendingHighlightBufferKey = key,
-            )
-            if (_state.value.buffers[key]?.messages?.none { it.msgId == msgId } != false) loadMessageContext(key, msgId)
-            return true
-        }
         val atMs = parseLogLineTimeMs(hit.line)
         val from = LogSearch.senderOf(hit.body)
         if (atMs != null && from != null) {
+            val text = LogSearch.textOf(hit.body).take(80)
             _state.value = _state.value.copy(
-                pendingHighlightAnchor = "ts:${atMs / 1000}|$from|${LogSearch.textOf(hit.body).take(80)}",
+                pendingHighlightAnchor = "ts:${atMs / 1000}|$from|$text",
                 pendingHighlightSetAtMs = System.currentTimeMillis(),
                 pendingHighlightBufferKey = key,
             )
+            val loaded = hit.fromServer && _state.value.buffers[key]?.messages?.any { m ->
+                kotlin.math.abs(m.timeMs - atMs) <= 3_000L && m.from.equals(from, ignoreCase = true) &&
+                    stripIrcFormatting(m.text).startsWith(text, ignoreCase = true)
+            } == true
+            if (hit.fromServer && !loaded) loadMessageContext(key, hit.msgId, timeMs = atMs)
         }
         return true
     }
@@ -1570,7 +1571,7 @@ fun startAddNetwork() {
             if (stored != null && updated.bouncerNetworkId != null && (
                     stored.bouncerKind != updated.bouncerKind ||
                     !stored.host.equals(updated.host, ignoreCase = true) || stored.port != updated.port ||
-                    stored.username != updated.username ||
+                    stored.bouncerAccount() != updated.bouncerAccount() ||
                     !stored.bouncerNetworkName.equals(updated.bouncerNetworkName, ignoreCase = true))
             ) {
                 updated = updated.copy(bouncerNetworkId = null)
@@ -2895,7 +2896,8 @@ fun startAddNetwork() {
     }
 
     /**
-     * Fetch the messages either side of [msgId] in [key].
+     * Fetch the messages either side of [msgId], or of the moment [timeMs], in [key]. The server
+     * gets whichever of the two its selectors take.
      *
      * For a reply whose parent is older than the loaded window: the quote has nothing to
      * point at, so the surrounding stretch is fetched and merged into place. Registered as a
@@ -2903,9 +2905,11 @@ fun startAddNetwork() {
      */
     fun loadMessageContext(
         key: String,
-        msgId: String,
+        msgId: String?,
         limit: Int = ChatHistoryController.PAGE_SIZE,
+        timeMs: Long? = null,
     ): Boolean {
+        if (msgId == null && timeMs == null) return false
         val st = _state.value
         val buf = st.buffers[key] ?: return false
         if (buf.historyLoading || chatHistory.isBackfilling(key)) return false
@@ -2922,6 +2926,7 @@ fun startAddNetwork() {
             val request = runCatching {
                 rt.client.requestChatHistoryAround(
                     bufferName,
+                    timestamp = timeMs?.let { ChatHistoryController.anchorTimestamp(it) },
                     msgId = msgId,
                     limit = limit,
                 )

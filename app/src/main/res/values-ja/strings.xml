@@ -1899,7 +1899,6 @@
     <string name="log_search_title">ログを検索</string>
     <string name="log_search_hint">メッセージを検索</string>
     <string name="log_search_help">すべての語を含む行を探します。フレーズは引用符で囲み、特定の人の発言は from:nick で絞り込めます。</string>
-    <string name="log_search_scope_buffer">この会話</string>
     <string name="log_search_scope_network">このネットワーク</string>
     <string name="log_search_scope_all">すべてのネットワーク</string>
     <string name="log_search_results">結果: %1$d 件</string>

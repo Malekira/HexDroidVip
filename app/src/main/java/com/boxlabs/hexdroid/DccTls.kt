@@ -53,7 +53,7 @@ import javax.net.ssl.X509TrustManager
 
 /**
  * TLS for Secure DCC (SSEND and SCHAT). The side that accepted the TCP connection is the TLS
- * server and the side that sends requests is the client. Any peer certificate is accepted;
+ * server and the side that dialled is the client. Any peer certificate is accepted;
  * the server certificate's SHA-256 fingerprint is shown for comparison.
  */
 object DccTls {

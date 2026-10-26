@@ -1899,7 +1899,6 @@
     <string name="log_search_title">搜索日志</string>
     <string name="log_search_hint">搜索消息</string>
     <string name="log_search_help">所有词都必须出现。短语请加引号,用 from:nick 查找某个人的消息。</string>
-    <string name="log_search_scope_buffer">此对话</string>
     <string name="log_search_scope_network">此网络</string>
     <string name="log_search_scope_all">所有网络</string>
     <string name="log_search_results">结果:%1$d 条</string>

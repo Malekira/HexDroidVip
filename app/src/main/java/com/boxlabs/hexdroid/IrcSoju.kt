@@ -33,8 +33,11 @@ internal class SearchBatch(val request: PendingSearch?) {
     val hits = ArrayList<SearchHit>()
 }
 
-/** Most search requests awaited at once; soju answers each, so only a lost connection leaves any. */
-private const val MAX_PENDING_SEARCHES = 16
+/**
+ * Most search requests awaited at once, above the 25 one log search sends: dropping one that is
+ * still answered would hand its reply to the next request.
+ */
+private const val MAX_PENDING_SEARCHES = 64
 
 /** soju caps a search at 100 messages; this bounds a server that sends more. */
 private const val MAX_SEARCH_HITS = 500
@@ -126,7 +129,7 @@ internal fun IrcClient.collectSearchLine(msg: IrcMessage): Boolean {
     var action = false
     if (text.startsWith('\u0001')) {
         val inner = text.trim('\u0001')
-        if (cmd != "PRIVMSG" || !inner.startsWith("ACTION")) return true
+        if (cmd != "PRIVMSG" || (inner != "ACTION" && !inner.startsWith("ACTION "))) return true
         text = inner.removePrefix("ACTION").removePrefix(" ")
         action = true
     }

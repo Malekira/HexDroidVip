@@ -1899,7 +1899,6 @@
     <string name="log_search_title">Logs doorzoeken</string>
     <string name="log_search_hint">Berichten zoeken</string>
     <string name="log_search_help">Alle woorden moeten voorkomen. Zet een zinsdeel tussen aanhalingstekens en gebruik from:nick voor de berichten van één persoon.</string>
-    <string name="log_search_scope_buffer">Dit gesprek</string>
     <string name="log_search_scope_network">Dit netwerk</string>
     <string name="log_search_scope_all">Alle netwerken</string>
     <string name="log_search_results">Resultaten: %1$d</string>

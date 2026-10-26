@@ -130,7 +130,7 @@ fun LogSearchDialog(
                             FilterChip(
                                 selected = scope == LogSearchScope.BUFFER,
                                 onClick = { scope = LogSearchScope.BUFFER; if (text.isNotBlank()) run() },
-                                label = { Text(bufferName ?: stringResource(R.string.log_search_scope_buffer)) },
+                                label = { Text(bufferName) },
                                 modifier = Modifier.focusHighlight(RoundedCornerShape(8.dp)),
                             )
                             FilterChip(

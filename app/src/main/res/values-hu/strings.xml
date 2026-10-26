@@ -1899,7 +1899,6 @@
     <string name="log_search_title">Keresés a naplókban</string>
     <string name="log_search_hint">Üzenetek keresése</string>
     <string name="log_search_help">Minden szónak szerepelnie kell. Tegyél egy kifejezést idézőjelbe, egy ember üzeneteihez használd a from:nick alakot.</string>
-    <string name="log_search_scope_buffer">Ez a beszélgetés</string>
     <string name="log_search_scope_network">Ez a hálózat</string>
     <string name="log_search_scope_all">Minden hálózat</string>
     <string name="log_search_results">Találatok: %1$d</string>

@@ -1899,7 +1899,6 @@
     <string name="log_search_title">Пошук у логах</string>
     <string name="log_search_hint">Шукати повідомлення</string>
     <string name="log_search_help">Мають трапитися всі слова. Фразу візьміть у лапки, а from:nick покаже повідомлення однієї людини.</string>
-    <string name="log_search_scope_buffer">Ця розмова</string>
     <string name="log_search_scope_network">Ця мережа</string>
     <string name="log_search_scope_all">Усі мережі</string>
     <string name="log_search_results">Знайдено: %1$d</string>

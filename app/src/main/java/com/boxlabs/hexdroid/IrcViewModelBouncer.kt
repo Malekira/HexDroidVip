@@ -80,9 +80,19 @@ private const val LOG_SEARCH_LIMIT = 300
 /** A bouncer hit within this of a log line with the same sender and text is that line. */
 private const val SEARCH_DEDUP_WINDOW_MS = 5_000L
 
-/** True when [other] is a profile for the same bouncer: same kind, host and port. */
+/**
+ * The account this profile logs in to its bouncer as: the SASL account when set, else the
+ * username, without a network or client suffix.
+ */
+internal fun NetworkProfile.bouncerAccount(): String {
+    val raw = saslAuthcid?.takeIf { saslEnabled && it.isNotBlank() } ?: username
+    return raw.substringBefore('/').substringBefore('@').lowercase(Locale.ROOT)
+}
+
+/** True when [other] is a profile for the same bouncer account: same kind, host, port and account. */
 private fun NetworkProfile.sameBouncerAs(other: NetworkProfile): Boolean =
-    bouncerKind == other.bouncerKind && host.equals(other.host, ignoreCase = true) && port == other.port
+    bouncerKind == other.bouncerKind && host.equals(other.host, ignoreCase = true) && port == other.port &&
+        bouncerAccount() == other.bouncerAccount()
 
 /**
  * True when this profile reaches [upstream] through [parent]'s bouncer: by soju netid, or by
@@ -202,7 +212,7 @@ internal fun IrcViewModel.handleBouncerNetwork(netId: String, ev: IrcEvent.Bounc
         }
     }
     val error = merged.error
-    if (error != null && error != prev?.error) {
+    if (prev != null && error != null && error != prev.error) {
         append(serverKey, from = null, text = "*** " + appContext.getString(R.string.vm_bouncer_upstream_error, nameStr, error),
             doNotify = false, isLocal = true)
     }
@@ -646,11 +656,7 @@ internal suspend fun IrcViewModel.finishServerSearches(
     local: List<LogSearchHit>,
     localTruncated: Boolean,
 ): Triple<List<LogSearchHit>, Int, Boolean> {
-    try {
-        withTimeoutOrNull(SERVER_SEARCH_TIMEOUT_MS) { searches.forEach { it.reply.await() } }
-    } finally {
-        searches.forEach { serverSearchWaits.remove(it.id) }
-    }
+    withTimeoutOrNull(SERVER_SEARCH_TIMEOUT_MS) { searches.forEach { it.reply.await() } }
     val answered = searches.filter { it.reply.isCompleted }.map { it to it.reply.await() }.filter { !it.second.failed }
 
     // A log hit's buffer is read back from its file name, so a bouncer hit's goes the same way.

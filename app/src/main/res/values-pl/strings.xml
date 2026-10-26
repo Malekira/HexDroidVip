@@ -1899,7 +1899,6 @@
     <string name="log_search_title">Przeszukaj logi</string>
     <string name="log_search_hint">Szukaj wiadomości</string>
     <string name="log_search_help">Muszą wystąpić wszystkie słowa. Ujmij frazę w cudzysłów i użyj from:nick, aby znaleźć wiadomości jednej osoby.</string>
-    <string name="log_search_scope_buffer">Ta rozmowa</string>
     <string name="log_search_scope_network">Ta sieć</string>
     <string name="log_search_scope_all">Wszystkie sieci</string>
     <string name="log_search_results">Wyniki: %1$d</string>
