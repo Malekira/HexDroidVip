@@ -692,10 +692,10 @@ fun ChatScreen(
     val hasReactionSupport = state.connections[selNetId]?.hasReactionSupport == true
     // draft/metadata-2 display names for this network, keyed by lowercased nick.
     val metadataDisplayNames = state.connections[selNetId]?.displayNames ?: emptyMap()
-    // draft/metadata-2 avatars, same keying. Rendered in the nick list only, and only
-    // when the user has opted into image previews AND this profile is unproxied - an
-    // avatar URL is chosen by the remote user, so fetching it from a Tor/SOCKS profile
-    // would bypass the proxy and leak the user's IP (same rule as filehost uploads).
+    // draft/metadata-2 avatars, same keying. Shown only when the user has opted into image
+    // previews AND this profile is unproxied - an avatar URL is chosen by the remote user, so
+    // fetching it from a Tor/SOCKS profile would bypass the proxy and leak the user's IP
+    // (same rule as filehost uploads). Notifications apply the same rule.
     val metadataAvatars: Map<String, String> =
         if (state.settings.imagePreviewsEnabled &&
             state.networks.firstOrNull { it.id == selNetId }?.proxyType ==

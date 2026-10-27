@@ -847,6 +847,7 @@ class IrcViewModel(
         // background persistence is off (see onTaskRemovedGracefulQuit). Cleared in onCleared.
         KeepAliveService.gracefulQuitOnSwipe = gracefulQuitHook
         launchExpandedNetworkIdsSync()
+        launchNotificationAvatarSync()
         startAwayPolling()
         // Hydrate flap-paused state from DataStore before any connections start.
         // This must be a suspend call, so we run it in viewModelScope. It completes almost

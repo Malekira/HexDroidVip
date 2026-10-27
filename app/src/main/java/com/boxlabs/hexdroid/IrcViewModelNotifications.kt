@@ -21,8 +21,11 @@ package com.boxlabs.hexdroid
 import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewModelScope
+import com.boxlabs.hexdroid.connection.ProxyType
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -259,4 +262,23 @@ fun IrcViewModel.networkForPushTarget(buffer: String): Pair<String, String>? {
 fun IrcViewModel.onPushEndpointChanged() {
     if (!_state.value.settings.webPushEnabled) return
     for (netId in runtimes.keys.toList()) maybeRegisterWebPush(netId)
+}
+
+/**
+ * Keep [Avatars] up to date with the metadata avatars notifications may fetch: those on
+ * unproxied networks, while image previews are on.
+ */
+internal fun IrcViewModel.launchNotificationAvatarSync() {
+    viewModelScope.launch {
+        _state
+            .map { st ->
+                if (!st.settings.imagePreviewsEnabled) emptyMap()
+                else st.networks.mapNotNull { net ->
+                    val urls = st.connections[net.id]?.avatarUrls
+                    if (net.proxyType != ProxyType.NONE || urls.isNullOrEmpty()) null else net.id to urls
+                }.toMap()
+            }
+            .distinctUntilChanged()
+            .collect { Avatars.setAllowedUrls(it) }
+    }
 }

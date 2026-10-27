@@ -67,8 +67,14 @@ class NotificationHelper(private val ctx: Context) {
         private const val MAX_CONVERSATION_MESSAGES = 12
         private const val SHORTCUT_CATEGORY_CONVERSATION = "android.shortcut.conversation"
 
-        /** Shortcut ids pushed by this process. */
-        private val publishedShortcuts: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+        /** Shortcut ids pushed by this process, with the key of the icon each was pushed with. */
+        private val publishedShortcuts = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+        /** What each conversation notification was last posted with, by tag. */
+        private val lastPosts = java.util.concurrent.ConcurrentHashMap<String, ConversationPost>()
+
+        /** Serialises conversation posts, so a refresh cannot overwrite a newer message. */
+        private val postLock = Any()
 
         /** The id of a conversation's shortcut, also used as its locus id. */
         fun conversationShortcutId(networkId: String, buffer: String): String =
@@ -105,7 +111,10 @@ class NotificationHelper(private val ctx: Context) {
         const val EXTRA_DCC_FROM          = "extra_dcc_from"
         const val EXTRA_DCC_FILENAME      = "extra_dcc_filename"
 
-        fun cancelAll(ctx: Context) { NotificationManagerCompat.from(ctx).cancelAll() }
+        fun cancelAll(ctx: Context) {
+            lastPosts.clear()
+            NotificationManagerCompat.from(ctx).cancelAll()
+        }
 
         /**
          * Tag identifying every notification raised for one buffer, so they can be taken
@@ -356,6 +365,7 @@ class NotificationHelper(private val ctx: Context) {
      */
     fun cancelBuffer(networkId: String, buffer: String) {
         val tag = notifTagFor(networkId, buffer)
+        lastPosts.remove(tag)
         val mgr = NotificationManagerCompat.from(ctx)
         runCatching {
             for (sbn in mgr.activeNotifications) {
@@ -443,6 +453,26 @@ class NotificationHelper(private val ctx: Context) {
         NotificationManagerCompat.from(ctx).notify(notifTagFor(networkId, buffer), nextNotifId(), builder.build())
     }
 
+    /** A conversation notification as last posted. */
+    private data class ConversationPost(
+        val channelId: String,
+        val networkId: String,
+        val buffer: String,
+        val title: String,
+        val from: String,
+        val text: String,
+        val timeMs: Long,
+        val isGroup: Boolean,
+        val msgId: Long,
+        val originalText: String,
+        val msgAnchor: String?,
+        val selfName: String?,
+        val messages: List<NotificationCompat.MessagingStyle.Message>,
+    )
+
+    /** A conversation's icon, with a key that changes when the picture does. */
+    private class ConversationIcon(val key: String, val icon: IconCompat)
+
     /**
      * One notification per conversation, in MessagingStyle, carrying the messages still in the
      * shade for it. With a network to open it on, it is tied to a long-lived conversation
@@ -465,64 +495,163 @@ class NotificationHelper(private val ctx: Context) {
         selfName: String?,
     ) {
         val tag = notifTagFor(networkId, buffer)
-        val mgr = NotificationManagerCompat.from(ctx)
+        val missing = HashSet<String>()
+        synchronized(postLock) {
+            // Messages already in the shade for this conversation stay in it.
+            val previous = runCatching {
+                NotificationManagerCompat.from(ctx).activeNotifications
+                    .firstOrNull { it.tag == tag && it.id == NOTIF_ID_CONVERSATION }
+                    ?.let { NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(it.notification) }
+            }.getOrNull()
+            val sender = from.takeIf { it.isNotBlank() }?.let { personFor(networkId, it, missing) }
+            val messages = previous?.messages.orEmpty()
+                .takeLast(MAX_CONVERSATION_MESSAGES - 1)
+                .map { withAvatar(networkId, it, missing) } +
+                NotificationCompat.MessagingStyle.Message(body, timeMs, sender)
+            show(
+                ConversationPost(
+                    channelId, networkId, buffer, title, from, text, timeMs, isGroup,
+                    msgId, originalText, msgAnchor, selfName, messages,
+                ),
+                alertOnce = false,
+                missing = missing,
+            )
+        }
+        fetchAvatars(tag, missing)
+    }
+
+    /** Repost [tag]'s conversation silently with the avatars fetched since, if it is still in the shade. */
+    private fun refreshConversation(tag: String) {
+        val missing = HashSet<String>()
+        synchronized(postLock) {
+            val post = lastPosts[tag] ?: return
+            val showing = runCatching {
+                NotificationManagerCompat.from(ctx).activeNotifications
+                    .any { it.tag == tag && it.id == NOTIF_ID_CONVERSATION }
+            }.getOrDefault(false)
+            if (!showing) {
+                lastPosts.remove(tag)
+                return
+            }
+            show(post.copy(messages = post.messages.map { withAvatar(post.networkId, it, missing) }), alertOnce = true, missing)
+        }
+        fetchAvatars(tag, missing)
+    }
+
+    private fun show(post: ConversationPost, alertOnce: Boolean, missing: MutableSet<String>) {
+        val tag = notifTagFor(post.networkId, post.buffer)
         val self = Person.Builder()
-            .setName(selfName?.takeIf { it.isNotBlank() } ?: ctx.getString(R.string.notif_self_name))
+            .setName(post.selfName?.takeIf { it.isNotBlank() } ?: ctx.getString(R.string.notif_self_name))
             .setKey("self")
             .build()
-        val sender = from.takeIf { it.isNotBlank() }?.let { personFor(networkId, it) }
-
-        // Messages already in the shade for this conversation stay in it.
-        val previous = runCatching {
-            mgr.activeNotifications.firstOrNull { it.tag == tag && it.id == NOTIF_ID_CONVERSATION }
-                ?.let { NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(it.notification) }
-        }.getOrNull()
         val style = NotificationCompat.MessagingStyle(self)
-            .setConversationTitle(if (isGroup) title else null)
-            .setGroupConversation(isGroup)
-        previous?.messages?.takeLast(MAX_CONVERSATION_MESSAGES - 1)?.forEach { style.addMessage(it) }
-        style.addMessage(NotificationCompat.MessagingStyle.Message(body, timeMs, sender))
+            .setConversationTitle(if (post.isGroup) post.title else null)
+            .setGroupConversation(post.isGroup)
+        post.messages.forEach { style.addMessage(it) }
 
-        val builder = NotificationCompat.Builder(ctx, channelId)
+        val builder = NotificationCompat.Builder(ctx, post.channelId)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle(title)
-            .setContentText(text)
+            .setContentTitle(post.title)
+            .setContentText(post.text)
             .setStyle(style)
-            .setWhen(timeMs)
+            .setWhen(post.timeMs)
             .setAutoCancel(true)
+            .setOnlyAlertOnce(alertOnce)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-        openBufferPendingIntent(networkId, buffer, msgId, msgAnchor)?.let { builder.setContentIntent(it) }
+        openBufferPendingIntent(post.networkId, post.buffer, post.msgId, post.msgAnchor)?.let { builder.setContentIntent(it) }
         // Without a network the reply has nowhere to go: the receiver looks the connection
         // up by id and would report the reply as undeliverable however well connected the
         // user actually is. Offering no Reply button is better than offering one that always fails.
-        if (networkId.isNotBlank()) {
-            buildReplyAction(networkId, buffer, NOTIF_ID_CONVERSATION, from, originalText, msgAnchor)?.let { builder.addAction(it) }
-            val shortcutId = publishConversationShortcut(networkId, buffer, title, if (isGroup) null else sender)
+        if (post.networkId.isNotBlank()) {
+            buildReplyAction(post.networkId, post.buffer, NOTIF_ID_CONVERSATION, post.from, post.originalText, post.msgAnchor)
+                ?.let { builder.addAction(it) }
+            // The latest sender's face, so a channel highlight shows who it is from.
+            val icon = conversationIcon(post.networkId, post.from.ifBlank { post.title }, missing)
+            val person = if (post.isGroup) null else post.from.takeIf { it.isNotBlank() }?.let { personFor(post.networkId, it, missing) }
+            val shortcutId = publishConversationShortcut(post.networkId, post.buffer, post.title, person, icon)
             if (shortcutId != null) {
                 builder.setShortcutId(shortcutId)
                 builder.setLocusId(LocusIdCompat(shortcutId))
-                bubbleFor(networkId, buffer, shortcutId)?.let { builder.setBubbleMetadata(it) }
+                bubbleFor(post.networkId, post.buffer, shortcutId, icon.icon)?.let { builder.setBubbleMetadata(it) }
             }
         }
-        mgr.notify(tag, NOTIF_ID_CONVERSATION, builder.build())
+        NotificationManagerCompat.from(ctx).notify(tag, NOTIF_ID_CONVERSATION, builder.build())
+        lastPosts[tag] = post
     }
 
-    /** The person behind [nick] on [networkId], with a lettered avatar. */
-    private fun personFor(networkId: String, nick: String): Person =
+    /** Fetch the avatars [urls] in the background, reposting [tag]'s conversation as each arrives. */
+    private fun fetchAvatars(tag: String, urls: Set<String>) {
+        for (url in urls) RemoteBitmaps.load(url) { refreshConversation(tag) }
+    }
+
+    private fun personKey(networkId: String, nick: String): String =
+        "$networkId::${nick.lowercase(java.util.Locale.ROOT)}"
+
+    /** The person behind [nick] on [networkId]. */
+    private fun personFor(networkId: String, nick: String, missing: MutableSet<String>): Person =
         Person.Builder()
             .setName(nick)
-            .setKey("$networkId::${nick.lowercase(java.util.Locale.ROOT)}")
-            .setIcon(IconCompat.createWithBitmap(Avatars.letterAvatar(nick)))
+            .setKey(personKey(networkId, nick))
+            .setIcon(IconCompat.createWithBitmap(avatarFor(networkId, nick, missing)))
             .build()
 
+    /** [m] with its sender's current avatar, when the sender is someone on [networkId]. */
+    private fun withAvatar(
+        networkId: String,
+        m: NotificationCompat.MessagingStyle.Message,
+        missing: MutableSet<String>,
+    ): NotificationCompat.MessagingStyle.Message {
+        val name = m.person?.name?.toString() ?: return m
+        if (m.person?.key != personKey(networkId, name)) return m
+        return NotificationCompat.MessagingStyle.Message(m.text, m.timestamp, personFor(networkId, name, missing))
+            .also { copy -> m.dataMimeType?.let { copy.setData(it, m.dataUri) } }
+    }
+
     /**
-     * Publish the long-lived shortcut for a conversation, once per process, and return its id.
-     * Returns null when the launcher refuses it, in which case the notification is posted
-     * without one.
+     * [nick]'s metadata avatar once fetched, else a lettered one. A URL not fetched yet is
+     * added to [missing].
      */
-    private fun publishConversationShortcut(networkId: String, buffer: String, title: String, person: Person?): String? {
+    private fun avatarFor(networkId: String, nick: String, missing: MutableSet<String>): android.graphics.Bitmap {
+        val url = Avatars.urlFor(networkId, nick) ?: return Avatars.letterAvatar(nick)
+        val photo = RemoteBitmaps.cached(url)
+        if (photo == null) {
+            missing += url
+            return Avatars.letterAvatar(nick)
+        }
+        return Avatars.circlePhoto(url, photo)
+    }
+
+    /** The conversation icon for [name]: its metadata avatar once fetched, else a lettered one. */
+    private fun conversationIcon(networkId: String, name: String, missing: MutableSet<String>): ConversationIcon {
+        val url = Avatars.urlFor(networkId, name)
+        val photo = url?.let { RemoteBitmaps.cached(it) }
+        if (url != null && photo != null) {
+            return ConversationIcon("url:$url", IconCompat.createWithAdaptiveBitmap(Avatars.adaptivePhoto(url, photo)))
+        }
+        if (url != null) missing += url
+        return ConversationIcon(
+            "letter:" + name.lowercase(java.util.Locale.ROOT),
+            IconCompat.createWithAdaptiveBitmap(Avatars.letterAvatar(name, adaptive = true)),
+        )
+    }
+
+    /**
+     * Publish the long-lived shortcut for a conversation and return its id. It is pushed again
+     * when its icon changes, on Android 11 and later only, since older releases rate-limit
+     * shortcut updates. Returns null when the launcher refuses a new shortcut, in which case
+     * the notification is posted without one.
+     */
+    private fun publishConversationShortcut(
+        networkId: String,
+        buffer: String,
+        title: String,
+        person: Person?,
+        icon: ConversationIcon,
+    ): String? {
         val id = conversationShortcutId(networkId, buffer)
-        if (id in publishedShortcuts) return id
+        val published = publishedShortcuts[id]
+        if (published == icon.key) return id
+        if (published != null && Build.VERSION.SDK_INT < 30) return id
         return runCatching {
             val intent = Intent(ctx, MainActivity::class.java).apply {
                 action = ACTION_OPEN_CONVERSATION
@@ -537,17 +666,17 @@ class NotificationHelper(private val ctx: Context) {
                 .setLongLived(true)
                 .setCategories(setOf(SHORTCUT_CATEGORY_CONVERSATION))
                 .setLocusId(LocusIdCompat(id))
-                .setIcon(IconCompat.createWithAdaptiveBitmap(Avatars.letterAvatar(title, adaptive = true)))
+                .setIcon(icon.icon)
                 .apply { if (person != null) setPerson(person) }
                 .build()
-            if (!ShortcutManagerCompat.pushDynamicShortcut(ctx, shortcut)) return null
-            publishedShortcuts.add(id)
+            if (!ShortcutManagerCompat.pushDynamicShortcut(ctx, shortcut)) return if (published != null) id else null
+            publishedShortcuts[id] = icon.key
             id
-        }.getOrNull()
+        }.getOrElse { if (published != null) id else null }
     }
 
     /** Bubble metadata opening [BubbleActivity] on the conversation, or null below Android 11. */
-    private fun bubbleFor(networkId: String, buffer: String, shortcutId: String): NotificationCompat.BubbleMetadata? {
+    private fun bubbleFor(networkId: String, buffer: String, shortcutId: String, icon: IconCompat): NotificationCompat.BubbleMetadata? {
         if (Build.VERSION.SDK_INT < 30) return null
         return runCatching {
             val intent = Intent(ctx, BubbleActivity::class.java).apply {
@@ -560,7 +689,7 @@ class NotificationHelper(private val ctx: Context) {
             val flags = PendingIntent.FLAG_UPDATE_CURRENT or
                 (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
             val pi = safePi { PendingIntent.getActivity(ctx, shortcutId.hashCode(), intent, flags) } ?: return null
-            NotificationCompat.BubbleMetadata.Builder(pi, IconCompat.createWithAdaptiveBitmap(Avatars.letterAvatar(buffer, adaptive = true)))
+            NotificationCompat.BubbleMetadata.Builder(pi, icon)
                 .setDesiredHeight(600)
                 .setAutoExpandBubble(false)
                 .setSuppressNotification(false)
