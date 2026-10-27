@@ -39,6 +39,9 @@ class KeepAliveService : Service() {
     companion object {
         @Volatile var isRunning: Boolean = false
 
+        /** Set while a foreground start has been requested and onCreate has not run yet. */
+        @Volatile var startRequested: Boolean = false
+
         /**
          * Hook the app process registers (from IrcViewModel) so the service can request a
          * graceful QUIT when the user swipes the app away ([onTaskRemoved]).
@@ -110,6 +113,7 @@ class KeepAliveService : Service() {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        startRequested = false
 
         // startForeground() can be refused on Android 12+ when the service was created without a
         // background-FGS exemption, most often when the OS restarts it (START_STICKY) in the

@@ -461,11 +461,8 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                             val line = ev.line
                             val logLine = formatLogLine(ts, from = null, text = line, isAction = false)
                             val logFolderUri = stNow.settings.logFolderUri
-                            // Dispatch to IO so the disk/SAF write doesn't run on Main. See the
-                            // matching comment in append() for the full rationale - same race
-                            // between handleEvent now running on Main.immediate and LogWriter
-                            // doing synchronous buffered writes that occasionally flush.
-                            viewModelScope.launch(Dispatchers.IO) {
+                            // Off the main thread, in the same ordered lane as other log writes.
+                            viewModelScope.launch(logLane) {
                                 runCatching { logs.append(netName, "*server*", logLine, logFolderUri) }
                             }
                         }
@@ -898,6 +895,9 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                                     val join = if (key.isNullOrBlank()) "JOIN $chan" else "JOIN $chan $key"
                                     rt.client.sendRaw(join)
                                 }
+                            }
+                            pendingUriJoins.remove(netId)?.forEach { c ->
+                                rt.client.sendRaw(if (c.key.isNullOrBlank()) "JOIN ${c.channel}" else "JOIN ${c.channel} ${c.key}")
                             }
 
                             // 5. Post-connect commands (one per line, like mIRC's Perform)

@@ -93,9 +93,20 @@ private val SERVICE_NICKS = setOf(
 
 /** Service subcommands whose arguments carry a password. */
 private val SERVICE_SECRET_CMDS = setOf(
-    "IDENTIFY", "REGISTER", "SETPASS", "GHOST", "RECOVER", "RELEASE",
+    "IDENTIFY", "ID", "REGISTER", "SETPASS", "GHOST", "RECOVER", "RELEASE",
     "LOGIN", "AUTH", "PASS", "SASLPASS", "CONFIRM", "RESETPASS",
 )
+
+/**
+ * [args] with everything after its mode string hidden, when the mode string at [modeIndex]
+ * includes a key ('k') and parameters follow it; null otherwise.
+ */
+private fun hideChannelKey(args: String, modeIndex: Int, hide: (String) -> String): String? {
+    val parts = args.split(' ')
+    val modes = parts.getOrNull(modeIndex) ?: return null
+    if ('k' !in modes || parts.size <= modeIndex + 1) return null
+    return hide(parts.take(modeIndex + 1).joinToString(" "))
+}
 
 /**
  * Strip credentials from a raw protocol line before it is shown or copied.
@@ -157,6 +168,14 @@ internal fun redactRawLine(line: String): String {
         }
         // draft/account-registration.
         verb == "REGISTER" || verb == "VERIFY" -> hide(args.substringBefore(' '))
+        // JOIN <channels> <keys>, as sent. A received JOIN's second parameter is an account.
+        verb == "JOIN" && leader.isEmpty() -> {
+            val parts = args.split(' ')
+            if (parts.size >= 2 && parts[1].isNotEmpty()) hide(parts[0]) else line
+        }
+        // A channel key set or shown in a mode change, or in the reply to a mode query.
+        verb == "MODE" -> hideChannelKey(args, 1, ::hide) ?: line
+        verb == "324" -> hideChannelKey(args, 2, ::hide) ?: line
         // soju.im/webpush. The endpoint is a bearer capability: anyone holding it can
         // push to this device, and the p256dh/auth keys let them encrypt a payload it
         // will decrypt and show as a notification. Keep only the subcommand.

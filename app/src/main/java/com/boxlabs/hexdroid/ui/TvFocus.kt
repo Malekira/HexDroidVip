@@ -21,6 +21,7 @@ package com.boxlabs.hexdroid.ui
 import android.app.UiModeManager
 import android.content.Context
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -123,6 +124,8 @@ fun Modifier.dpadReorder(onMoveUp: () -> Unit, onMoveDown: () -> Unit): Modifier
     var moveMode by remember { mutableStateOf(false) }
     val color = MaterialTheme.colorScheme.primary
     val shape = RoundedCornerShape(4.dp)
+    // From Android 16 the back key reaches the app only as a back gesture, not a key event.
+    BackHandler(enabled = moveMode) { moveMode = false }
     return this
         .onFocusChanged {
             focused = it.isFocused
@@ -172,6 +175,7 @@ fun Modifier.dpadColourWheel(
     var focused by remember { mutableStateOf(false) }
     var adjustMode by remember { mutableStateOf(false) }
     val color = MaterialTheme.colorScheme.primary
+    BackHandler(enabled = adjustMode) { adjustMode = false }
     return this
         .onFocusChanged {
             focused = it.isFocused
@@ -233,6 +237,7 @@ fun Modifier.dpadResize(
             onEnd()
         }
     }
+    BackHandler(enabled = resizeMode) { exit() }
 
     return this
         .onFocusChanged {

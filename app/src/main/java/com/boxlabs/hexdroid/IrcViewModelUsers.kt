@@ -50,6 +50,32 @@ internal fun IrcViewModel.markAwayInState(netId: String, nick: String, away: Boo
     }
 }
 
+/** True when [nick] is a member of any channel tracked on [netId]. */
+internal fun IrcViewModel.sharesChannelWith(netId: String, nick: String): Boolean {
+    val fold = casefoldText(netId, nick)
+    val prefix = "$netId::"
+    return chanNickCase.any { (key, members) -> key.startsWith(prefix) && fold in members }
+}
+
+/** Forget [nick]'s away state once they share no channel with us, since nothing would update it. */
+internal fun IrcViewModel.forgetAwayIfUnseen(netId: String, nick: String) {
+    if (sharesChannelWith(netId, nick)) return
+    if (nickAwayState[netId]?.remove(casefoldText(netId, nick)) != null) markAwayInState(netId, nick, false)
+}
+
+/** Drop the away state of everyone on [netId] who shares no channel with us. */
+internal fun IrcViewModel.pruneAwayState(netId: String) {
+    val awayMap = nickAwayState[netId] ?: return
+    val prefix = "$netId::"
+    val present = HashSet<String>()
+    for ((key, members) in chanNickCase) if (key.startsWith(prefix)) present += members.keys
+    awayMap.keys.retainAll(present)
+    setNetConn(netId) { st ->
+        val kept = st.awayNicks.filterTo(HashSet()) { casefoldText(netId, it) in awayMap }
+        if (kept.size == st.awayNicks.size) st else st.copy(awayNicks = kept)
+    }
+}
+
 /** Drop all away flags for a network (used when the away map is bulk-cleared). */
 internal fun IrcViewModel.clearAwayNicksInState(netId: String) {
     setNetConn(netId) { st -> if (st.awayNicks.isEmpty()) st else st.copy(awayNicks = emptySet()) }

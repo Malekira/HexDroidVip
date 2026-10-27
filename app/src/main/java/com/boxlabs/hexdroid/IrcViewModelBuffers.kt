@@ -1380,7 +1380,7 @@ internal fun IrcViewModel.writeLogLine(
     val netName = st.networks.firstOrNull { it.id == netId }?.name ?: "network"
     val logLine = formatLogLine(ts, from, text, isAction)
     val logFolderUri = st.settings.logFolderUri
-    scope.launch(Dispatchers.IO) {
+    scope.launch(logLane) {
         val err = runCatching {
             logs.append(netName, bufferName, logLine, logFolderUri)
         }.getOrElse { t -> t.message ?: t::class.java.simpleName }

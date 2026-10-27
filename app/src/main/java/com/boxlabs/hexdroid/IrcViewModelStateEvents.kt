@@ -133,9 +133,12 @@ internal fun IrcViewModel.handleStateEvent(netId: String, ev: IrcEvent) {
         // here because bouncers forward away-notify regardless of our capabilities.
         is IrcEvent.AwayChanged -> {
             val awayMap = nickAwayState.getOrPut(netId) { mutableMapOf() }
-            // On large servers with away-notify, every away transition adds an entry.
-            // Nicks are evicted on QUIT but not on PART - cap to prevent unbounded growth.
-            if (awayMap.size >= 2000) { awayMap.clear(); clearAwayNicksInState(netId) }
+            // Entries go on QUIT, and on PART or KICK once we share no channel. Anything else
+            // left over, such as a nick change seen nowhere we are, is dropped at the cap.
+            if (awayMap.size >= IrcViewModel.MAX_TRACKED_AWAY) {
+                pruneAwayState(netId)
+                if (awayMap.size >= IrcViewModel.MAX_TRACKED_AWAY) { awayMap.clear(); clearAwayNicksInState(netId) }
+            }
             val fold = casefoldText(netId, ev.nick)
             val wasAway = awayMap.containsKey(fold)
             val suppressAnnouncement = _state.value.settings.hideAwayNotify

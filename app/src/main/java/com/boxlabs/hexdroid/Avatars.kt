@@ -41,10 +41,15 @@ object Avatars {
     private const val ADAPTIVE_VISIBLE = 72f / 108f
 
     private const val MAX_PHOTOS = 32
+    private const val MAX_LETTERS = 64
 
     /** Metadata avatar URLs that notifications may fetch, per network id, keyed by casefolded nick. */
     @Volatile
     private var allowedUrls: Map<String, Map<String, String>> = emptyMap()
+
+    private val letters = object : LinkedHashMap<String, Bitmap>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>) = size > MAX_LETTERS
+    }
 
     /** Cropped photos keyed by kind and URL, each with the source bitmap it was made from. */
     private val photos = object : LinkedHashMap<String, Pair<Bitmap, Bitmap>>(16, 0.75f, true) {
@@ -79,6 +84,12 @@ object Avatars {
      * adaptive icon, with the letter inside the safe zone.
      */
     fun letterAvatar(name: String, adaptive: Boolean = false): Bitmap {
+        val key = (if (adaptive) "a:" else "c:") + name
+        synchronized(letters) { letters[key]?.let { return it } }
+        return drawLetter(name, adaptive).also { synchronized(letters) { letters[key] = it } }
+    }
+
+    private fun drawLetter(name: String, adaptive: Boolean): Bitmap {
         val size = if (adaptive) ADAPTIVE_SIZE else SIZE
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)

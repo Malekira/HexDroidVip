@@ -63,6 +63,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -564,8 +565,9 @@ fun ChatScreen(
     val hardwareKeyboard = cfg.keyboard == Configuration.KEYBOARD_QWERTY
 
     // Pre-fill input with text shared from another app via the system share sheet.
-    LaunchedEffect(state.pendingShareText) {
+    LaunchedEffect(state.pendingShareText, selected) {
         val shared = state.pendingShareText ?: return@LaunchedEffect
+        if (state.pendingShareTarget != null && state.pendingShareTarget != selected) return@LaunchedEffect
         input = TextFieldValue(shared, androidx.compose.ui.text.TextRange(shared.length))
         onShareTextConsumed()
     }
@@ -633,8 +635,8 @@ fun ChatScreen(
 
     // "Harden" the nicklist: whenever the nicklist becomes visible, ask the server for a fresh
     // snapshot (throttled in the ViewModel to avoid spamming).
-    LaunchedEffect(isWide, state.showNickList, state.selectedBuffer, isChannel) {
-        if (isWide && state.showNickList && isChannel) {
+    LaunchedEffect(isWide, state.showNickList, state.selectedBuffer, isChannel, state.settings.portraitNicklistOverlay) {
+        if ((isWide || state.settings.portraitNicklistOverlay) && state.showNickList && isChannel) {
             onRefreshNicklist()
         }
     }
@@ -908,6 +910,7 @@ fun ChatScreen(
     fun openNickActions(nickDisplay: String) {
         selectedNick = baseNick(nickDisplay)
         showNickActions = true
+        viewModel?.lookUpNickAway(selectedNick)
     }
 
     fun mention(nick: String) {
@@ -1943,6 +1946,25 @@ fun ChatScreen(
 
     val topBar: @Composable () -> Unit = {
         val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val imeInsets = WindowInsets.ime
+        // A menu opened over the keyboard is placed in the space above it and stays there once the
+        // keyboard closes, covering the top bar. Close the keyboard first, then open the menu.
+        fun openMenu(open: () -> Unit) {
+            if (imeInsets.getBottom(density) == 0) {
+                open()
+                return
+            }
+            keyboardController?.hide()
+            focusManager.clearFocus()
+            scope.launch {
+                var waitedMs = 0
+                while (imeInsets.getBottom(density) > 0 && waitedMs < 600) {
+                    delay(16)
+                    waitedMs += 16
+                }
+                open()
+            }
+        }
         val compact = state.settings.compactMode
         val barHeight = when {
             cfg.orientation == Configuration.ORIENTATION_LANDSCAPE -> if (compact) 40.dp else 44.dp
@@ -2143,7 +2165,7 @@ fun ChatScreen(
                         Box {
                             BarIconButton(
                                 size = iconBtnSize,
-                                onClick = { launcherExpanded = true },
+                                onClick = { openMenu { launcherExpanded = true } },
                                 initialFocus = false,
                             ) {
                                 Icon(
@@ -2172,7 +2194,7 @@ fun ChatScreen(
                     Box {
                         BarIconButton(
                             size = iconBtnSize,
-                            onClick = { overflowExpanded = true },
+                            onClick = { openMenu { overflowExpanded = true } },
                             modifier = Modifier.tourTarget(TourTarget.CHAT_OVERFLOW_BUTTON),
                             initialFocus = false,
                         ) { Text("⋮") }

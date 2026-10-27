@@ -1,0 +1,5 @@
+Delete logs option when no folder is selected, Export logs as .zip
+Expanded .hex engine (docs at https://hexdroid.org/scripting)
+Each network now gets its own TLS client certificate, so you can auth with SASL EXTERNAL.
+Option to hide hostnames in join, part and quit messages (Settings > Chat).
+Several fixes/improvements.

@@ -44,15 +44,21 @@ object BootConnectGate {
  */
 class BootReceiver : BroadcastReceiver() {
 
+    private companion object {
+        const val QUICKBOOT_WINDOW_MS = 10 * 60_000L
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED,
-            // Some OEM ROMs (older HTC/Asus builds) send only this one.
-            "android.intent.action.QUICKBOOT_POWERON",
-            "com.htc.intent.action.QUICKBOOT_POWERON",
             // Re-arm after an app update replaces the package, which also kills the
             // process and its connections.
             Intent.ACTION_MY_PACKAGE_REPLACED -> Unit
+            // Some OEM ROMs (older HTC/Asus builds) send only this one. Any app can send it,
+            // so it counts only shortly after the device started.
+            "android.intent.action.QUICKBOOT_POWERON",
+            "com.htc.intent.action.QUICKBOOT_POWERON" ->
+                if (android.os.SystemClock.elapsedRealtime() > QUICKBOOT_WINDOW_MS) return
             else -> return
         }
 

@@ -1879,8 +1879,8 @@
     <string name="setting_smart_filter_desc">Joins, parts, quits and nick changes show only for people who spoke recently. If someone speaks soon after joining, their join is shown then.</string>
     <string name="setting_smart_filter_window">Spoke within the last</string>
     <string name="setting_smart_filter_minutes">%1$d min</string>
-    <string name="menu_channel_settings">Channel settings</string>
-    <string name="menu_conversation_settings">Conversation settings</string>
+    <string name="menu_channel_settings">Chan settings</string>
+    <string name="menu_conversation_settings">PM settings</string>
     <string name="channel_settings_title">Settings for %1$s</string>
     <string name="channel_settings_mute">Mute notifications</string>
     <string name="channel_settings_mute_desc">Nothing here raises a notification. Unread counts still show.</string>
@@ -1890,7 +1890,7 @@
     <string name="channel_settings_events_custom">Custom for this channel</string>
     <string name="channel_settings_reset">Reset</string>
     <string name="notif_self_name">You</string>
-    <string name="bubble_label">Conversation</string>
+    <string name="bubble_label">PM</string>
     <string name="bubble_open_app">Open in HexDroid</string>
     <string name="bubble_message_hint">Message</string>
     <string name="bubble_send">Send</string>

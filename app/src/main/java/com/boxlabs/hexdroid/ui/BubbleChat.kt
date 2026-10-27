@@ -74,7 +74,8 @@ fun BubbleChat(
     val listState = rememberLazyListState()
     // The list is reversed, so item 0 is the newest. New messages are followed only while the
     // newest is in view.
-    LaunchedEffect(messages.size) {
+    // Keyed on the newest message: a buffer at its scrollback cap stays the same size.
+    LaunchedEffect(messages.lastOrNull()?.id) {
         if (messages.isNotEmpty() && listState.firstVisibleItemIndex <= 1) {
             runCatching { listState.scrollToItem(0) }
         }

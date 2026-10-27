@@ -74,23 +74,9 @@ class NotificationReplyReceiver : BroadcastReceiver() {
                     .cancel(NotificationHelper.notifTagFor(netId, buffer), notifId)
             }
         } else {
-            // No live connection. show an error notification so the reply is not lost silently.
-            if (notifId >= 0) {
-                val errorNotif = androidx.core.app.NotificationCompat.Builder(
-                    ctx, NotificationHelper.CH_HIGHLIGHT_SILENT
-                )
-                    .setSmallIcon(android.R.drawable.stat_notify_chat)
-                    .setContentTitle(ctx.getString(R.string.notif_reply_not_sent_title))
-                    .setContentText(ctx.getString(R.string.notif_reply_not_sent_text, buffer))
-                    .setAutoCancel(true)
-                    .build()
-                // Same tag as the notification it replaces, so opening the conversation
-                // clears the failure alongside the message that prompted it.
-                runCatching {
-                    NotificationManagerCompat.from(ctx)
-                        .notify(NotificationHelper.notifTagFor(netId, buffer), notifId, errorNotif)
-                }
-            }
+            // Not connected: keep the text in the conversation's message box and say so.
+            runCatching { vm?.keepFailedReply(netId, buffer, replyText) }
+            runCatching { NotificationHelper(ctx).notifyReplyNotSent(netId, buffer) }
         }
     }
 }

@@ -354,6 +354,7 @@ internal fun IrcViewModel.handleChannelEvent(netId: String, ev: IrcEvent) {
                 // Re-read state after append so we don't overwrite the message we just appended.
                 val st1 = _state.value
                 removeNickFromChannel(netId, chanKey, ev.nick)
+                if (!isMe) forgetAwayIfUnseen(netId, ev.nick)
                 val updated = rebuildNicklist(netId, chanKey)
                 // Clear any pending typing indicator for the parted nick,
                 // and cancel the expiry coroutine so it doesn't linger for 30 s.
@@ -413,6 +414,7 @@ internal fun IrcViewModel.handleChannelEvent(netId: String, ev: IrcEvent) {
                 } else null
 
                 removeNickFromChannel(netId, chanKey, ev.victim)
+                if (!victimIsMe) forgetAwayIfUnseen(netId, ev.victim)
                 if (victimIsMe) {
                     chatHistory.releaseCatchup(chanKey)
                     leftChannelAtMs[chanKey] = ev.timeMs ?: System.currentTimeMillis()

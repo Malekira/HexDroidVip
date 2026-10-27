@@ -143,6 +143,7 @@ class MainActivity : ComponentActivity() {
         // Reopening from Recents replays the original launch intent.
         if (intent.flags and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
         val action = intent.getStringExtra(NotificationHelper.EXTRA_ACTION)
+            ?.takeIf { NotificationHelper.hasActionToken(intent) }
         when (action) {
             NotificationHelper.ACTION_QUIT -> vm.disconnectAll()
             NotificationHelper.ACTION_EXIT -> {

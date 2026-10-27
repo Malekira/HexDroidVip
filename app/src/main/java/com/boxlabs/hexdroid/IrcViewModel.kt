@@ -301,6 +301,12 @@ class IrcViewModel(
         /** Largest channel that gets a member WHO as soon as it is joined. */
         const val WHO_ON_JOIN_MAX_MEMBERS = 150
 
+        /** Shortest gap between away lookups for one nick's sheet. */
+        const val NICK_AWAY_LOOKUP_GAP_MS = 60_000L
+
+        /** Away states tracked per network before those of people we no longer see are dropped. */
+        const val MAX_TRACKED_AWAY = 2000
+
         /** Max chained alias expansions before we give up (alias-invokes-alias loop guard). */
         const val MAX_ALIAS_DEPTH = 8
         /**
@@ -1110,7 +1116,7 @@ class IrcViewModel(
     }
 
     fun consumeShareText() {
-        _state.value = _state.value.copy(pendingShareText = null)
+        _state.value = _state.value.copy(pendingShareText = null, pendingShareTarget = null)
     }
 
     fun goTo(screen: AppScreen) {
@@ -1184,6 +1190,31 @@ class IrcViewModel(
 		if (st.connections[netId]?.connected != true) return
 		val rt = runtimes[netId] ?: return
 		viewModelScope.launch { runCatching { rt.client.querySilentModes(buf) } }
+	}
+
+	/**
+	 * Look up [nick]'s away status as their nick sheet opens, unless it is already current:
+	 * away-notify keeps it so once the open channel's member WHO has run.
+	 */
+	fun lookUpNickAway(nick: String) {
+		val st = _state.value
+		val key = st.selectedBuffer.takeIf { it.isNotBlank() } ?: return
+		val (netId, buffer) = splitKey(key)
+		val base = nick.trim().takeIf { it.isNotEmpty() } ?: return
+		if (st.connections[netId]?.connected != true || isMyNick(netId, base)) return
+		val rt = runtimes[netId] ?: return
+		val chan = stripStatusMsgPrefix(netId, buffer)
+		// The member WHO on join runs only with WHOX.
+		val snapshotTaken = isChannelOnNet(netId, chan) && rt.client.whoxAvailable() &&
+			namesKeyFold(chan) !in rt.whoDeferred && namesKeyFold(chan) !in rt.whoAfterJoin
+		if (snapshotTaken && rt.client.hasCap("away-notify")) return
+		val lookupKey = "$netId::" + casefoldText(netId, base)
+		val now = SystemClock.elapsedRealtime()
+		val last = nickAwayLookups[lookupKey]
+		if (last != null && now - last < NICK_AWAY_LOOKUP_GAP_MS) return
+		if (nickAwayLookups.size > 512) nickAwayLookups.clear()
+		nickAwayLookups[lookupKey] = now
+		viewModelScope.launch { runCatching { rt.client.refreshChannelWho(base) } }
 	}
 
 	fun refreshNicklistForSelectedBuffer(force: Boolean = false) {
@@ -1389,23 +1420,8 @@ class IrcViewModel(
             val exists = st.networks.any { it.id.equals("AfterNET", ignoreCase = true) || it.name.equals("AfterNET", ignoreCase = true) }
             if (exists) return@launch
 
-            val n = NetworkProfile(
-                id = "AfterNET",
-                name = "AfterNET",
-                host = "irc.afternet.org",
-                port = 6697,
-                useTls = true,
-                allowInvalidCerts = true,
-                nick = "HexDroidUser",
-                altNick = "HexDroidUser_",
-                username = "hexdroid",
-                realname = "HexDroid IRC for Android",
-                saslEnabled = false,
-                saslMechanism = SaslMechanism.PLAIN,
-                caps = CapPrefs(),
-                autoJoin = listOf(AutoJoinChannel("#HexDroid", null))
-            )
-
+            // The same profile a fresh install starts with.
+            val n = repo.defaultNetworks().firstOrNull { it.id == "AfterNET" } ?: return@launch
             repo.upsertNetwork(n)
         }
     }
@@ -2423,6 +2439,7 @@ fun startAddNetwork() {
             if (removedDesired) persistDesiredNetworkIds()
             manualDisconnecting.add(netId)
             deferredConnects.remove(netId)
+            pendingUriJoins.remove(netId)
             reconnectAttempts.remove(netId)  // Clear reconnect backoff
             autoReconnectJobs.remove(netId)?.cancel()
             cleanupNetworkMaps(netId, resetReconnectState = true)
@@ -2985,6 +3002,15 @@ fun startAddNetwork() {
     /** Channels whose join catch-up waits for their saved log, with the page size to use. */
     internal val pendingJoinCatchups: MutableMap<String, Int> = java.util.concurrent.ConcurrentHashMap()
 
+    /** Log writes run here one at a time, so lines reach each file in the order they arrived. */
+    internal val logLane = kotlinx.coroutines.Dispatchers.IO.limitedParallelism(1)
+
+    /** When each nick's away status was last looked up for its nick sheet, by network and nick. */
+    internal val nickAwayLookups: MutableMap<String, Long> = java.util.concurrent.ConcurrentHashMap()
+
+    /** Channels from an irc:// link to join once each network has registered. */
+    internal val pendingUriJoins: MutableMap<String, List<AutoJoinChannel>> = java.util.concurrent.ConcurrentHashMap()
+
     /** Where each buffer's last catch-up request was anchored, to tell progress from a loop. */
     internal val catchupAnchorMs: MutableMap<String, Long> = java.util.concurrent.ConcurrentHashMap()
 
@@ -3006,6 +3032,21 @@ fun startAddNetwork() {
      */
     fun saveDraft(bufferKey: String, text: String, cursor: Int) =
         draftStore.put(bufferKey, text, cursor)
+
+    /**
+     * Put an inline reply that could not be sent into [buffer]'s message box, after anything
+     * already typed there.
+     */
+    fun keepFailedReply(netId: String, buffer: String, text: String) {
+        val key = resolveBufferKey(netId, buffer)
+        val existing = draftStore.get(key).text
+        val merged = if (existing.isBlank()) text else "$existing $text"
+        draftStore.put(key, merged, merged.length)
+        // The open conversation's composer reads its draft only when switched to.
+        if (_state.value.selectedBuffer == key) {
+            _state.update { it.copy(pendingShareText = merged, pendingShareTarget = key) }
+        }
+    }
 
     // Web Push (draft/webpush)
 
@@ -3175,7 +3216,7 @@ fun startAddNetwork() {
         }
 
         // Android 17+: connecting to a LAN peer requires ACCESS_LOCAL_NETWORK.
-        if (isLocalHost(offer.ip) && !hasLocalNetworkPermission()) {
+        if (isLanHost(offer.ip) && !hasLocalNetworkPermission()) {
             append(key, from = null,
                 text = "*** " + appContext.getString(R.string.vm_dcc_chat_lan_perm, peer),
                 isHighlight = true)

@@ -76,6 +76,10 @@ class NotificationHelper(private val ctx: Context) {
         /** Serialises conversation posts, so a refresh cannot overwrite a newer message. */
         private val postLock = Any()
 
+        /** When each avatar was last fetched for a conversation, by tag and URL. */
+        private val avatarFetches = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        private const val AVATAR_FETCH_GAP_MS = 60_000L
+
         /** The id of a conversation's shortcut, also used as its locus id. */
         fun conversationShortcutId(networkId: String, buffer: String): String =
             "conv:" + notifTagFor(networkId, buffer).lowercase(java.util.Locale.ROOT)
@@ -110,6 +114,17 @@ class NotificationHelper(private val ctx: Context) {
         const val ACTION_ACCEPT_DCC       = "action_accept_dcc"
         const val EXTRA_DCC_FROM          = "extra_dcc_from"
         const val EXTRA_DCC_FILENAME      = "extra_dcc_filename"
+
+        /**
+         * Carried by the quit, exit and accept-DCC intents. MainActivity is exported, so an
+         * action is honoured only with this process's token.
+         */
+        const val EXTRA_ACTION_TOKEN = "extra_action_token"
+        private val actionToken: String = java.util.UUID.randomUUID().toString()
+
+        /** True when [intent] came from one of this process's notifications. */
+        fun hasActionToken(intent: Intent): Boolean =
+            runCatching { intent.getStringExtra(EXTRA_ACTION_TOKEN) }.getOrNull() == actionToken
 
         fun cancelAll(ctx: Context) {
             lastPosts.clear()
@@ -259,6 +274,7 @@ class NotificationHelper(private val ctx: Context) {
         val i = Intent(ctx, MainActivity::class.java)
             .putExtra(EXTRA_NETWORK_ID, networkId)
             .putExtra(EXTRA_ACTION, action)
+            .putExtra(EXTRA_ACTION_TOKEN, actionToken)
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or
             (if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
         val rc = if (stableRequestCode >= 0) stableRequestCode else nextPiRequestCode()
@@ -467,7 +483,16 @@ class NotificationHelper(private val ctx: Context) {
         val originalText: String,
         val msgAnchor: String?,
         val selfName: String?,
-        val messages: List<NotificationCompat.MessagingStyle.Message>,
+        val messages: List<PostedMessage>,
+    )
+
+    /** One message of a conversation notification, without its sender's picture. */
+    private data class PostedMessage(
+        val text: CharSequence?,
+        val timeMs: Long,
+        val sender: String?,
+        val dataMimeType: String? = null,
+        val dataUri: android.net.Uri? = null,
     )
 
     /** A conversation's icon, with a key that changes when the picture does. */
@@ -503,11 +528,13 @@ class NotificationHelper(private val ctx: Context) {
                     .firstOrNull { it.tag == tag && it.id == NOTIF_ID_CONVERSATION }
                     ?.let { NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(it.notification) }
             }.getOrNull()
-            val sender = from.takeIf { it.isNotBlank() }?.let { personFor(networkId, it, missing) }
             val messages = previous?.messages.orEmpty()
                 .takeLast(MAX_CONVERSATION_MESSAGES - 1)
-                .map { withAvatar(networkId, it, missing) } +
-                NotificationCompat.MessagingStyle.Message(body, timeMs, sender)
+                .map { m ->
+                    PostedMessage(m.text, m.timestamp, m.person?.name?.toString(), m.dataMimeType, m.dataUri)
+                } +
+                // A message with no sender would read as one of ours.
+                PostedMessage(body, timeMs, from.ifBlank { title })
             show(
                 ConversationPost(
                     channelId, networkId, buffer, title, from, text, timeMs, isGroup,
@@ -520,22 +547,44 @@ class NotificationHelper(private val ctx: Context) {
         fetchAvatars(tag, missing)
     }
 
-    /** Repost [tag]'s conversation silently with the avatars fetched since, if it is still in the shade. */
-    private fun refreshConversation(tag: String) {
+    /**
+     * Repost [tag]'s conversation silently with the avatars fetched since, if it is still in the
+     * shade. Returns false when there was nothing to repost.
+     */
+    private fun refreshConversation(tag: String): Boolean {
         val missing = HashSet<String>()
         synchronized(postLock) {
-            val post = lastPosts[tag] ?: return
+            val post = lastPosts[tag] ?: return false
             val showing = runCatching {
                 NotificationManagerCompat.from(ctx).activeNotifications
                     .any { it.tag == tag && it.id == NOTIF_ID_CONVERSATION }
             }.getOrDefault(false)
             if (!showing) {
                 lastPosts.remove(tag)
-                return
+                return false
             }
-            show(post.copy(messages = post.messages.map { withAvatar(post.networkId, it, missing) }), alertOnce = true, missing)
+            show(post, alertOnce = true, missing)
         }
         fetchAvatars(tag, missing)
+        return true
+    }
+
+    /**
+     * Report an inline reply to [buffer] that could not be sent. The conversation is reposted so
+     * it stops showing the reply as sending, or removed when this process never posted it.
+     */
+    fun notifyReplyNotSent(networkId: String, buffer: String) {
+        ensureChannels()
+        val tag = notifTagFor(networkId, buffer)
+        val mgr = NotificationManagerCompat.from(ctx)
+        if (!refreshConversation(tag)) runCatching { mgr.cancel(tag, NOTIF_ID_CONVERSATION) }
+        val builder = NotificationCompat.Builder(ctx, CH_HIGHLIGHT_SILENT)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(ctx.getString(R.string.notif_reply_not_sent_title))
+            .setContentText(ctx.getString(R.string.notif_reply_not_sent_text, buffer))
+            .setAutoCancel(true)
+        openBufferPendingIntent(networkId, buffer)?.let { builder.setContentIntent(it) }
+        runCatching { mgr.notify(tag, nextNotifId(), builder.build()) }
     }
 
     private fun show(post: ConversationPost, alertOnce: Boolean, missing: MutableSet<String>) {
@@ -547,7 +596,12 @@ class NotificationHelper(private val ctx: Context) {
         val style = NotificationCompat.MessagingStyle(self)
             .setConversationTitle(if (post.isGroup) post.title else null)
             .setGroupConversation(post.isGroup)
-        post.messages.forEach { style.addMessage(it) }
+        for (m in post.messages) {
+            val sender = m.sender?.let { personFor(post.networkId, it, missing) }
+            val message = NotificationCompat.MessagingStyle.Message(m.text, m.timeMs, sender)
+            m.dataMimeType?.let { message.setData(it, m.dataUri) }
+            style.addMessage(message)
+        }
 
         val builder = NotificationCompat.Builder(ctx, post.channelId)
             .setSmallIcon(android.R.drawable.stat_notify_chat)
@@ -581,7 +635,13 @@ class NotificationHelper(private val ctx: Context) {
 
     /** Fetch the avatars [urls] in the background, reposting [tag]'s conversation as each arrives. */
     private fun fetchAvatars(tag: String, urls: Set<String>) {
-        for (url in urls) RemoteBitmaps.load(url) { refreshConversation(tag) }
+        val now = System.currentTimeMillis()
+        if (avatarFetches.size > 256) avatarFetches.clear()
+        for (url in urls) {
+            val last = avatarFetches.put("$tag\u0000$url", now)
+            if (last != null && now - last < AVATAR_FETCH_GAP_MS) continue
+            RemoteBitmaps.load(url) { refreshConversation(tag) }
+        }
     }
 
     private fun personKey(networkId: String, nick: String): String =
@@ -594,18 +654,6 @@ class NotificationHelper(private val ctx: Context) {
             .setKey(personKey(networkId, nick))
             .setIcon(IconCompat.createWithBitmap(avatarFor(networkId, nick, missing)))
             .build()
-
-    /** [m] with its sender's current avatar, when the sender is someone on [networkId]. */
-    private fun withAvatar(
-        networkId: String,
-        m: NotificationCompat.MessagingStyle.Message,
-        missing: MutableSet<String>,
-    ): NotificationCompat.MessagingStyle.Message {
-        val name = m.person?.name?.toString() ?: return m
-        if (m.person?.key != personKey(networkId, name)) return m
-        return NotificationCompat.MessagingStyle.Message(m.text, m.timestamp, personFor(networkId, name, missing))
-            .also { copy -> m.dataMimeType?.let { copy.setData(it, m.dataUri) } }
-    }
 
     /**
      * [nick]'s metadata avatar once fetched, else a lettered one. A URL not fetched yet is
@@ -723,6 +771,7 @@ class NotificationHelper(private val ctx: Context) {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(EXTRA_NETWORK_ID, networkId)
             putExtra(EXTRA_ACTION, ACTION_ACCEPT_DCC)
+            putExtra(EXTRA_ACTION_TOKEN, actionToken)
             putExtra(EXTRA_DCC_FROM, from)
             putExtra(EXTRA_DCC_FILENAME, filename)
             putExtra(EXTRA_NOTIF_ID, notifId)

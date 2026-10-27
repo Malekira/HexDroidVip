@@ -1,26 +1,46 @@
 # Changelog
 All notable changes to HexDroid are documented here.
 
-## [Unreleased]
+## [1.7.8] 2026-10-27
 ### Added
 - Secure DCC chat (SCHAT) `/dcc schat <nick>` always offers a secure chat and `/dcc chat` follows the SDCC setting. The chat shows the certificate fingerprint.
 - Added `/dcc accept`, `/dcc reject` and `/dcc close`
 - `/dcc send <nick>` asks you to pick a file and offers it to them over DCC. Add a type such as `image/*` to narrow file selection.
   In a private message or DCC chat the nick can be left out, for every `/dcc` command.
+- See who reacted to a message. Long-press a reaction, or pick See who reacted from the message menu, for a list of everyone who reacted with a filter for each reaction. Tap a name to open their actions. Screen readers also read out who reacted with each reaction.
+- Choose which channel events show in chat: joins, parts, quits, nick changes, topic changes, kicks and mode changes, each on its own or all at once, from the Channel events card in Chat settings. Your own nick changes and kicks against you always show. The old join/part/quit switch carries over.
+- Smart filter for channel events: joins, parts, quits and nick changes show only for people who spoke in the last 5, 10, 30 or 60 minutes. If someone speaks soon after joining, their join (and any nick change since) is shown at the time it happened.
+- Settings for each channel and private chat, from Channel settings or PM settings in the chat menu: mute its notifications, add highlight words for it, and give a channel its own event settings and smart filter. Muting also silences push notifications for it. These settings are included in backups.
+- Conversation notifications. Each channel or private message gets one notification holding its recent messages, with each sender's name and avatar: their IRCv3 avatar when they have set one, under the same rules as the member list (image previews on, never on a proxied network), otherwise a coloured initial. A channel's notification shows who last highlighted you rather than the channel's initial. Android lists them as conversations, so one can be made a priority conversation, and on Android 11 and later they can open as a bubble you can read and reply in.
+- Search logs, from the chat menu. Search this conversation, this network or every log; all words must appear, quotes match a phrase and `from:nick` keeps one person's messages. Each result shows the lines around it and can open the conversation at that line when it is still in the scrollback.
+- Ignore entries can be limited to what they drop: channel messages, private messages, notices, CTCP, invites, DCC offers, and joins, parts and quits. Choose them in the ignore list, or with `/ignore <mask> <types>` using PUBLIC, MSGS, NOTICES, CTCPS, INVITES, DCC, EVENTS or ALL. A CTCP request from someone ignored for CTCP gets no automatic reply.
+- Backups can include the server, SASL and proxy passwords, encrypted with a passphrase you choose. Restoring such a backup asks for the passphrase, or restores everything else without the passwords.
+- Copy debug info, in About: the app version and device, each network's state, negotiated capabilities and server settings, recent errors and, if you choose, the last 100 raw lines on each network with passwords hidden. It is shown for checking before it is copied.
+- Manage soju networks from the app. The Bouncer networks section of a soju profile can add, edit and delete networks on soju, and a network you add can be imported as a profile straight away. Deleting a network can delete its profile too.
+- Search logs also searches the history soju keeps, for the conversations the search covers. Those results are marked Bouncer, results already in your logs appear once, and opening one loads the messages around it if they aren't in the scrollback.
+- Mutes are shared with soju. Muting a channel or private chat here mutes it for your other soju clients and the other way round, and a change made on either side while the other was away is kept when they next connect.
+
+### Changed
+- Lines you type are sent ahead of background requests.
+- Server replies are matched to their requests instead of by time limits, so slow replies still land in the right place. Messages the server refuses are marked as not sent.
+- soju: imported networks follow renames, and HexDroid doesn't hold back what it sends on servers with soju.im/SAFERATE.
 
 ### Fixed
-- SDCC file transfers (SSEND) failing whenever HexDroid was the side waiting for the connection, and against peers with self-signed certificates.
-- Resumed DCC downloads could be corrupted by repeating part of the file.
-- DCC chat messages now notify like private messages, and replying from the notification goes over the chat instead of to the IRC server.
-- Accepting a DCC chat from Transfers now opens the chat.
-- Closing a DCC chat while waiting for the other person to connect now stops waiting.
-- DCC offers with a lowercase verb (such as `DCC send`) being ignored.
-- A DCC connection to an unreachable address now gives up after 30 seconds.
-- Starting a DCC send could drop messages that arrived at the same moment.
-- Copies of files sent over DCC piling up in the app's cache.
-- A DCC chat peer sending an endless line could exhaust memory. DCC chat also reads non-UTF-8 text the way the IRC connection does.
+- SDCC and DCC: SSEND failing when HexDroid was the listening side or with self-signed certificates, corrupted resumes, lowercase DCC offers being ignored, and DCC chat notifications and replies.
+- Crashes on devices without a file picker, such as some Android TV boxes, and when a stored password was corrupted.
+- Your own messages showing twice when the server was slow to echo them or after a multi-line paste.
+- A channel's modes and creation date appearing in chat a while after joining.
+- The server password always being sent with a leading, and one-word soju messages raising no push notification.
+- Encrypted messages replayed by a bouncer showing as ciphertext.
+- Web Push alerting for notices, so services and bots pinged after every bouncer reconnect.
+- Android 17 not asking for the Local Network permission for a LAN server given by hostname, a LAN proxy, or passive DCC from a LAN peer.
+- irc:// links to a network you already have now connect and join the channel, without adding it to auto-join.
+- A reply from a notification that couldn't be sent is now kept in the message box.
+- Away status missing for people already away in large channels, and on a busy network sometimes forgotten for everyone.
+- soju printing an error for each metadata key on connect, and reconnecting endlessly when it needs an account.
+- Many smaller fixes to reconnecting, notifications, logs, history and translations.
 
-## [1.7.7] 2026-09-06
+## [1.7.7] 2026-10-06
 ### Added
 - Delete logs option when no folder is selected, Export logs as .zip
 - Expanded .hex engine (docs at https://hexdroid.org/scripting)

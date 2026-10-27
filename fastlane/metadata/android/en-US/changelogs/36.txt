@@ -1,0 +1,10 @@
+Introducing bubbles and better notifications.
+
+Each channel and PM gets its own notification, with names and avatars. On Android 11+, open it as a bubble to read and reply
+Per-channel mute, highlight words and event settings
+Smart filter hides joins and parts from people who aren't talking
+Search your logs and your soju bouncer's history
+Manage soju networks in the app
+See who reacted to a message
+Secure DCC chat and /dcc commands
+Encrypted password backups

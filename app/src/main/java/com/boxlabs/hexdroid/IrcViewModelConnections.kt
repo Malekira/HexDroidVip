@@ -240,10 +240,9 @@ internal fun IrcViewModel.hasInternetConnection(): Boolean {
 }
 
 /**
- * Returns true when [host] resolves to a private/loopback/link-local address
- * that requires ACCESS_LOCAL_NETWORK on Android 17+.
- * Does a quick string-based check first (no DNS lookup) to avoid blocking the
- * calling coroutine; unresolvable hostnames are assumed to be public.
+ * True when [host] is a loopback, private, link-local or unique-local address or a .local name,
+ * judged from the string alone (no DNS lookup); other hostnames count as public. Such a DCC
+ * target is refused through a proxy. [isLanHost] is the part the local-network permission covers.
  */
 internal fun IrcViewModel.isLocalHost(host: String): Boolean {
     val h = host.trim().lowercase()
@@ -269,6 +268,13 @@ internal fun IrcViewModel.isLocalHost(host: String): Boolean {
     if (h.endsWith(".local")) return true
     // Let DNS sort out anything else
     return false
+}
+
+/** [isLocalHost] without loopback, which stays on the device and needs no local-network permission. */
+internal fun IrcViewModel.isLanHost(host: String): Boolean {
+    val h = host.trim().lowercase()
+    if (h == "localhost" || h == "::1" || h.startsWith("127.")) return false
+    return isLocalHost(h)
 }
 
 /**
@@ -330,7 +336,7 @@ internal fun IrcViewModel.isProxiedNetwork(netId: String): Boolean {
  * auto-accepting too, so a blocked offer falls back to the normal prompt.
  */
 internal fun IrcViewModel.dccBlockedByLanPermission(offer: DccOffer): Boolean =
-    !offer.isPassive && isLocalHost(offer.ip) && !hasLocalNetworkPermission()
+    isLanHost(offer.ip) && !hasLocalNetworkPermission()
 
 internal fun IrcViewModel.hasLocalNetworkPermission(): Boolean {
     if (android.os.Build.VERSION.SDK_INT < 37) return true

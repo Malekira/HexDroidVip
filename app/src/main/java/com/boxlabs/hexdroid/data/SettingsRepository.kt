@@ -824,7 +824,7 @@ class SettingsRepository(private val ctx: Context) {
         return arr
     }
 
-    private fun defaultNetworks(): List<NetworkProfile> = listOf(
+    internal fun defaultNetworks(): List<NetworkProfile> = listOf(
         NetworkProfile(
             id = "AfterNET",
             name = "AfterNET",

@@ -1579,8 +1579,8 @@ class IrcClient(val config: IrcConfig) {
     fun whoxAvailable(): Boolean = whoxSupported && config.capPrefs.whox
 
     /**
-     * Re-query the member list of [target] for away status and account changes. WHOX where
-     * the server has it, plain WHO otherwise; the away flag is in the flags field of both.
+     * Re-query [target], a channel's members or one nick, for away status and account changes.
+     * WHOX where the server has it, plain WHO otherwise; the away flag is in the flags field of both.
      */
     suspend fun refreshChannelWho(target: String) {
         val who = whoFor(target, null)

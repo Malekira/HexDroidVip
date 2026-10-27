@@ -84,8 +84,8 @@ internal fun IrcViewModel.parseIrcUri(raw: String): IrcUri? {
 
 /**
  * Open the network matching an IRC URI: an exact host, port and TLS match, else a host match,
- * else a new pre-filled profile opened in the editor. The URI's channels are added to autoJoin.
- * A matched network connects immediately and opens the first channel.
+ * else a new pre-filled profile opened in the editor with the URI's channels in its auto-join.
+ * A matched network connects if needed, joins the URI's channels and opens the first.
  */
 internal fun IrcViewModel.handleIrcUri(ircUri: IrcUri) {
     viewModelScope.launch {
@@ -109,15 +109,24 @@ internal fun IrcViewModel.handleIrcUri(ircUri: IrcUri) {
         }
 
         if (existing != null) {
-            // Merge any new channels into the existing autoJoin list.
-            val mergedJoin = (existing.autoJoin + newAutoJoin)
-                .distinctBy { it.channel.lowercase() }
-            if (mergedJoin != existing.autoJoin) {
-                repo.updateNetworkProfile(existing.id) { it.copy(autoJoin = mergedJoin) }
+            val netId = existing.id
+            setActiveNetwork(netId)
+            val rt = runtimes[netId]
+            if (rt != null && rt.client.registered && hasLiveConnection(netId)) {
+                for (c in newAutoJoin) {
+                    rt.pendingUserJoinSwitch.add(casefoldText(netId, c.channel))
+                    rt.client.sendRaw(if (c.key.isNullOrBlank()) "JOIN ${c.channel}" else "JOIN ${c.channel} ${c.key}")
+                }
+            } else {
+                if (newAutoJoin.isNotEmpty()) {
+                    pendingUriJoins.merge(netId, newAutoJoin) { old, add ->
+                        (old + add).distinctBy { casefoldText(netId, it.channel) }
+                    }
+                }
+                connectNetwork(netId)
             }
-            setActiveNetwork(existing.id)
             if (ircUri.channels.isNotEmpty()) {
-                openBuffer(bufKey(existing.id, ircUri.channels.first()))
+                openBuffer(resolveBufferKey(netId, ircUri.channels.first()))
             } else {
                 backToChat()
             }
@@ -155,8 +164,9 @@ fun IrcViewModel.handleIntent(intent: Intent?) {
     // Handle text shared from another app (e.g. share a URL to paste into IRC).
     if (intent.action == Intent.ACTION_SEND &&
         intent.type?.startsWith("text/") == true) {
-        val sharedText = intent.getStringExtra(android.content.Intent.EXTRA_TEXT)
-            ?.trim()?.takeIf { it.isNotBlank() }
+        // Some apps share a CharSequence, which getStringExtra would read as null.
+        val sharedText = runCatching { intent.getCharSequenceExtra(android.content.Intent.EXTRA_TEXT) }.getOrNull()
+            ?.toString()?.trim()?.takeIf { it.isNotBlank() }
         if (sharedText != null) {
             // Navigate to chat screen if not already there. Use backToChat so
             // unread/highlights on the previously-selected buffer get cleared
@@ -165,7 +175,7 @@ fun IrcViewModel.handleIntent(intent: Intent?) {
             if (_state.value.screen != AppScreen.CHAT) {
                 backToChat()
             }
-            _state.value = _state.value.copy(pendingShareText = sharedText)
+            _state.value = _state.value.copy(pendingShareText = sharedText, pendingShareTarget = null)
         }
         return
     }
@@ -195,7 +205,7 @@ fun IrcViewModel.handleIntent(intent: Intent?) {
         return
     }
 
-    if (action == NotificationHelper.ACTION_ACCEPT_DCC) {
+    if (action == NotificationHelper.ACTION_ACCEPT_DCC && NotificationHelper.hasActionToken(intent)) {
         val from     = intent.getStringExtra(NotificationHelper.EXTRA_DCC_FROM)     ?: ""
         val filename = intent.getStringExtra(NotificationHelper.EXTRA_DCC_FILENAME) ?: ""
         val notifId  = intent.getIntExtra(NotificationHelper.EXTRA_NOTIF_ID, -1)

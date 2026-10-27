@@ -95,7 +95,8 @@ fun FloatingChat(
     LaunchedEffect(selected) {
         if (messages.isNotEmpty()) runCatching { listState.scrollToItem(0) }
     }
-    LaunchedEffect(messages.size) {
+    // Keyed on the newest message: a buffer at its scrollback cap stays the same size.
+    LaunchedEffect(messages.lastOrNull()?.id) {
         if (messages.isNotEmpty() && listState.firstVisibleItemIndex <= 1) {
             runCatching { listState.scrollToItem(0) }
         }

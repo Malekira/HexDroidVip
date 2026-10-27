@@ -80,7 +80,9 @@ class HexPushService : PushService() {
         if (!policy.notificationsEnabled) return
 
         when (msg.command.uppercase()) {
-            "PRIVMSG", "NOTICE" -> {
+            // Notices never alert over the live connection either, and nothing would
+            // deduplicate them: services and bots send them on every reconnect.
+            "PRIVMSG" -> {
                 val target = msg.params.getOrNull(0) ?: return
                 // A one-word message may arrive without the colon, as a plain last parameter.
                 val body = (msg.trailing ?: msg.params.getOrNull(1))?.takeIf { it.isNotBlank() } ?: return

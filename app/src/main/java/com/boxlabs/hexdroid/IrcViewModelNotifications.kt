@@ -39,19 +39,29 @@ internal fun IrcViewModel.postKeepAliveUpdate(i: Intent, netId: String, label: S
         runCatching {
             when {
                 KeepAliveService.isRunning -> appContext.startService(i)
-                AppVisibility.canStartForegroundService() -> ContextCompat.startForegroundService(appContext, i)
+                AppVisibility.canStartForegroundService() -> {
+                    KeepAliveService.startRequested = true
+                    ContextCompat.startForegroundService(appContext, i)
+                }
                 else -> notifier.showConnection(netId, label, status)
             }
-        }.onFailure { runCatching { notifier.showConnection(netId, label, status) } }
+        }.onFailure {
+            KeepAliveService.startRequested = false
+            runCatching { notifier.showConnection(netId, label, status) }
+        }
     }
 }
 
-/** Stop the keep-alive service, dropping any update still waiting to be sent. */
+/**
+ * Stop the keep-alive service, dropping any update still waiting to be sent. Does nothing when
+ * it is neither running nor starting, since the stop request would create it first.
+ */
 internal fun IrcViewModel.stopKeepAliveService() {
     keepAliveUpdateJob?.cancel()
     keepAliveUpdateJob = null
     lastNotifLabel = null
     lastNotifStatus = null
+    if (!KeepAliveService.isRunning && !KeepAliveService.startRequested) return
     runCatching {
         appContext.startService(Intent(appContext, KeepAliveService::class.java).apply { action = KeepAliveService.ACTION_STOP })
     }

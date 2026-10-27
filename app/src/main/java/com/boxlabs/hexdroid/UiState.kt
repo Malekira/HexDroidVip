@@ -570,6 +570,8 @@ data class UiState(
     /** Text shared from another app via ACTION_SEND. ChatScreen pre-fills the input with this
      *  and clears it once consumed. */
     val pendingShareText: String? = null,
+    /** The buffer [pendingShareText] must go to, or null for whichever is open. */
+    val pendingShareTarget: String? = null,
     /** Epoch-ms when pendingHighlightAnchor was last set; used to time-out the scroll attempt. */
     val pendingHighlightSetAtMs: Long = 0L,
     /** The buffer key that pendingHighlightAnchor belongs to. */
