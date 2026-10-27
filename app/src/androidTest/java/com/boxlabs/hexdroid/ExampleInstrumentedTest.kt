@@ -19,6 +19,6 @@ class ExampleInstrumentedTest {
     fun useAppContext() {
         // Context of the app under test.
         val appContext = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("com.boxlabs.hexdroid", appContext.packageName)
+        assertEquals("com.malekira.hexdroid.personal.debug", appContext.packageName)
     }
 }

@@ -76,6 +76,7 @@ interface EngineCallbacks {
     fun sendRaw(line: String)
     fun setting(key: String): String?
     fun nick(): String?
+    fun members(channel: String): List<String> = emptyList()
     fun log(message: String)
 
     /**

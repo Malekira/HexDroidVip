@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/personal-phase1-whois-notice
+      - feat/personal-phase2
   workflow_dispatch:
 
 permissions:
@@ -31,9 +32,56 @@ jobs:
 
       - name: Set up Gradle cache
         uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Build debug APK and run unit tests
         run: bash ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --max-workers=2
+
+      - name: Enable KVM for Android UI tests
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Test the internal WHOIS panel on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          script: bash ./gradlew :app:connectedDebugAndroidTest --no-daemon --max-workers=2
+
+      - name: Summarize executed tests
+        if: always()
+        shell: python
+        run: |
+          import os, pathlib, xml.etree.ElementTree as E
+          report_paths = sorted({p for p in pathlib.Path('app/build').rglob('*.xml') if 'result' in str(p).lower() or 'report' in str(p).lower()})
+          expected = 'roomRemainsWhilePanelMovesMinimizesRestoresAndCloses'
+          overlay_executed = False
+          discovered = []
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('## Resultados de pruebas\n')
+              for path in report_paths:
+                  root = E.parse(path).getroot()
+                  cases = list(root.iter('testcase'))
+                  if not cases:
+                      continue
+                  out.write(f"- {path}: {len(cases)} pruebas\n")
+                  for case in cases:
+                      identity = case.get('classname', '') + '.' + case.get('name', '')
+                      discovered.append(identity)
+                      if expected in case.get('name', '') and case.find('skipped') is None and case.find('failure') is None and case.find('error') is None:
+                          overlay_executed = True
+                      for failure in list(case.findall('failure')) + list(case.findall('error')):
+                          out.write(f"\n```text\n{identity}: {(failure.text or failure.get('message', ''))[:6000]}\n```\n")
+          if not overlay_executed:
+              diagnostic = ('Required WHOIS UI test not found as passed. Reports: ' + str([str(p) for p in report_paths]) + '; cases: ' + str(discovered))[:5000]
+              print('::error::' + diagnostic)
+              raise SystemExit(diagnostic)
+
 
       - name: Verify signature and personal identity
         shell: bash
@@ -72,3 +120,44 @@ jobs:
             echo "Código compilado: $GITHUB_SHA"
             echo 'El archivo estará disponible durante 30 días. No se publica ninguna clave privada.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  review-pr:
+    name: Open Phase 2 review PR
+    if: github.ref == 'refs/heads/feat/personal-phase2'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Open or locate the review PR without merging
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_error() {
+            error=$(tr '\n' ' ' < "$RUNNER_TEMP/pr-error.txt")
+            echo "::error::$error"
+            echo '## No se pudo abrir el PR desde Actions' >> "$GITHUB_STEP_SUMMARY"
+            echo "$error" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+          if ! existing=$(gh api "repos/$GITHUB_REPOSITORY/pulls" --method GET -f state=open -f "head=${GITHUB_REPOSITORY_OWNER}:$GITHUB_REF_NAME" -f base=feat/personal-phase1-whois-notice --jq '.[0].html_url // ""' 2> "$RUNNER_TEMP/pr-error.txt"); then
+            report_error
+          fi
+          if [ -n "$existing" ]; then
+            url="$existing"
+          else
+            python3 - <<'PYCODE'
+          import json, os, pathlib
+          payload = {'title': 'HexDroid Personal — Fase 2: WHOIS flotante, menciones y entrada', 'head': os.environ['GITHUB_REF_NAME'], 'base': 'feat/personal-phase1-whois-notice', 'body': pathlib.Path('docs/PERSONAL_PHASE2_PR.md').read_text()}
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'phase2-pr.json').write_text(json.dumps(payload))
+          PYCODE
+            if ! url=$(gh api "repos/$GITHUB_REPOSITORY/pulls" --method POST --input "$RUNNER_TEMP/phase2-pr.json" --jq '.html_url' 2> "$RUNNER_TEMP/pr-error.txt"); then
+              report_error
+            fi
+          fi
+          echo "[PR de Fase 2 para revisión]($url)" >> "$GITHUB_STEP_SUMMARY"

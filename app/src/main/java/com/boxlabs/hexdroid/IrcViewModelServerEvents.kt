@@ -518,7 +518,10 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                                 selectedKey = st.selectedBuffer, privateNick = ev.whoisNick,
                                 resolve = { resolveBufferKey(netId, it) },
                             )
-                            whoisBlocks.add(netId, id, ev.whoisNick, destinations, visibleText)
+                            whoisBlocks.add(netId, id, ev.whoisNick, destinations, visibleText,
+                                floating = st.settings.whoisDestinations and ReplyDestination.FLOATING != 0,
+                                fields = if (visibleText == ev.text) whoisFields(code, ev.whoisParams, ev.whoisTrailing, System.currentTimeMillis() / 1000) else emptyMap(),
+                            )
                             if (code == "318") {
                                 flushWhoisBlock(netId, id)
                             } else if (first) {
@@ -1131,9 +1134,24 @@ internal fun IrcViewModel.flushWhoisBlock(netId: String, id: Long) {
     whoisBlockTimeouts.remove(netId to id)?.cancel()
     val block = whoisBlocks.finish(netId, id) ?: return
     if (block.lines.isEmpty()) return
+    if (block.floating) _state.update { st ->
+        st.copy(whoisWindows = mergeWhoisWindow(st.whoisWindows, WhoisWindow(id, netId, block.nick, block.fields.toMap(), block.lines.toList())))
+    }
     for (destination in block.destinations) {
         ensureBuffer(destination)
         // Keep individual log lines, but append the entire query contiguously on the UI thread.
         for (line in block.lines) append(destination, from = null, text = line, doNotify = false)
     }
+}
+
+fun IrcViewModel.minimizeWhois(id: Long, minimized: Boolean) {
+    _state.update { st -> st.copy(whoisWindows = if (minimized) st.whoisWindows.map { if (it.id == id) it.copy(minimized = true) else it }
+        else st.whoisWindows.filterNot { it.id == id } + listOfNotNull(st.whoisWindows.find { it.id == id }?.copy(minimized = false))) }
+}
+fun IrcViewModel.closeWhois(id: Long) {
+    _state.update { st -> st.copy(whoisWindows = st.whoisWindows.filterNot { it.id == id }) }
+}
+
+fun IrcViewModel.moveWhois(id: Long, x: Float, y: Float) {
+    _state.update { st -> st.copy(whoisWindows = st.whoisWindows.map { if (it.id == id) it.copy(offsetX = x, offsetY = y) else it }) }
 }

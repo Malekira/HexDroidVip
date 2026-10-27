@@ -45,6 +45,8 @@ interface ScriptHost {
     /** Our current nick on [network] (or the active network when null). */
     fun nick(network: String?): String?
 
+    fun members(network: String?, channel: String): List<String> = emptyList()
+
     /** Active network id, or null when nothing is connected. */
     fun activeNetwork(): String?
 

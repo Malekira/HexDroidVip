@@ -2689,14 +2689,7 @@ class IrcClient(val config: IrcConfig) {
 					}
 				}
 				if (numericText != null && msg.command !in specialNumericCodes) {
-					send(IrcEvent.ServerText(
-						numericText,
-						code = msg.command,
-						bufferName = modeNumericBuffer ?: whoisRequest?.buffer,
-						isWhoisReply = whoisRequest != null,
-						whoisNick = if (whoisRequest != null) msg.params.getOrNull(1) else null,
-						whoisRequestId = whoisRequest?.id,
-					))
+					send(whoisServerOutput(numericText, msg, modeNumericBuffer, whoisRequest))
 				} else if (msg.command.length == 3 && msg.command.all { it.isDigit() }
 					&& msg.command !in setOf(
 						"001",
@@ -2728,13 +2721,7 @@ class IrcClient(val config: IrcConfig) {
 						.filter { it.isNotBlank() }
 					val body = bodyParts.joinToString(" ")
 					if (body.isNotBlank()) {
-						send(IrcEvent.ServerText(
-                            "[${msg.command}] $body", code = msg.command,
-                            bufferName = whoisRequest?.buffer,
-                            isWhoisReply = whoisRequest != null,
-                            whoisNick = if (whoisRequest != null) msg.params.getOrNull(1) else null,
-                            whoisRequestId = whoisRequest?.id,
-                        ))
+						send(whoisServerOutput("[${msg.command}] $body", msg, null, whoisRequest))
 					}
 				}
 

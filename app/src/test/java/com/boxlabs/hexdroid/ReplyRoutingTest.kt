@@ -51,7 +51,7 @@ class ReplyRoutingTest {
         assertEquals(setOf(status, "red::#origin"), replyDestinations(1 or 16, "red", NOTICES_BUFFER, "otra::#x", "Alice", "red::#origin"))
     }
     @Test fun whoisFromAChannelReachesStatusAndWhoisWindow() {
-        assertEquals(setOf(status, "red::$WHOIS_BUFFER"), replyDestinations(ReplyDestination.WHOIS_DEFAULT, "red", WHOIS_BUFFER, "red::#sala", "Alice"))
+        assertEquals(setOf(status, "red::$WHOIS_BUFFER"), replyDestinations(ReplyDestination.STATUS or ReplyDestination.WINDOW, "red", WHOIS_BUFFER, "red::#sala", "Alice"))
     }
     @Test fun caseMappingResolutionPreventsDuplicatePrivateCopies() {
         val destinations = replyDestinations(4 or 8, "red", WHOIS_BUFFER, "red::alice", "ALICE", resolve = { "red::" + it.lowercase() })

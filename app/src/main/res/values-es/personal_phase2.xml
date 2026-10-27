@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="p2_floating">Panel WHOIS flotante (dentro de HexDroid)</string>
+    <string name="p2_minimize">Minimizar</string>
+    <string name="p2_restore">Recuperar WHOIS</string>
+    <string name="p2_close">Cerrar WHOIS</string>
+    <string name="p2_copy">Copiar todo</string>
+    <string name="p2_details">Información adicional</string>
+    <string name="p2_notify_visible">Notificar menciones incluso viendo la sala</string>
+    <string name="p2_highlight">Resaltar menciones</string>
+    <string name="p2_color">Color de menciones (#RRGGBB)</string>
+    <string name="p2_bots">Bots excluidos de /buenosdias todos (separados por espacios)</string>
+    <string name="p2_greeting_long">El saludo supera el límite de una línea IRC. No se envió nada.</string>
+    <string name="p2_greeting_usage">Usa /buenosdias o /buenosdias todos en una sala.</string>
+    <string name="p2_nick">Nick</string>
+    <string name="p2_user">Usuario</string>
+    <string name="p2_host">Host</string>
+    <string name="p2_realname">Nombre real</string>
+    <string name="p2_channels">Canales</string>
+    <string name="p2_server">Servidor</string>
+    <string name="p2_account">Cuenta</string>
+    <string name="p2_away">Ausente</string>
+    <string name="p2_idle">Inactivo</string>
+    <string name="p2_signon">Conectado desde (UTC)</string>
+    <string name="p2_connected">Tiempo conectado</string>
+    <string name="p2_members_pending">El listado de nicks de la sala todavía no está disponible. No se envió nada.</string>
+</resources>

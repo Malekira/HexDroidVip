@@ -621,6 +621,8 @@ class HexScriptBackend : ScriptBackend {
 
     /** Closed built-in identifier set (spec §2). */
     private fun builtin(name: String, a: List<String>, env: Env): String = when (name) {
+        "members" -> cb.members(a.firstOrNull() ?: env.fields["chan"].orEmpty()).joinToString(" ")
+        "membernames" -> cb.members(a.firstOrNull() ?: env.fields["chan"].orEmpty()).map { it.trimStart('~', '&', '@', '%', '+') }.joinToString(" ")
         "len" -> (a.getOrNull(0)?.length ?: 0).toString()
         "lower" -> a.getOrNull(0)?.lowercase() ?: ""
         "upper" -> a.getOrNull(0)?.uppercase() ?: ""

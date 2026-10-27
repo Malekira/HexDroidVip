@@ -626,3 +626,13 @@ fun IrcViewModel.scriptAppCommand(network: String?, buffer: String?, line: Strin
     }
     sendInput(raw)
 }
+
+/** Real cached NAMES/WHO membership, with server-supplied status prefixes. */
+fun IrcViewModel.scriptMembers(network: String?, channel: String): List<String> {
+    val net = network ?: _state.value.activeNetworkId ?: return emptyList()
+    val key = _state.value.nicklists.keys.firstOrNull { k ->
+        val (nid, name) = splitKey(k)
+        nid == net && casefoldText(net, name) == casefoldText(net, channel)
+    } ?: return emptyList()
+    return _state.value.nicklists[key].orEmpty().toList()
+}

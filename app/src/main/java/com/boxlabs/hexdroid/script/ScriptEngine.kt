@@ -205,6 +205,7 @@ class ScriptEngine(
         override fun sendRaw(line: String) = host.sendRaw(curNet, line)
         override fun setting(key: String): String? = host.getSetting(key)
         override fun nick(): String? = host.nick(curNet)
+        override fun members(channel: String): List<String> = host.members(curNet, channel)
         override fun log(message: String) = host.logDebug(curNet, message)
 
         override fun httpGet(

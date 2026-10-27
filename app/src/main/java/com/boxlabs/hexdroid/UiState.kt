@@ -36,6 +36,7 @@ data class UiMessage(
     val from: String?,
     val text: String,
     val isAction: Boolean = false,
+    val isMention: Boolean = false,
     /** True for MOTD body lines (372) so the UI can auto-size them to fit in one line. */
     val isMotd: Boolean = false,
     /**
@@ -262,6 +263,10 @@ data class UiSettings(
     val nickPaneFracLandscape: Float = 0.05f,
 
     val highlightOnNick: Boolean = true,
+    val notifyMentionsWhileVisible: Boolean = false,
+    val mentionHighlightEnabled: Boolean = true,
+    val mentionHighlightColor: Int = 0xFFFFD54F.toInt(),
+    val greetingBots: String = "",
     val extraHighlightWords: List<String> = emptyList(),
 
     val notificationsEnabled: Boolean = true,
@@ -622,6 +627,7 @@ data class UiState(
 
     val collapsedNetworkIds: Set<String> = emptySet(),
     val settings: UiSettings = UiSettings(),
+    val whoisWindows: List<WhoisWindow> = emptyList(),
     /** Per-buffer settings, keyed by [com.boxlabs.hexdroid.data.ChannelPrefsCodec.keyFor]. */
     val channelPrefs: Map<String, com.boxlabs.hexdroid.data.ChannelPrefs> = emptyMap(),
     // Prevents a one-frame default-value flicker before DataStore loads.

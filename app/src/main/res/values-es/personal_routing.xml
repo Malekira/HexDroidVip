@@ -5,7 +5,7 @@
     <string name="personal_notice_destinations">Destinos de NOTICE</string>
     <string name="personal_reply_destinations_desc">Selecciona uno o varios destinos. Las copias permanecen en la red del evento; los destinos no disponibles usan Status.</string>
     <string name="personal_destination_status">Status de la red</string>
-    <string name="personal_destination_whois">Ventana WHOIS</string>
+    <string name="personal_destination_whois">Pestaña WHOIS (opcional)</string>
     <string name="personal_destination_notices">Ventana Notices</string>
     <string name="personal_destination_private">PV del nick involucrado</string>
     <string name="personal_destination_active">Ventana activa de la misma red</string>

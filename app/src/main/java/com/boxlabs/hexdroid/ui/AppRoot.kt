@@ -17,6 +17,9 @@
 */
 
 package com.boxlabs.hexdroid.ui
+import com.boxlabs.hexdroid.moveWhois
+import com.boxlabs.hexdroid.minimizeWhois
+import com.boxlabs.hexdroid.closeWhois
 
 import android.app.Activity
 import android.os.Build
@@ -570,6 +573,11 @@ fun AppRoot(
         } else {
             LaunchedEffect(pick.id) { launchDccSendPicker(pick) }
         }
+    }
+
+    if (state.screen == AppScreen.CHAT) {
+        WhoisOverlay(state.whoisWindows, state.networks.associate { it.id to it.name },
+            onMinimize = vm::minimizeWhois, onClose = vm::closeWhois, onMove = vm::moveWhois)
     }
 
     mountedScriptView?.let { mv ->
