@@ -88,6 +88,8 @@ sealed class IrcEvent {
         val bufferName: String? = null,
         /** True when the line was matched to an outstanding WHOIS. */
         val isWhoisReply: Boolean = false,
+        val whoisNick: String? = null,
+        val whoisRequestId: Long? = null,
     ) : IrcEvent()
 
     // CTCP replies

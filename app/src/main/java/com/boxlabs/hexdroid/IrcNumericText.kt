@@ -139,10 +139,14 @@ internal fun IrcClient.formatNumeric(msg: IrcMessage): String? {
         "317" -> {
             val nick = p(1) ?: return null
             val idle = p(2)?.toLongOrNull()
-            val signon = p(3)?.toLongOrNull()
-            val idleStr = idle?.let { tr(R.string.core_whois_idle, it / 3600, (it % 3600) / 60, it % 60) } ?: ""
+            val signon = p(3)?.toLongOrNull()?.takeIf { it > 0 && it <= Long.MAX_VALUE / 1000 }
+            val idleStr = whoisDuration(idle)?.let { tr(R.string.personal_whois_idle, it) } ?: ""
             val signonStr = signon?.let { tr(R.string.core_whois_signon, java.util.Date(it * 1000L)) } ?: ""
-            listOf(idleStr, signonStr).filter { it.isNotBlank() }.joinToString(", ").let {
+            val connectedStr = signon?.let { since ->
+                whoisDuration((System.currentTimeMillis() / 1000L - since).takeIf { it >= 0 })
+                    ?.let { tr(R.string.personal_whois_connected, it) }
+            } ?: ""
+            listOf(idleStr, signonStr, connectedStr).filter { it.isNotBlank() }.joinToString(", ").let {
                 if (it.isBlank()) null else "$nick: $it"
             }
         }

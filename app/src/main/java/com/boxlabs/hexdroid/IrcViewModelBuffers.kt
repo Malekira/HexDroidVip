@@ -147,7 +147,7 @@ internal suspend fun IrcViewModel.postReplaySummary(netId: String, tally: Replay
  * True for buffers that exist only locally and are not a valid target.
  */
 internal fun IrcViewModel.isPseudoBuffer(bufferName: String): Boolean =
-    bufferName == "*server*" || bufferName == RAW_BUFFER
+    bufferName == "*server*" || bufferName == RAW_BUFFER || bufferName == WHOIS_BUFFER || bufferName == NOTICES_BUFFER
 
 internal fun IrcViewModel.bufKey(netId: String, bufferName: String): String = "$netId::$bufferName"
 

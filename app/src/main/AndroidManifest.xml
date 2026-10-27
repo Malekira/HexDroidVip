@@ -56,7 +56,7 @@
 
     <application
         android:name=".HexDroidApp"
-        android:label="HexDroid IRC"
+        android:label="@string/personal_app_name"
         android:icon="@mipmap/ic_launcher"
         android:banner="@drawable/tv_banner"
         android:roundIcon="@mipmap/ic_launcher_round"

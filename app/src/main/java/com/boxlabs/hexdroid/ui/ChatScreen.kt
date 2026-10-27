@@ -978,7 +978,7 @@ fun ChatScreen(
 				if (expanded) {
 					for (k in otherKeys) {
 						val (_, name) = splitKey(k)
-						out.add(SidebarItem.Buffer(k, name, 14.dp))
+						out.add(SidebarItem.Buffer(k, bufferLabel(k, state.networks), 14.dp))
 					}
 				}
 				out.add(SidebarItem.DividerItem(nId))
@@ -1936,7 +1936,7 @@ fun ChatScreen(
         }
     }
 
-    val topBarTitle = if (selBufName == "*server*") selNetName else "$selNetName:$selBufName"
+    val topBarTitle = if (selBufName == "*server*") selNetName else "$selNetName:${bufferLabel(selected, state.networks)}"
 
     // Show the channel's modes next to the name. Rendered
     // as a subtitle under the title rather than appended to it.
@@ -3109,7 +3109,7 @@ fun ChatScreen(
                             val isServerTab = keyName == "*server*"
                             // server tab shows the network name; channel/PM tabs show the buffer name
                             // (channels already carry their #/& sigil, so PMs read as bare nicks).
-                            val label = if (isServerTab) netName(keyNet) else keyName
+                            val label = if (isServerTab) netName(keyNet) else bufferLabel(key, state.networks)
                             val con = state.connections[keyNet]
                             val dot = when {
                                 con?.connected == true  -> MaterialTheme.colorScheme.primary

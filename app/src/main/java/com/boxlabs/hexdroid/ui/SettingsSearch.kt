@@ -65,6 +65,10 @@ data class SettingsSearchEntry(
  * Every setting the search can reach, in the order the categories are listed.
  */
 val SETTINGS_SEARCH_INDEX: List<SettingsSearchEntry> = listOf(
+    SettingsSearchEntry(R.string.personal_whois_destinations, SettingsCategory.IRC,
+        descRes = R.string.personal_reply_destinations_desc, keywords = "whois idle status privado destinos presentación"),
+    SettingsSearchEntry(R.string.personal_notice_destinations, SettingsCategory.IRC,
+        descRes = R.string.personal_reply_destinations_desc, keywords = "notice notices status privado destinos presentación"),
     // Appearance
     SettingsSearchEntry(R.string.welcome_language_label, SettingsCategory.APPEARANCE,
         keywords = "language locale translation"),

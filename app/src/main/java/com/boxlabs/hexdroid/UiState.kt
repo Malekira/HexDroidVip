@@ -181,6 +181,9 @@ enum class VibrateIntensity { LOW, MEDIUM, HIGH }
 enum class DccSendMode { AUTO, ACTIVE, PASSIVE }
 
 data class UiSettings(
+    val whoisDestinations: Int = ReplyDestination.WHOIS_DEFAULT,
+    val noticeDestinations: Int = ReplyDestination.NOTICE_DEFAULT,
+    val whoisRequestIdle: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.DARK,
     val compactMode: Boolean = false,
     // Buffer-drawer navigation. networkTabs replaces the vertical network tree with a

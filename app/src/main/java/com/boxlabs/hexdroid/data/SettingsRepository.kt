@@ -10,6 +10,7 @@ import com.boxlabs.hexdroid.ChatFontStyle
 import com.boxlabs.hexdroid.SaslConfig
 import com.boxlabs.hexdroid.SaslMechanism
 import com.boxlabs.hexdroid.UiSettings
+import com.boxlabs.hexdroid.ReplyDestination
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -281,6 +282,9 @@ class SettingsRepository(private val ctx: Context) {
         return try {
             val o = JSONObject(json)
             UiSettings(
+                whoisDestinations = ReplyDestination.sanitize(o.optInt("whoisDestinations", ReplyDestination.WHOIS_DEFAULT), ReplyDestination.WHOIS_MASK, ReplyDestination.WHOIS_DEFAULT),
+                noticeDestinations = ReplyDestination.sanitize(o.optInt("noticeDestinations", ReplyDestination.NOTICE_DEFAULT), ReplyDestination.NOTICE_MASK, ReplyDestination.NOTICE_DEFAULT),
+                whoisRequestIdle = o.optBoolean("whoisRequestIdle", false),
                 themeMode = runCatching {
                     ThemeMode.valueOf(o.optString("themeMode", ThemeMode.DARK.name))
                 }.getOrDefault(ThemeMode.DARK),
@@ -519,6 +523,9 @@ class SettingsRepository(private val ctx: Context) {
         o.put("ctcpRepliesEnabled", s.ctcpRepliesEnabled)
         o.put("nickRegainEnabled", s.nickRegainEnabled)
         if (s.ownNickColorInt != null) o.put("ownNickColorInt", s.ownNickColorInt) else o.remove("ownNickColorInt")
+        o.put("whoisDestinations", s.whoisDestinations)
+        o.put("noticeDestinations", s.noticeDestinations)
+        o.put("whoisRequestIdle", s.whoisRequestIdle)
         o.put("mircColorsEnabled", s.mircColorsEnabled)
         o.put("ansiColorsEnabled", s.ansiColorsEnabled)
         o.put("artDetectionEnabled", s.artDetectionEnabled)

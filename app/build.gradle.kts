@@ -6,7 +6,7 @@ android {
     namespace = "com.boxlabs.hexdroid"
     compileSdk = 37
     defaultConfig {
-        applicationId = "com.boxlabs.hexdroid"
+        applicationId = "com.malekira.hexdroid.personal"
         minSdk = 26
         targetSdk = 37
         versionCode = 36

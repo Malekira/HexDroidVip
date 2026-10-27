@@ -122,6 +122,10 @@ import com.boxlabs.hexdroid.ChatFontStyle
 import com.boxlabs.hexdroid.FontChoice
 import com.boxlabs.hexdroid.NickStyle
 import com.boxlabs.hexdroid.R
+import com.boxlabs.hexdroid.ReplyDestination
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import com.boxlabs.hexdroid.SmartFilter
 import com.boxlabs.hexdroid.data.eventPrefs
 import com.boxlabs.hexdroid.data.withEventPrefs
@@ -1302,6 +1306,33 @@ fun SettingsScreen(
 
             if (onePage || current == SettingsCategory.IRC) {
             if (onePage) item(key = "hdr_IRC") { OnePageHeader(SettingsCategory.IRC) }
+            item {
+                Text(stringResource(R.string.personal_presentation), style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.personal_reply_destinations_desc), style = MaterialTheme.typography.bodySmall)
+            }
+            item {
+                ReplyDestinationSettings(
+                    title = stringResource(R.string.personal_whois_destinations),
+                    mask = s.whoisDestinations,
+                    whois = true,
+                    onChange = { mask -> onUpdate { copy(whoisDestinations = mask) } },
+                )
+            }
+            item {
+                ReplyDestinationSettings(
+                    title = stringResource(R.string.personal_notice_destinations),
+                    mask = s.noticeDestinations,
+                    whois = false,
+                    onChange = { mask -> onUpdate { copy(noticeDestinations = mask) } },
+                )
+            }
+            item {
+                SettingToggle(stringResource(R.string.personal_whois_request_idle), s.whoisRequestIdle) {
+                    onUpdate { copy(whoisRequestIdle = !whoisRequestIdle) }
+                }
+                Text(stringResource(R.string.personal_whois_request_idle_desc), style = MaterialTheme.typography.bodySmall)
+            }
+
 
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -2409,6 +2440,39 @@ private fun SpacingStepRow(
                         onClick = { onSelect(value) },
                         modifier = Modifier.weight(1f).focusHighlight(RoundedCornerShape(50))
                     ) { Text(stringResource(labelRes), style = MaterialTheme.typography.labelLarge) }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun ReplyDestinationSettings(title: String, mask: Int, whois: Boolean, onChange: (Int) -> Unit) {
+    val choices = listOf(
+        ReplyDestination.STATUS to R.string.personal_destination_status,
+        ReplyDestination.WINDOW to if (whois) R.string.personal_destination_whois else R.string.personal_destination_notices,
+        ReplyDestination.PRIVATE to R.string.personal_destination_private,
+        ReplyDestination.ACTIVE to R.string.personal_destination_active,
+    ) + if (whois) emptyList() else listOf(ReplyDestination.ORIGINAL to R.string.personal_destination_original)
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            for ((bit, label) in choices) {
+                val checked = mask and bit != 0
+                // Keep at least one destination selected; clicking a checked final box is a no-op.
+                Row(
+                    Modifier.fillMaxWidth().toggleable(
+                        value = checked, role = Role.Checkbox,
+                        onValueChange = { want ->
+                            val next = if (want) mask or bit else mask and bit.inv()
+                            if (next != 0) onChange(next)
+                        },
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = checked, onCheckedChange = null)
+                    Text(stringResource(label), modifier = Modifier.weight(1f))
                 }
             }
         }

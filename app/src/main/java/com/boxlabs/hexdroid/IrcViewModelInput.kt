@@ -302,7 +302,7 @@ internal fun IrcViewModel.sendInputInternal(raw: String, aliasDepth: Int, target
                         append(currentKey, from = null, isLocal = true, doNotify = false,
                             text = "*** " + appContext.getString(R.string.vm_agmkey_usage))
                     }
-                    val defaultTarget = if (bufferName == "*server*") null else bufferName
+                    val defaultTarget = if (isPseudoBuffer(bufferName)) null else bufferName
                     when (sub) {
                         "gen" -> {
                             val target = parts.getOrNull(2)?.takeIf { it.isNotBlank() } ?: defaultTarget
@@ -1053,8 +1053,9 @@ internal fun IrcViewModel.sendInputInternal(raw: String, aliasDepth: Int, target
                         append(currentKey, from = null, text = "*** " + appContext.getString(R.string.vm_not_connected), doNotify = false)
                         return@launch
                     }
-                    // Let the IRC client handle it
-                    c.handleSlashCommand(cmdLine, bufferName)
+                    // Preserve alias/script dispatch above; only the native WHOIS opts into remote idle.
+                    val commandBuffer = if (bufferName == WHOIS_BUFFER || bufferName == NOTICES_BUFFER) "*server*" else bufferName
+                    c.handleSlashCommand(whoisCommand(cmdLine, st.settings.whoisRequestIdle), commandBuffer)
                     return@launch
                 }
             }
@@ -1094,6 +1095,10 @@ internal fun IrcViewModel.sendInputInternal(raw: String, aliasDepth: Int, target
         val stateConnected = _state.value.connections[netId]?.connected == true
         if (c == null || (!liveConnected && !stateConnected)) {
             append(currentKey, from = null, text = "*** " + appContext.getString(R.string.vm_not_connected), doNotify = false)
+            return@launch
+        }
+        if (bufferName == WHOIS_BUFFER || bufferName == NOTICES_BUFFER) {
+            append(currentKey, from = null, text = appContext.getString(R.string.personal_readonly_buffer), isLocal = true, doNotify = false)
             return@launch
         }
         if (bufferName == "*server*") {
