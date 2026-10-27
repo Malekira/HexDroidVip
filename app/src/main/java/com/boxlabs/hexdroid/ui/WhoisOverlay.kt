@@ -54,7 +54,7 @@ fun WhoisOverlay(windows: List<WhoisWindow>, networks: Map<String, String>, onMi
     val minimizeLabel = stringResource(R.string.p2_minimize)
     val closeLabel = stringResource(R.string.p2_close)
     val restoreLabel = stringResource(R.string.p2_restore)
-    BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding().padding(8.dp)) {
+    BoxWithConstraints(Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(8.dp)) {
         val density = LocalDensity.current
         val widthPx = with(density) { maxWidth.toPx() }
         val heightPx = with(density) { maxHeight.toPx() }
