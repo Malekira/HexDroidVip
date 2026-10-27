@@ -100,3 +100,8 @@ No se presenta la compilación de esa APK de pruebas como ejecución en Android.
 La construcción de datos numéricos y el saludo se aislaron de las corrutinas grandes
 para reducir el trabajo del compilador Kotlin. No cambian el procesamiento de
 numerics ajenos a WHOIS ni el envío normal de mensajes.
+
+La revisión adicional pasó 68 pruebas unitarias, sin fallos, errores ni omitidas.
+Incluye la regresión de un numeric 317 tardío tras un timeout: actualiza el mismo
+panel sin perder campos anteriores, posición o minimización y sin duplicar su ID.
+El panel también respeta el espacio ocupado por el teclado dentro de la aplicación.

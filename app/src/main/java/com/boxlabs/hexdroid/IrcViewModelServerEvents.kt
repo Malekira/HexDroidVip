@@ -1135,7 +1135,7 @@ internal fun IrcViewModel.flushWhoisBlock(netId: String, id: Long) {
     val block = whoisBlocks.finish(netId, id) ?: return
     if (block.lines.isEmpty()) return
     if (block.floating) _state.update { st ->
-        st.copy(whoisWindows = st.whoisWindows + WhoisWindow(id, netId, block.nick, block.fields.toMap(), block.lines.toList()))
+        st.copy(whoisWindows = mergeWhoisWindow(st.whoisWindows, WhoisWindow(id, netId, block.nick, block.fields.toMap(), block.lines.toList())))
     }
     for (destination in block.destinations) {
         ensureBuffer(destination)

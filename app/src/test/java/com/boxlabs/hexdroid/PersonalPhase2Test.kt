@@ -112,4 +112,17 @@ class PersonalPhase2Test {
         assertEquals(listOf("#room", "#room"), channels)
         assertEquals(listOf("@Alice +Bob me", "Alice Bob me"), output)
     }
+    @Test fun lateIdleUpdatesTheSameMinimizedWindowWithoutLosingHostOrPosition() {
+        val old = WhoisWindow(1, "red", "Alice", mapOf("host" to "host.example"), listOf("311"), minimized = true, offsetX = 12f, offsetY = 40f)
+        val other = WhoisWindow(2, "red", "Bob", emptyMap(), listOf("Bob"))
+        val late = WhoisWindow(1, "red", "Alice", mapOf("idle" to "2m 0s"), listOf("317", "318"))
+        val merged = mergeWhoisWindow(listOf(old, other), late)
+        assertEquals(2, merged.size)
+        assertEquals(mapOf("host" to "host.example", "idle" to "2m 0s"), merged.first().fields)
+        assertEquals(listOf("311", "317", "318"), merged.first().lines)
+        assertTrue(merged.first().minimized)
+        assertEquals(40f, merged.first().offsetY)
+        assertEquals(other, merged.last())
+    }
+
 }
