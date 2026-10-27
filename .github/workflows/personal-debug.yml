@@ -122,21 +122,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          existing=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --base feat/personal-phase1-whois-notice --state open --json url --jq '.[0].url // empty')
+          report_error() {
+            error=$(tr '\n' ' ' < "$RUNNER_TEMP/pr-error.txt")
+            echo "::error::$error"
+            echo '## No se pudo abrir el PR desde Actions' >> "$GITHUB_STEP_SUMMARY"
+            echo "$error" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+          if ! existing=$(gh api "repos/$GITHUB_REPOSITORY/pulls" --method GET -f state=open -f "head=${GITHUB_REPOSITORY_OWNER}:$GITHUB_REF_NAME" -f base=feat/personal-phase1-whois-notice --jq '.[0].html_url // ""' 2> "$RUNNER_TEMP/pr-error.txt"); then
+            report_error
+          fi
           if [ -n "$existing" ]; then
             url="$existing"
           else
-            if ! url=$(gh pr create --repo "$GITHUB_REPOSITORY" --head "$GITHUB_REF_NAME" --base feat/personal-phase1-whois-notice --title 'HexDroid Personal — Fase 2: WHOIS flotante, menciones y entrada' --body-file docs/PERSONAL_PHASE2_PR.md 2> "$RUNNER_TEMP/pr-error.txt"); then
-              {
-                echo '## No se pudo abrir el PR desde Actions'
-                echo 'La APK se compila en un job independiente. Error de GitHub:'
-                echo '```text'
-                head -c 3000 "$RUNNER_TEMP/pr-error.txt"
-                echo
-                echo '```'
-              } >> "$GITHUB_STEP_SUMMARY"
-              cat "$RUNNER_TEMP/pr-error.txt" >&2
-              exit 1
+            python3 - <<'PYCODE'
+          import json, os, pathlib
+          payload = {'title': 'HexDroid Personal — Fase 2: WHOIS flotante, menciones y entrada', 'head': os.environ['GITHUB_REF_NAME'], 'base': 'feat/personal-phase1-whois-notice', 'body': pathlib.Path('docs/PERSONAL_PHASE2_PR.md').read_text()}
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'phase2-pr.json').write_text(json.dumps(payload))
+          PYCODE
+            if ! url=$(gh api "repos/$GITHUB_REPOSITORY/pulls" --method POST --input "$RUNNER_TEMP/phase2-pr.json" --jq '.html_url' 2> "$RUNNER_TEMP/pr-error.txt"); then
+              report_error
             fi
           fi
           echo "[PR de Fase 2 para revisión]($url)" >> "$GITHUB_STEP_SUMMARY"

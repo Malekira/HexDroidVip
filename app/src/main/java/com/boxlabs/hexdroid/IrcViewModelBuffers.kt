@@ -1157,7 +1157,7 @@ internal fun IrcViewModel.append(
         id = nextUiMsgId.getAndIncrement(),
         timeMs = ts,
         fromHistory = isHistory,
-        isMention = effectiveHighlight && !isPrivate && from != null && !isMyNick(splitKey(bufferKey).first, from),
+        isMention = effectiveHighlight && !isPrivate && !isError && from != null && isChannelOnNet(splitKey(bufferKey).first, splitKey(bufferKey).second) && !isMyNick(splitKey(bufferKey).first, from),
         from = from,
         text = text,
         isAction = isAction,
@@ -1302,7 +1302,7 @@ internal fun IrcViewModel.append(
         && st.screen == AppScreen.CHAT
         && AppVisibility.isForeground) || bufferKey in bubblesShowing
     if (isActivelyVisible && !isHistory && from != null && !isFromMe) sendReadReceipt(bufferKey)
-    if (mayNotify && mayNotifyVisibleMention(isActivelyVisible, st.settings.notifyMentionsWhileVisible, effectiveHighlight && !isPrivate, isFromMe, isHistory || suspectReplay) && !quiet && st.settings.notificationsEnabled) {
+    if (mayNotify && mayNotifyVisibleMention(isActivelyVisible, st.settings.notifyMentionsWhileVisible, msg.isMention, isFromMe, isHistory || suspectReplay) && !quiet && st.settings.notificationsEnabled) {
         val (netId, bufferName) = splitKey(bufferKey)
         val cleanText = stripIrcFormatting(text)
         val preview = when {
