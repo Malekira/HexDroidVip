@@ -58,21 +58,30 @@ jobs:
         shell: python
         run: |
           import os, pathlib, xml.etree.ElementTree as E
-          roots = [pathlib.Path('app/build/test-results/testDebugUnitTest'), pathlib.Path('app/build/outputs/androidTest-results/connected')]
+          report_paths = sorted({p for p in pathlib.Path('app/build').rglob('*.xml') if 'result' in str(p).lower() or 'report' in str(p).lower()})
+          expected = 'roomRemainsWhilePanelMovesMinimizesRestoresAndCloses'
           overlay_executed = False
+          discovered = []
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
               out.write('## Resultados de pruebas\n')
-              for root in roots:
-                  for path in sorted(root.rglob('TEST-*.xml')):
-                      suite = E.parse(path).getroot()
-                      out.write(f"- {suite.get('name')}: {suite.get('tests')} pruebas, {suite.get('failures', '0')} fallos, {suite.get('errors', '0')} errores, {suite.get('skipped', '0')} omitidas\n")
-                      for case in suite.findall('testcase'):
-                          if case.get('classname', '').endswith('.WhoisOverlayTest') and case.get('name') == 'roomRemainsWhilePanelMovesMinimizesRestoresAndCloses' and case.find('skipped') is None:
-                              overlay_executed = True
-                          for failure in list(case.findall('failure')) + list(case.findall('error')):
-                              out.write(f"\n```text\n{case.get('name')}: {(failure.text or failure.get('message', ''))[:6000]}\n```\n")
+              for path in report_paths:
+                  root = E.parse(path).getroot()
+                  cases = list(root.iter('testcase'))
+                  if not cases:
+                      continue
+                  out.write(f"- {path}: {len(cases)} pruebas\n")
+                  for case in cases:
+                      identity = case.get('classname', '') + '.' + case.get('name', '')
+                      discovered.append(identity)
+                      if expected in case.get('name', '') and case.find('skipped') is None and case.find('failure') is None and case.find('error') is None:
+                          overlay_executed = True
+                      for failure in list(case.findall('failure')) + list(case.findall('error')):
+                          out.write(f"\n```text\n{identity}: {(failure.text or failure.get('message', ''))[:6000]}\n```\n")
+          if not overlay_executed:
+              diagnostic = ('Required WHOIS UI test not found as passed. Reports: ' + str([str(p) for p in report_paths]) + '; cases: ' + str(discovered))[:5000]
+              print('::error::' + diagnostic)
+              raise SystemExit(diagnostic)
 
-          assert overlay_executed, 'The required WHOIS overlay UI test did not execute; APK publication is blocked.'
 
       - name: Verify signature and personal identity
         shell: bash
