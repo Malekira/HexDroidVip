@@ -1,0 +1,74 @@
+name: HexDroid Personal - APK debug
+
+on:
+  push:
+    branches:
+      - feat/personal-phase1-whois-notice
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug-apk:
+    name: Build and upload installable APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the PR branch
+        uses: actions/checkout@v5
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 build-tools;37.0.0'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK and run unit tests
+        run: bash ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --max-workers=2
+
+      - name: Verify signature and personal identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$apk"
+          "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "package: name='com.malekira.hexdroid.personal.debug'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "application-label:'HexDroid Personal'" "$RUNNER_TEMP/apk-badging.txt"
+          mkdir -p apk-download
+          cp "$apk" apk-download/HexDroid-Personal-debug.apk
+          (cd apk-download && sha256sum HexDroid-Personal-debug.apk > SHA256SUMS.txt)
+
+      - name: Upload APK for download from Android
+        id: apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: HexDroid-Personal-debug
+          path: apk-download/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Write download instructions
+        env:
+          ARTIFACT_URL: ${{ steps.apk.outputs.artifact-url }}
+        run: |
+          {
+            echo '## HexDroid Personal — descarga para Android'
+            echo
+            echo "[Descargar APK debug (ZIP)]($ARTIFACT_URL)"
+            echo
+            echo 'Inicia sesión en GitHub, descarga el ZIP y extráelo con Mis archivos de Samsung.'
+            echo 'Abre HexDroid-Personal-debug.apk y autoriza la instalación desde esa fuente si Android lo solicita.'
+            echo 'La APK usa com.malekira.hexdroid.personal.debug y convive con HexDroid oficial.'
+            echo "Código compilado: $GITHUB_SHA"
+            echo 'El archivo estará disponible durante 30 días. No se publica ninguna clave privada.'
+          } >> "$GITHUB_STEP_SUMMARY"
