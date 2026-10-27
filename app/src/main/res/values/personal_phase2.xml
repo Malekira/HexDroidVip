@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="p2_floating">Floating WHOIS panel (inside HexDroid)</string>
+    <string name="p2_minimize">Minimize</string>
+    <string name="p2_restore">Restore WHOIS</string>
+    <string name="p2_close">Close WHOIS</string>
+    <string name="p2_copy">Copy all</string>
+    <string name="p2_details">Additional information</string>
+    <string name="p2_notify_visible">Notify mentions even in the visible room</string>
+    <string name="p2_highlight">Highlight mentions</string>
+    <string name="p2_color">Mention color (#RRGGBB)</string>
+    <string name="p2_bots">Bots excluded from /buenosdias todos (space separated)</string>
+    <string name="p2_greeting_long">The greeting exceeds the IRC line limit. Nothing was sent.</string>
+    <string name="p2_greeting_usage">Use /buenosdias or /buenosdias todos in a room.</string>
+    <string name="p2_nick">Nick</string>
+    <string name="p2_user">User</string>
+    <string name="p2_host">Host</string>
+    <string name="p2_realname">Real name</string>
+    <string name="p2_channels">Channels</string>
+    <string name="p2_server">Server</string>
+    <string name="p2_account">Account</string>
+    <string name="p2_away">Away</string>
+    <string name="p2_idle">Idle</string>
+    <string name="p2_signon">Connected since (UTC)</string>
+    <string name="p2_connected">Connection duration</string>
+    <string name="p2_members_pending">The room member list is not available yet. Nothing was sent.</string>
+</resources>

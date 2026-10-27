@@ -17,6 +17,9 @@
 */
 
 package com.boxlabs.hexdroid.ui
+import com.boxlabs.hexdroid.nickToken
+import com.boxlabs.hexdroid.completeNickToken
+import com.boxlabs.hexdroid.NickToken
 
 import android.content.res.Configuration
 import android.widget.Toast
@@ -2651,6 +2654,7 @@ fun ChatScreen(
                             ts = ts,
                             nickStyle = state.settings.nickStyle,
                             timestampColor = state.settings.timestampColorInt?.let { Color(it) },
+                            mentionColor = if (m.isMention && state.settings.mentionHighlightEnabled) Color(state.settings.mentionHighlightColor) else null,
                             isFlickering = flickerMsgId == m.id,
                             flickerAlphaValue = flickerAlpha.value,
                             isFindMatch = isFindMatch,
@@ -3044,31 +3048,19 @@ fun ChatScreen(
                 start = wordStart
                 index = 0
             }
-            val nick = matches[index]
-            val suffix = if (start == 0) ": " else " "
-            val replacement = (if (hadAt) "@" else "") + nick + suffix
-            val end = input.selection.start
-            val newText = input.text.substring(0, start) + replacement + input.text.substring(end)
-            val newCursor = start + replacement.length
+            var end = input.selection.start
+            if (cycle == null) while (end < input.text.length && !input.text[end].isWhitespace()) end++
+            val token = NickToken(start, input.selection.start, end, "", hadAt)
+            val (newText, newCursor) = completeNickToken(input.text, token, matches[index])
             input = TextFieldValue(newText, TextRange(newCursor))
             nickCycle = NickCycle(start, hadAt, matches, index, newText, newCursor)
             return true
         }
 
-        // Nick-hint query: non-null when the word at cursor starts with "@" and has ≥1 char after it.
-        // Only active in channel buffers (not server buffers or DCC chat).
-        val nickQuery = remember(input.text, completionNicks) {
-            if (completionNicks.isEmpty()) return@remember null
-            val t = input.text
-            // Find the last "@" that starts a word token before the cursor
-            val atIdx = t.lastIndexOf('@')
-            if (atIdx < 0) return@remember null
-            // An @ inside a word, as in an email address, is not a mention.
-            if (atIdx > 0 && t[atIdx - 1].let { it.isLetterOrDigit() || it in "._+-" }) return@remember null
-            val token = t.substring(atIdx + 1)
-            // Only trigger if the token after "@" is non-empty and contains no spaces (still typing)
-            if (token.isNotEmpty() && !token.contains(' ')) token else null
+        val completionToken = remember(input.text, input.selection) {
+            if (input.selection.collapsed) nickToken(input.text, input.selection.start) else null
         }
+        val nickQuery = completionToken?.takeIf { it.hadAt || it.prefix.length >= 3 }?.prefix
 
         Column(modifier = Modifier
             .fillMaxWidth()
@@ -3184,11 +3176,13 @@ fun ChatScreen(
                     nicks = completionNicks,
                     inputText = input.text,
                     onPick = { completion ->
-                        // Replace the @prefix token at the end of input with the chosen completion
-                        val t = input.text
-                        val atIdx = t.lastIndexOf('@')
-                        val newText = if (atIdx >= 0) t.substring(0, atIdx) + completion else completion
-                        input = TextFieldValue(newText, TextRange(newText.length))
+                        completionToken?.let { token ->
+                            val nick = completion.trim().removeSuffix(":")
+                            val (newText, cursor) = completeNickToken(input.text, token, nick)
+                            input = TextFieldValue(newText, TextRange(cursor))
+                            nickCycle = null
+                            onTypingChanged(newText)
+                        }
                     }
                 )
             }
@@ -3552,6 +3546,10 @@ fun ChatScreen(
 						)
 					}
 				)
+
+                if (completionNicks.isNotEmpty()) {
+                    TextButton(onClick = { completeNick(backwards = false); onTypingChanged(input.text) }) { Text("Tab") }
+                }
 
                 if (isChannel && (canKick || canBan || canTopic)) {
                     val opsInteraction = remember { MutableInteractionSource() }

@@ -25,10 +25,11 @@ object ReplyDestination {
     const val PRIVATE = 4
     const val ACTIVE = 8
     const val ORIGINAL = 16
-    const val WHOIS_DEFAULT = STATUS or WINDOW
+    const val FLOATING = 32
+    const val WHOIS_DEFAULT = FLOATING
     const val NOTICE_DEFAULT = ORIGINAL
-    const val WHOIS_MASK = STATUS or WINDOW or PRIVATE or ACTIVE
-    const val NOTICE_MASK = WHOIS_MASK or ORIGINAL
+    const val WHOIS_MASK = STATUS or WINDOW or ACTIVE or FLOATING
+    const val NOTICE_MASK = STATUS or WINDOW or PRIVATE or ACTIVE or ORIGINAL
 
     fun sanitize(value: Int, allowed: Int, fallback: Int): Int =
         (value and allowed).takeIf { it != 0 } ?: fallback
@@ -67,7 +68,7 @@ internal fun replyDestinations(
     if (mask and ReplyDestination.ORIGINAL != 0) {
         add(originalKey?.takeIf { it.startsWith("$network::") } ?: status)
     }
-    if (serverNotice || isEmpty()) add(status)
+    if (serverNotice || (isEmpty() && mask and ReplyDestination.FLOATING == 0)) add(status)
 }
 
 /** Server-provided seconds only; invalid/missing values remain absent. */
@@ -118,15 +119,15 @@ internal class WhoisRequests(private val now: () -> Long = System::currentTimeMi
     private fun expire() { pending.entries.removeAll { now() - it.value.startedMs >= 60_000L } }
 }
 
-internal data class WhoisBlock(val destinations: Set<String>, val nick: String, val lines: MutableList<String> = mutableListOf())
+internal data class WhoisBlock(val destinations: Set<String>, val nick: String, val lines: MutableList<String> = mutableListOf(), val floating: Boolean = false, val fields: MutableMap<String, String> = linkedMapOf())
 
 /** UI-thread collector; the caller flushes incomplete blocks on timeout/disconnection. */
 internal class WhoisBlocks {
     private val pending = mutableMapOf<Pair<String, Long>, WhoisBlock>()
     fun contains(network: String, id: Long) = (network to id) in pending
-    fun add(network: String, id: Long, nick: String, destinations: Set<String>, text: String?) {
-        val block = pending.getOrPut(network to id) { WhoisBlock(destinations, nick) }
-        if (text != null) block.lines += text
+    fun add(network: String, id: Long, nick: String, destinations: Set<String>, text: String?, floating: Boolean = false, fields: Map<String, String> = emptyMap()) {
+        val block = pending.getOrPut(network to id) { WhoisBlock(destinations, nick, floating = floating) }
+        if (text != null) { block.lines += text; block.fields.putAll(fields) }
     }
     fun finish(network: String, id: Long): WhoisBlock? = pending.remove(network to id)
 }

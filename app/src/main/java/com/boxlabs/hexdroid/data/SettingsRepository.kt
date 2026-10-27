@@ -282,7 +282,7 @@ class SettingsRepository(private val ctx: Context) {
         return try {
             val o = JSONObject(json)
             UiSettings(
-                whoisDestinations = ReplyDestination.sanitize(o.optInt("whoisDestinations", ReplyDestination.WHOIS_DEFAULT), ReplyDestination.WHOIS_MASK, ReplyDestination.WHOIS_DEFAULT),
+                whoisDestinations = com.boxlabs.hexdroid.migrateWhoisDestinations(o.optInt("whoisDestinations", ReplyDestination.WHOIS_DEFAULT), o.optInt("whoisPresentationVersion", 0)),
                 noticeDestinations = ReplyDestination.sanitize(o.optInt("noticeDestinations", ReplyDestination.NOTICE_DEFAULT), ReplyDestination.NOTICE_MASK, ReplyDestination.NOTICE_DEFAULT),
                 whoisRequestIdle = o.optBoolean("whoisRequestIdle", false),
                 themeMode = runCatching {
@@ -353,6 +353,10 @@ class SettingsRepository(private val ctx: Context) {
                 hideAwayNotify = o.optBoolean("hideAwayNotify", false),
 
                 highlightOnNick = o.optBoolean("highlightOnNick", true),
+                notifyMentionsWhileVisible = o.optBoolean("notifyMentionsWhileVisible", false),
+                mentionHighlightEnabled = o.optBoolean("mentionHighlightEnabled", true),
+                mentionHighlightColor = o.optInt("mentionHighlightColor", 0xFFFFD54F.toInt()),
+                greetingBots = o.optString("greetingBots", ""),
                 extraHighlightWords = o.optJSONArray("extraHighlightWords")?.let { arr ->
                     (0 until arr.length()).mapNotNull { i -> arr.optString(i).takeIf { it.isNotBlank() } }
                 } ?: emptyList(),
@@ -479,6 +483,11 @@ class SettingsRepository(private val ctx: Context) {
         o.put("hideAwayNotify", s.hideAwayNotify)
 
         o.put("highlightOnNick", s.highlightOnNick)
+        o.put("whoisPresentationVersion", 2)
+        o.put("notifyMentionsWhileVisible", s.notifyMentionsWhileVisible)
+        o.put("mentionHighlightEnabled", s.mentionHighlightEnabled)
+        o.put("mentionHighlightColor", s.mentionHighlightColor)
+        o.put("greetingBots", s.greetingBots)
         o.put("extraHighlightWords", JSONArray(s.extraHighlightWords))
 
         o.put("notificationsEnabled", s.notificationsEnabled)

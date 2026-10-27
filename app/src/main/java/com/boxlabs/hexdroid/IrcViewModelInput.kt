@@ -245,6 +245,11 @@ internal fun IrcViewModel.sendInputInternal(raw: String, aliasDepth: Int, target
             }
 
             when (cmd) {
+                "buenosdias" -> {
+                    sendGreeting(netId, currentKey, bufferName, cmdLine.substringAfter(' ', "").trim(), aliasDepth)
+                    return@launch
+                }
+
                 "age" -> {
                     // /age trust <nick> | /age reject <nick> | /age pending
                     // Resolves an identity conflict that onIdentConflict parked. Deliberately a

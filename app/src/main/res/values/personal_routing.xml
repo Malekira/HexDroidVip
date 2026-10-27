@@ -5,7 +5,7 @@
     <string name="personal_notice_destinations">NOTICE destinations</string>
     <string name="personal_reply_destinations_desc">Select one or more destinations. Copies stay on the event’s network; unavailable destinations fall back to Status.</string>
     <string name="personal_destination_status">Network Status</string>
-    <string name="personal_destination_whois">WHOIS window</string>
+    <string name="personal_destination_whois">WHOIS tab (optional)</string>
     <string name="personal_destination_notices">Notices window</string>
     <string name="personal_destination_private">Private conversation with the nick</string>
     <string name="personal_destination_active">Active window on the same network</string>

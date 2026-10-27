@@ -1285,6 +1285,24 @@ fun SettingsScreen(
             if (onePage || current == SettingsCategory.HIGHLIGHTS) {
             if (onePage) item(key = "hdr_HIGHLIGHTS") { OnePageHeader(SettingsCategory.HIGHLIGHTS) }
 
+            item { SettingToggle(stringResource(R.string.p2_notify_visible), s.notifyMentionsWhileVisible) { onUpdate { copy(notifyMentionsWhileVisible = !notifyMentionsWhileVisible) } } }
+            item { SettingToggle(stringResource(R.string.p2_highlight), s.mentionHighlightEnabled) { onUpdate { copy(mentionHighlightEnabled = !mentionHighlightEnabled) } } }
+            item {
+                var colorText by remember(s.mentionHighlightColor) { mutableStateOf("#%06X".format(s.mentionHighlightColor and 0xFFFFFF)) }
+                OutlinedTextField(
+                    value = colorText, singleLine = true,
+                    label = { Text(stringResource(R.string.p2_color)) },
+                    isError = !colorText.matches(Regex("#[0-9a-fA-F]{6}")),
+                    onValueChange = { text ->
+                        colorText = text
+                        if (text.matches(Regex("#[0-9a-fA-F]{6}"))) onUpdate { copy(mentionHighlightColor = (0xFF000000L or text.drop(1).toLong(16)).toInt()) }
+                    }, modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            item {
+                OutlinedTextField(value = s.greetingBots, onValueChange = { text -> onUpdate { copy(greetingBots = text) } },
+                    label = { Text(stringResource(R.string.p2_bots)) }, modifier = Modifier.fillMaxWidth())
+            }
             item { SettingToggle(stringResource(R.string.setting_highlight_on_nick), s.highlightOnNick) { onUpdate { copy(highlightOnNick = !highlightOnNick) } } }
 
             item {
@@ -2449,12 +2467,11 @@ private fun SpacingStepRow(
 
 @Composable
 private fun ReplyDestinationSettings(title: String, mask: Int, whois: Boolean, onChange: (Int) -> Unit) {
-    val choices = listOf(
+    val choices = (if (whois) listOf(ReplyDestination.FLOATING to R.string.p2_floating) else emptyList()) + listOf(
         ReplyDestination.STATUS to R.string.personal_destination_status,
         ReplyDestination.WINDOW to if (whois) R.string.personal_destination_whois else R.string.personal_destination_notices,
-        ReplyDestination.PRIVATE to R.string.personal_destination_private,
         ReplyDestination.ACTIVE to R.string.personal_destination_active,
-    ) + if (whois) emptyList() else listOf(ReplyDestination.ORIGINAL to R.string.personal_destination_original)
+    ) + if (whois) emptyList() else listOf(ReplyDestination.PRIVATE to R.string.personal_destination_private, ReplyDestination.ORIGINAL to R.string.personal_destination_original)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall)

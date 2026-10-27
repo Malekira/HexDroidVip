@@ -90,6 +90,8 @@ sealed class IrcEvent {
         val isWhoisReply: Boolean = false,
         val whoisNick: String? = null,
         val whoisRequestId: Long? = null,
+        val whoisParams: List<String> = emptyList(),
+        val whoisTrailing: String? = null,
     ) : IrcEvent()
 
     // CTCP replies

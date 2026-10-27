@@ -111,6 +111,7 @@ internal fun SingleMessageItem(
     nickStyle: NickStyle,
     /** Colour for the timestamp span, or null to use the message colour. */
     timestampColor: Color?,
+    mentionColor: Color? = null,
     // Pre-computed booleans so the item doesn't capture find/flicker state objects.
     isFlickering: Boolean,
     flickerAlphaValue: Float,       // Float, not Animatable, so Compose sees a stable param
@@ -314,6 +315,7 @@ internal fun SingleMessageItem(
                         isFindMatch   -> Modifier.background(
                             MaterialTheme.colorScheme.tertiary.copy(alpha = 0.10f)
                         )
+                        mentionColor != null -> Modifier.background(mentionColor.copy(alpha = 0.22f))
                         else          -> Modifier
                     }
                 )

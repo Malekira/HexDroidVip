@@ -32,6 +32,7 @@ import com.boxlabs.hexdroid.scriptMediaSource
 import com.boxlabs.hexdroid.scriptMountView
 import com.boxlabs.hexdroid.scriptNetworkAllowed
 import com.boxlabs.hexdroid.scriptNetworkAllowedResolved
+import com.boxlabs.hexdroid.scriptMembers
 import com.boxlabs.hexdroid.scriptNick
 import com.boxlabs.hexdroid.scriptOpenMedia
 import com.boxlabs.hexdroid.scriptRegisterLauncher
@@ -78,6 +79,7 @@ class HexDroidScriptHost(
     override fun getSetting(key: String): String? = vm.scriptSetting(key)
 
     override fun nick(network: String?): String? = vm.scriptNick(network)
+    override fun members(network: String?, channel: String): List<String> = vm.scriptMembers(network, channel)
 
     override fun activeNetwork(): String? = vm.scriptActiveNetwork()
 
