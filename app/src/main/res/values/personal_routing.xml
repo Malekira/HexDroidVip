@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="personal_presentation">Presentation — WHOIS and NOTICE</string>
+    <string name="personal_whois_destinations">WHOIS destinations</string>
+    <string name="personal_notice_destinations">NOTICE destinations</string>
+    <string name="personal_reply_destinations_desc">Select one or more destinations. Copies stay on the event’s network; unavailable destinations fall back to Status.</string>
+    <string name="personal_destination_status">Network Status</string>
+    <string name="personal_destination_whois">WHOIS window</string>
+    <string name="personal_destination_notices">Notices window</string>
+    <string name="personal_destination_private">Private conversation with the nick</string>
+    <string name="personal_destination_active">Active window on the same network</string>
+    <string name="personal_destination_original">Original service/channel routing</string>
+    <string name="personal_whois_request_idle">Request remote idle (WHOIS nick nick)</string>
+    <string name="personal_whois_request_idle_desc">Enable for compatible servers. Applies to single-nick queries; explicit server queries are preserved. Idle is displayed only when the server sends it.</string>
+    <string name="personal_whois_idle">idle %1$s</string>
+    <string name="personal_readonly_buffer">This window only displays replies. Use a slash command or choose a conversation.</string>
+    <string name="personal_whois_connected">connected %1$s</string>
+</resources>

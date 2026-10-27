@@ -419,7 +419,7 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
                 }
             }
 
-            val destKey = when {
+            val originalKey = when {
                 ev.isServer -> bufKey(netId, "*server*")
                 targetIsServerBuffer -> bufKey(netId, "*server*")
                 isChanTarget -> resolveBufferKey(netId, normTarget)
@@ -437,7 +437,14 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
                 }
             }
 
-            ensureBuffer(destKey)
+            val destKeys = replyDestinations(
+                mask = st.settings.noticeDestinations,
+                network = netId, window = NOTICES_BUFFER,
+                selectedKey = st.selectedBuffer,
+                privateNick = ev.from.takeUnless { ev.isServer },
+                originalKey = originalKey, serverNotice = ev.isServer,
+                resolve = { resolveBufferKey(netId, it) },
+            )
             // Notices render as `* <nick> text`, except bouncer pseudo-users (nicks starting
             // with '*', or BouncerServ), which render as `<nick> text` to avoid `* <*status>`.
             val fromNick = ev.from
@@ -452,21 +459,24 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
             }
             // A live notice arriving just after we joined is that channel's entry notice. It
             // keeps its own time like any other notice, but doesn't mark the channel unread.
-            val entryNotice = !replayedNotice &&
-                recentJoinAtMs[destKey]?.let { System.currentTimeMillis() - it <= ENTRY_NOTICE_WINDOW_MS } == true
-            if (isChanTarget && !ev.isServer) noteChannelSpeaker(netId, destKey, ev.from, ev.timeMs)
-            append(
-                destKey,
-                from = null,
-                text = rendered,
-                isLocal = suppressUnread || entryNotice,
-                timeMs = ev.timeMs,
-                isHistory = ev.isHistory,
-                doNotify = false,
-                msgId = ev.msgId,
-                replyToMsgId = ev.replyToMsgId,
-                encryption = ev.encryption,
-            )
+            if (isChanTarget && !ev.isServer) noteChannelSpeaker(netId, originalKey, ev.from, ev.timeMs)
+            for (destKey in destKeys) {
+                ensureBuffer(destKey)
+                val entryNotice = !replayedNotice &&
+                    recentJoinAtMs[destKey]?.let { System.currentTimeMillis() - it <= ENTRY_NOTICE_WINDOW_MS } == true
+                append(
+                    destKey,
+                    from = null,
+                    text = rendered,
+                    isLocal = suppressUnread || entryNotice,
+                    timeMs = ev.timeMs,
+                    isHistory = ev.isHistory,
+                    doNotify = false,
+                    msgId = ev.msgId,
+                    replyToMsgId = ev.replyToMsgId,
+                    encryption = ev.encryption,
+                )
+            }
         }
 
         is IrcEvent.CtcpReply -> {

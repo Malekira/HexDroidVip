@@ -122,6 +122,9 @@ class IrcViewModel(
      * Newest server-time seen on live traffic per network. Staleness is judged against this
      * rather than the device clock, which may be set wrong.
      */
+    internal val whoisBlocks = WhoisBlocks()
+    internal val whoisBlockTimeouts = mutableMapOf<Pair<String, Long>, Job>()
+
     internal val newestLiveServerTimeMs: MutableMap<String, Long> =
         java.util.concurrent.ConcurrentHashMap()
 

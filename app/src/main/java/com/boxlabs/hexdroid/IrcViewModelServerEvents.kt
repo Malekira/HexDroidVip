@@ -97,6 +97,7 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                         }
                     }
                     is IrcEvent.Disconnected -> {
+                        whoisBlockTimeouts.keys.filter { it.first == netId }.toList().forEach { (_, id) -> flushWhoisBlock(netId, id) }
                         noteDebugError(netId, "Disconnected" + (ev.reason?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""))
                         // Only for a connection that was up: a failed connect attempt isn't a disconnect.
                         val wasUp = _state.value.connections[netId]?.connected == true
@@ -506,14 +507,28 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                                 ),
                             )
                         }.getOrNull()
-                        if (scripted?.halted != true) {
-                            append(
-                                targetKey,
-                                from = null,
-                                text = scripted?.text ?: ev.text,
-                                doNotify = false,
-                                isMotd = isMotdLine,
+                        val visibleText = if (scripted?.halted == true) null else scripted?.text ?: ev.text
+                        if (ev.isWhoisReply && ev.whoisRequestId != null && ev.whoisNick != null) {
+                            val id = ev.whoisRequestId
+                            val first = !whoisBlocks.contains(netId, id)
+                            val st = _state.value
+                            val destinations = replyDestinations(
+                                mask = st.settings.whoisDestinations,
+                                network = netId, window = WHOIS_BUFFER,
+                                selectedKey = st.selectedBuffer, privateNick = ev.whoisNick,
+                                resolve = { resolveBufferKey(netId, it) },
                             )
+                            whoisBlocks.add(netId, id, ev.whoisNick, destinations, visibleText)
+                            if (code == "318") {
+                                flushWhoisBlock(netId, id)
+                            } else if (first) {
+                                whoisBlockTimeouts[netId to id] = viewModelScope.launch {
+                                    delay(30_000L)
+                                    flushWhoisBlock(netId, id)
+                                }
+                            }
+                        } else if (visibleText != null) {
+                            append(targetKey, from = null, text = visibleText, doNotify = false, isMotd = isMotdLine)
                         }
 
         if (code == "442") {
@@ -1107,5 +1122,18 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                         }
                     }
         else -> Unit
+    }
+}
+
+
+/** One logical block per request; every destination receives the same scripted lines exactly once. */
+internal fun IrcViewModel.flushWhoisBlock(netId: String, id: Long) {
+    whoisBlockTimeouts.remove(netId to id)?.cancel()
+    val block = whoisBlocks.finish(netId, id) ?: return
+    if (block.lines.isEmpty()) return
+    for (destination in block.destinations) {
+        ensureBuffer(destination)
+        // Keep individual log lines, but append the entire query contiguously on the UI thread.
+        for (line in block.lines) append(destination, from = null, text = line, doNotify = false)
     }
 }

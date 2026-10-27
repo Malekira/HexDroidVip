@@ -318,6 +318,8 @@ internal fun bufferLabel(key: String, networks: List<NetworkProfile>): String {
     return when (name) {
         "*server*" -> networks.firstOrNull { it.id == netId }?.name?.ifBlank { null } ?: netId
         "*raw*" -> "raw"
+        "*whois*" -> "WHOIS"
+        "*notices*" -> "Notices"
         else -> name
     }
 }

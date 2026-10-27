@@ -21,12 +21,70 @@ package com.boxlabs.hexdroid
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Matching of server replies to what the client sent: echoes, refusals, MODE and WHO queries. */
 class IrcClientRepliesTest {
+
+    @Test
+    fun whoisFromChannelRetainsNickAndQueryUntil318() {
+        val h = harness()
+        h.client.strings = { id, args ->
+            when (id) {
+                R.string.personal_whois_idle -> "idle ${args[0]}"
+                R.string.core_whois_signon -> "signon ${args[0]}"
+                else -> "s$id"
+            }
+        }
+        h.run { h.client.handleSlashCommand("whois Alice Alice", "#dreams") }
+        h.server.expect { it == "WHOIS Alice Alice" }
+        h.run { h.client.handleSlashCommand("whois Bob", "#other") }
+        h.server.expect { it == "WHOIS Bob" }
+        h.server.send(":srv 311 me Alice user host * :Alice Real")
+        h.server.send(":srv 311 me Bob user host * :Bob Real")
+        h.server.send(":srv 317 me Alice 176461 1700000000 :seconds idle, signon time")
+        h.server.send(":srv 330 me Alice account :is logged in as")
+        h.server.send(":srv 799 me Alice :custom WHOIS extension")
+        h.server.send(":srv 318 me Bob :End of WHOIS")
+        h.server.send(":srv 318 me Alice :End of WHOIS")
+        val end = h.await<IrcEvent.ServerText> { it.code == "318" && it.whoisNick == "Alice" }
+        val alice = h.events.filterIsInstance<IrcEvent.ServerText>().filter { it.whoisRequestId == end.whoisRequestId }
+        assertEquals(listOf("311", "317", "330", "799", "318"), alice.map { it.code })
+        assertTrue(alice.all { it.isWhoisReply && it.bufferName == "#dreams" && it.whoisNick == "Alice" })
+        assertTrue(alice.single { it.code == "317" }.text.contains("2d 1h 1m 1s"))
+        val bob = h.events.filterIsInstance<IrcEvent.ServerText>().filter { it.whoisNick == "Bob" }
+        assertTrue(bob.all { it.bufferName == "#other" && it.whoisRequestId != end.whoisRequestId })
+        h.server.send(":srv 301 me Alice :Away after WHOIS")
+        h.sync("whois-finished")
+        assertFalse(h.events.filterIsInstance<IrcEvent.ServerText>().last { it.code == "301" }.isWhoisReply)
+    }
+
+    @Test
+    fun whoisWithout317DoesNotFabricateIdle() {
+        val h = harness()
+        h.run { h.client.handleSlashCommand("whois Alice", "#dreams") }
+        h.server.expect { it == "WHOIS Alice" }
+        h.server.send(":srv 311 me Alice user host * :Alice Real")
+        h.server.send(":srv 318 me Alice :End of WHOIS")
+        h.await<IrcEvent.ServerText> { it.code == "318" && it.whoisNick == "Alice" }
+        assertFalse(h.events.filterIsInstance<IrcEvent.ServerText>().any { it.code == "317" })
+    }
+
+    @Test
+    fun noticeMetadataAndServerIdentitySurviveForRoutingAndReplayDeduplication() {
+        val h = harness()
+        h.server.send("@msgid=notice-one;time=2026-01-01T00:00:00Z :Alice!u@host NOTICE me :hello")
+        val notice = h.await<IrcEvent.Notice> { it.text == "hello" }
+        assertEquals("Alice", notice.from)
+        assertEquals("notice-one", notice.msgId)
+        assertNotNull(notice.timeMs)
+        assertFalse(notice.isServer)
+        h.server.send(":irc.example.org NOTICE me :server notice")
+        assertTrue(h.await<IrcEvent.Notice> { it.text == "server notice" }.isServer)
+    }
 
     private val harnesses = mutableListOf<IrcTestHarness>()
 

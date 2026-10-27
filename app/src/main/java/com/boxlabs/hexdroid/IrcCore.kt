@@ -281,8 +281,6 @@ class IrcClient(val config: IrcConfig) {
          * Eviction is by oldest, so tracking keeps working rather than shutting off.
          */
         internal const val MAX_TRACKED_BATCHES = 64
-        /** Outstanding WHOIS routes kept before the oldest is dropped. */
-        private const val MAX_PENDING_WHOIS = 50
         /** Nicks whose user, host and account are remembered for building bans. */
         private const val MAX_KNOWN_USERS = 4000
         /** Raw lines kept for a debug report. */
@@ -322,23 +320,9 @@ class IrcClient(val config: IrcConfig) {
     // queued 433 responses for nicks tried before SASL finished should be ignored.
     internal var registered = false
 
-    // Tracks where a WHOIS was invoked from so we can route the numeric replies back
-    // to that buffer (instead of always dumping them in the server buffer). Insertion
-    // ordered, so [rememberWhoisBuffer] can drop the oldest entry when it fills.
-    private val pendingWhoisBufferByNick = LinkedHashMap<String, String>()
+    private val whoisRequests = WhoisRequests()
 
-    /**
-     * Route the replies of a WHOIS for [fold] back to [buffer]. Removed when the reply ends (318,
-     * 401, 406); at the cap the oldest entry is evicted.
-     */
-    internal fun rememberWhoisBuffer(fold: String, buffer: String) = synchronized(pendingWhoisBufferByNick) {
-        // Re-inserted so a repeat WHOIS counts as the newest entry.
-        pendingWhoisBufferByNick.remove(fold)
-        if (pendingWhoisBufferByNick.size >= MAX_PENDING_WHOIS) {
-            pendingWhoisBufferByNick.remove(pendingWhoisBufferByNick.keys.first())
-        }
-        pendingWhoisBufferByNick[fold] = buffer
-    }
+    internal fun rememberWhoisBuffer(fold: String, buffer: String) = whoisRequests.remember(fold, buffer)
 
     @Volatile internal var currentNick: String = config.nick
 
@@ -1987,6 +1971,7 @@ class IrcClient(val config: IrcConfig) {
     suspend fun handleSlashCommand(cmdLine: String, currentBuffer: String) = runSlashCommand(cmdLine, currentBuffer)
 
     fun events(): Flow<IrcEvent> = channelFlow {
+        whoisRequests.clear()
         send(IrcEvent.Status(tr(R.string.core_connecting)))
 
         val s = try {
@@ -2668,26 +2653,13 @@ class IrcClient(val config: IrcConfig) {
 				if (pendingBansByNick.isNotEmpty()) handlePendingBanReply(msg)
 
 				// Route WHOIS numerics back to the buffer where the WHOIS was invoked.
-				val whoisTargetBuffer: String? = run {
-					// Every numeric an ircd may answer WHOIS with. Anything missing here is
-					// printed in the server buffer instead of beside the reply it belongs to.
-					val whoisCodes = setOf(
-						"276","301","307","310","311","312","313","317","318","319","320","330",
-						"335","337","338","339","344","350","378","379","760",
-						"616",
-						"401","406",
-						"671","672","673","674","675"
-					)
-					if (msg.command !in whoisCodes) return@run null
+				val whoisRequest: WhoisRequest? = run {
+                    // WHOIS extensions vary by IRCd. Match the subject of an outstanding
+                    // query instead of losing unknown extension numerics to Status.
+                    if (msg.command.length != 3 || !msg.command.all { it.isDigit() }) return@run null
 					val nick = msg.params.getOrNull(1) ?: return@run null
 					val fold = casefold(nick)
-					synchronized(pendingWhoisBufferByNick) {
-						val buf = pendingWhoisBufferByNick[fold]
-						if (buf != null && (msg.command == "318" || msg.command == "401" || msg.command == "406")) {
-							pendingWhoisBufferByNick.remove(fold)
-						}
-						buf
-					}
+					whoisRequests.receive(fold, msg.command)
 				}
 				val specialNumericCodes = setOf(
 					"315",           // RPL_ENDOFWHO (sent after WHOX nicklist query; suppress from buffers)
@@ -2720,8 +2692,10 @@ class IrcClient(val config: IrcConfig) {
 					send(IrcEvent.ServerText(
 						numericText,
 						code = msg.command,
-						bufferName = modeNumericBuffer ?: whoisTargetBuffer,
-						isWhoisReply = whoisTargetBuffer != null,
+						bufferName = modeNumericBuffer ?: whoisRequest?.buffer,
+						isWhoisReply = whoisRequest != null,
+						whoisNick = if (whoisRequest != null) msg.params.getOrNull(1) else null,
+						whoisRequestId = whoisRequest?.id,
 					))
 				} else if (msg.command.length == 3 && msg.command.all { it.isDigit() }
 					&& msg.command !in setOf(
@@ -2754,7 +2728,13 @@ class IrcClient(val config: IrcConfig) {
 						.filter { it.isNotBlank() }
 					val body = bodyParts.joinToString(" ")
 					if (body.isNotBlank()) {
-						send(IrcEvent.ServerText("[${msg.command}] $body", code = msg.command))
+						send(IrcEvent.ServerText(
+                            "[${msg.command}] $body", code = msg.command,
+                            bufferName = whoisRequest?.buffer,
+                            isWhoisReply = whoisRequest != null,
+                            whoisNick = if (whoisRequest != null) msg.params.getOrNull(1) else null,
+                            whoisRequestId = whoisRequest?.id,
+                        ))
 					}
 				}
 
