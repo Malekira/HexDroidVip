@@ -73,9 +73,62 @@ internal fun completeNickToken(text: String, token: NickToken, nick: String): Pa
 internal fun mayNotifyVisibleMention(visible: Boolean, allowVisible: Boolean, highlighted: Boolean, own: Boolean, replay: Boolean) =
     !visible || (allowVisible && highlighted && !own && !replay)
 
+/**
+ * Use all known nicks for smaller rooms. In rooms with more than 60 distinct
+ * members, greet only nicks whose NAMES status prefixes explicitly include '+'.
+ * A bare '@' does not imply voice; a multi-prefix '@+' does.
+ */
+internal fun greetingRecipients(
+    members: List<String>,
+    ownFold: String,
+    bots: Set<String>,
+    fold: (String) -> String,
+): List<String> {
+    val voicedOnly = memberNames(members).size > 60
+    val eligible = if (voicedOnly) {
+        members.filter { member ->
+            member.takeWhile { it in "~&@%+" }.contains('+')
+        }
+    } else members
+    return memberNames(eligible).filter { name -> fold(name) != ownFold && fold(name) !in bots }
+}
+
 internal fun greeting(members: List<String>, ownFold: String, bots: Set<String>, fold: (String) -> String): String =
-    "Buenos días" + memberNames(members).filter { fold(it) != ownFold && fold(it) !in bots }.takeIf { it.isNotEmpty() }
+    "Buenos días" + greetingRecipients(members, ownFold, bots, fold).takeIf { it.isNotEmpty() }
         ?.joinToString(prefix = " ", separator = " ").orEmpty()
+
+/**
+ * One complete IRC message per line, each with the greeting and whole nicks.
+ * Reject impossible budgets or individually oversized nicks rather than
+ * silently dropping a recipient or sending a truncated nick.
+ */
+internal fun greetingMessages(
+    members: List<String>,
+    ownFold: String,
+    bots: Set<String>,
+    fold: (String) -> String,
+    maxBytes: Int,
+): List<String>? {
+    val header = "Buenos días"
+    fun fits(s: String) = s.toByteArray(Charsets.UTF_8).size <= maxBytes
+    if (!fits(header)) return null
+
+    val result = mutableListOf<String>()
+    var current = header
+    for (name in greetingRecipients(members, ownFold, bots, fold)) {
+        val proposed = "$current $name"
+        if (fits(proposed)) {
+            current = proposed
+        } else {
+            if (current == header) return null
+            result += current
+            current = "$header $name"
+            if (!fits(current)) return null
+        }
+    }
+    result += current
+    return result
+}
 
 /** Keep conditional constructor fields out of the socket loop's large suspend state machine. */
 internal fun whoisServerOutput(text: String, message: IrcMessage, modeBuffer: String?, request: WhoisRequest?): IrcEvent.ServerText =
