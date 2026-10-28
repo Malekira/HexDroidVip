@@ -27,9 +27,11 @@ versión nueva usará además un código interno mayor para poder actualizarse. 
 clave temporal de las compilaciones debug anteriores no se puede recuperar desde
 una APK; no debe confundirse con una identidad de publicación permanente.
 
-Se necesita una clave propia (existente o creada una sola vez en un entorno de
-confianza), cuya copia de seguridad y contraseñas conserve el propietario fuera de
-Git. No enviar claves ni contraseñas por chat, PRs, issues o logs.
+El propietario eligió crear una clave nueva una sola vez en su Samsung.
+Seguir [DREAMS_SIGNING_SAMSUNG.md](DREAMS_SIGNING_SAMSUNG.md): el asistente usa
+`keytool` en Termux y permite copiar el secreto sin mostrarlo en la terminal.
+La copia de seguridad y contraseñas se conservan fuera de Git. No enviar claves
+ni contraseñas por chat, PRs, issues o logs.
 
 En el repositorio, configurar mediante la interfaz de GitHub:
 **Settings → Secrets and variables → Actions → New repository secret**.
@@ -43,7 +45,8 @@ En el repositorio, configurar mediante la interfaz de GitHub:
 
 Los cuatro son obligatorios juntos. La página de Secrets se puede abrir desde
 Chrome en el Samsung; estos valores deben proceder de una clave guardada de forma
-segura. La preparación del código no genera, publica ni transfiere una clave nueva.
+segura. La clave solo se genera al ejecutar el asistente localmente en el teléfono;
+preparar el código o ejecutar Actions no crea ni publica la clave de producción.
 
 No basta con guardar la clave únicamente en Secrets: GitHub no permite descargar
 su contenido después. Hay que conservar una copia privada recuperable por separado.

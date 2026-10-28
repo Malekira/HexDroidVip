@@ -13,3 +13,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Private app-signing material never belongs in source control.
+*.keystore
+*.jks
+*.p12
+*.pfx
+DREAMS_RELEASE_KEYSTORE_B64*
