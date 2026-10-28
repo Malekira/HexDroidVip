@@ -282,6 +282,18 @@ class SettingsRepository(private val ctx: Context) {
         return try {
             val o = JSONObject(json)
             UiSettings(
+                personal = com.boxlabs.hexdroid.PersonalSettings(
+                personalThemes = com.boxlabs.hexdroid.Phase3Codec.themes(o),
+                selectedThemeId = o.optString("selectedThemeId").takeIf { it.isNotBlank() && it != "null" },
+                writingStyle = com.boxlabs.hexdroid.Phase3Codec.style(o),
+                encryptedLogEnabled = o.optBoolean("encryptedLogEnabled", false),
+                privateRequestsEnabled = o.optBoolean("privateRequestsEnabled", false),
+                privateAutoMessages = o.optBoolean("privateAutoMessages", true),
+                privateRememberAccepted = o.optBoolean("privateRememberAccepted", false),
+                privateWaitText = o.optString("privateWaitText", "Por favor, espere mientras acepto su privado"),
+                privateAcceptText = o.optString("privateAcceptText", "Su privado fue aceptado"),
+                privateRejectText = o.optString("privateRejectText", "Su privado fue rechazado"),
+                ),
                 whoisDestinations = com.boxlabs.hexdroid.migrateWhoisDestinations(o.optInt("whoisDestinations", ReplyDestination.WHOIS_DEFAULT), o.optInt("whoisPresentationVersion", 0)),
                 noticeDestinations = ReplyDestination.sanitize(o.optInt("noticeDestinations", ReplyDestination.NOTICE_DEFAULT), ReplyDestination.NOTICE_MASK, ReplyDestination.NOTICE_DEFAULT),
                 whoisRequestIdle = o.optBoolean("whoisRequestIdle", false),
@@ -381,9 +393,9 @@ class SettingsRepository(private val ctx: Context) {
                     )
                 }.getOrDefault(com.boxlabs.hexdroid.VibrateIntensity.MEDIUM),
 
-                loggingEnabled = o.optBoolean("loggingEnabled", false),
+                loggingEnabled = o.optBoolean("loggingEnabled", true),
                 logServerBuffer = o.optBoolean("logServerBuffer", false),
-                retentionDays = o.optInt("retentionDays", 14),
+                retentionDays = 0,
                 maxScrollbackLines = o.optInt("maxScrollbackLines", 800),
                 logFolderUri = o.optString("logFolderUri", "").takeIf { it.isNotBlank() },
 
@@ -440,6 +452,7 @@ class SettingsRepository(private val ctx: Context) {
 
     private fun toSettingsJson(s: UiSettings): JSONObject {
         val o = JSONObject()
+        com.boxlabs.hexdroid.Phase3Codec.write(o, s)
         o.put("themeMode", s.themeMode.name)
         o.put("compactMode", s.compactMode)
         o.put("networkTabs", s.networkTabs)

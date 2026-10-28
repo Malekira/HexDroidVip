@@ -64,7 +64,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -606,7 +605,7 @@ fun NetworksScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            PersonalTopAppBar(
                 title = { Text(stringResource(R.string.networks_title)) },
                 navigationIcon = { IconButton(onClick = onBack, modifier = Modifier.focusHighlight()) { Text("←") } },
                 actions = {

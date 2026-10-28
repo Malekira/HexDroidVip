@@ -24,7 +24,7 @@ import com.boxlabs.hexdroid.data.NetworkProfile
 import com.boxlabs.hexdroid.data.ThemeMode
 import kotlinx.collections.immutable.PersistentList
 
-enum class AppScreen { CHAT, LIST, SETTINGS, NETWORKS, NETWORK_EDIT, TRANSFERS, ABOUT, IGNORE, SCRIPTS, DCC_TRUSTED }
+enum class AppScreen { CHAT, LIST, SETTINGS, NETWORKS, NETWORK_EDIT, TRANSFERS, ABOUT, IGNORE, SCRIPTS, DCC_TRUSTED, PERSONAL_HISTORY, PRIVATE_REQUESTS }
 
 /**
  * UI-level message model. [id] must be unique within a buffer: it is the LazyColumn key, and
@@ -97,6 +97,8 @@ data class UiMessage(
     val fromOper: Boolean = false,
     /** Bot Mode `bot` tag: the sender is a bot; rendered as a badge before the nick. */
     val fromBot: Boolean = false,
+    /** A local, highlighted NOTICE for a server-blocked private request; not a mention. */
+    val isHighlightedNotice: Boolean = false,
 )
 data class UiBuffer(
     val name: String,
@@ -181,7 +183,21 @@ enum class VibrateIntensity { LOW, MEDIUM, HIGH }
 /** How we initiate DCC SEND connections. */
 enum class DccSendMode { AUTO, ACTIVE, PASSIVE }
 
+data class PersonalSettings(
+    val personalThemes: List<PersonalTheme> = emptyList(),
+    val selectedThemeId: String? = null,
+    val writingStyle: WritingStyle = WritingStyle(),
+    val encryptedLogEnabled: Boolean = false,
+    val privateRequestsEnabled: Boolean = false,
+    val privateAutoMessages: Boolean = true,
+    val privateRememberAccepted: Boolean = false,
+    val privateWaitText: String = "Por favor, espere mientras acepto su privado",
+    val privateAcceptText: String = "Su privado fue aceptado",
+    val privateRejectText: String = "Su privado fue rechazado",
+)
+
 data class UiSettings(
+    val personal: PersonalSettings = PersonalSettings(),
     val whoisDestinations: Int = ReplyDestination.WHOIS_DEFAULT,
     val noticeDestinations: Int = ReplyDestination.NOTICE_DEFAULT,
     val whoisRequestIdle: Boolean = false,
@@ -304,9 +320,9 @@ data class UiSettings(
     val vibrateOnHighlight: Boolean = false,
     val vibrateIntensity: VibrateIntensity = VibrateIntensity.MEDIUM,
 
-    val loggingEnabled: Boolean = false,
+    val loggingEnabled: Boolean = true,
     val logServerBuffer: Boolean = false,
-    val retentionDays: Int = 14,
+    val retentionDays: Int = 0,
     val logFolderUri: String? = null,
     val maxScrollbackLines: Int = 800,
 
@@ -376,7 +392,20 @@ data class UiSettings(
     val imagePreviewsWifiOnly: Boolean = true,
     /** User-defined command aliases */
     val commandAliases: Map<String, String> = emptyMap(),
-)
+) {
+    val personalThemes get() = personal.personalThemes
+    val selectedThemeId get() = personal.selectedThemeId
+    val writingStyle get() = personal.writingStyle
+    val encryptedLogEnabled get() = personal.encryptedLogEnabled
+    val privateRequestsEnabled get() = personal.privateRequestsEnabled
+    val privateAutoMessages get() = personal.privateAutoMessages
+    val privateRememberAccepted get() = personal.privateRememberAccepted
+    val privateWaitText get() = personal.privateWaitText
+    val privateAcceptText get() = personal.privateAcceptText
+    val privateRejectText get() = personal.privateRejectText
+}
+
+fun UiSettings.withPersonal(update: PersonalSettings.() -> PersonalSettings): UiSettings = copy(personal = personal.update())
 
 data class NetConnState(
     val connected: Boolean = false,
@@ -560,6 +589,9 @@ data class LogSearchState(
 )
 
 data class UiState(
+    val privateRequests: List<PrivateRequest> = emptyList(),
+    val privateRequestMessage: String? = null,
+    val callerIdNetworks: Set<String> = emptySet(),
     val connected: Boolean = false,
     val connecting: Boolean = false,
     val status: String = "Disconnected",

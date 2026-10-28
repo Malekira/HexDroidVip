@@ -56,7 +56,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -71,7 +70,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -683,7 +681,7 @@ fun TransfersScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            PersonalTopAppBar(
                 title = { Text(stringResource(R.string.transfers_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack, modifier = Modifier.focusHighlight()) { Text("←") }
@@ -914,7 +912,7 @@ fun TransfersScreen(
                                                         .replaceFirstChar { it.titlecase() }
                                                 )
                                             }
-                                            DropdownMenu(
+                                            PersonalDropdownMenu(
                                                 expanded = modeMenu,
                                                 onDismissRequest = { modeMenu = false },
                                             ) {

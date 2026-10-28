@@ -64,7 +64,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -116,7 +115,7 @@ import kotlin.random.Random
 import android.graphics.Color as AColor
 
 /** Theme colour */
-private val SITE_BG = Color(0xFF0F1216)
+internal val ABOUT_BACKGROUND_COLOR = Color(0xFF0F1216)
 private val CARD_BG = Color(0xFF171B21)
 
 /** Keeps the column readable on tablets and in landscape instead of running edge to edge. */
@@ -172,11 +171,11 @@ fun AboutScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            PersonalTopAppBar(
                 title = { Text(stringResource(R.string.about_title)) },
                 navigationIcon = { IconButton(onClick = onBack, modifier = Modifier.tvInitialFocus().focusHighlight()) { Text("←") } },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = SITE_BG
+                    containerColor = ABOUT_BACKGROUND_COLOR
                 )
             )
         }
@@ -184,7 +183,7 @@ fun AboutScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(SITE_BG)
+                .background(ABOUT_BACKGROUND_COLOR)
                 .padding(padding)
                 .verticalScroll(scroll)
                 .padding(horizontal = 20.dp, vertical = 16.dp),

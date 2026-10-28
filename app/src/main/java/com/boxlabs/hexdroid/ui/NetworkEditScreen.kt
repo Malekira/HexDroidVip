@@ -301,7 +301,7 @@ fun NetworkEditScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            PersonalTopAppBar(
                 title = {
                     Text(
                         if (!onePage && !railLayout && section != null) stringResource(section.titleRes)

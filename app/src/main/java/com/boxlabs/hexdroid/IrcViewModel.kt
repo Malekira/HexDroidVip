@@ -342,7 +342,8 @@ class IrcViewModel(
          * ELIST token from ISUPPORT 005 (uppercased): supported server-side LIST filters.
          * Contains 'U' when "LIST >N" / "LIST <N" user-count filtering is available.
          */
-        val elist: String? = null
+        val elist: String? = null,
+        val callerIdMode: String? = null
     )
 
     internal data class NetRuntime(
@@ -704,6 +705,13 @@ class IrcViewModel(
 
     internal val notifier = NotificationHelper(appContext)
     internal val logs = LogWriter(appContext)
+    internal val historyArchive = HistoryArchive(appContext)
+    internal val privateRequests = PrivateRequestStore(appContext)
+    internal val privateRequestLane = kotlinx.coroutines.Dispatchers.IO.limitedParallelism(1)
+    internal val sessionPrivateAccepted = mutableSetOf<String>()
+    internal val privateRequestNetworkKeys = mutableMapOf<String, MutableSet<String>>()
+    internal val resolvingPrivateRequests = mutableSetOf<String>()
+    init { refreshPrivateRequests() }
 
     /**
      * Shared E2E keystore. One instance per ViewModel (and therefore per app process),
@@ -921,16 +929,7 @@ class IrcViewModel(
                         else -> st.showBufferList
                     }
                 )
-                // Retention sweep, off the collector's thread since on SAF it is several IPC calls
-                // per file. Only runs when the policy or folder changes, because settings emit on
-                // every preference change.
-                val purgeKey = Triple(s.loggingEnabled, s.retentionDays, s.logFolderUri)
-                if (s.loggingEnabled && purgeKey != lastPurgeKey) {
-                    lastPurgeKey = purgeKey
-                    viewModelScope.launch(Dispatchers.IO) {
-                        runCatching { logs.purgeOlderThan(s.retentionDays, s.logFolderUri) }
-                    }
-                }
+                // Personal history is permanent: only explicit confirmed deletion removes files.
                 // Applies live: flipping the switch starts or stops logging on connections
                 // that are already up, which is the point of a debugging toggle.
                 runtimes.values.forEach {
@@ -1050,7 +1049,9 @@ class IrcViewModel(
                 server += startServerSearches(query, scope, bufferKey)
                 val (hits, more) = withContext(Dispatchers.IO) {
                     runCatching {
-                        logs.search(query, networkFilter, bufferFilter, folder, cancelled = { !job.isActive })
+                        val current = logs.search(query, if (networkFilter == null) null else personalLogNetwork(netId), bufferFilter?.let { casefoldText(netId, it) }, null, cancelled = { !job.isActive })
+                        val previous = if (folder != null || networkFilter != null) logs.search(query, networkFilter, bufferFilter, folder, cancelled = { !job.isActive }) else (emptyList<LogSearchHit>() to false)
+                        (current.first + previous.first).distinctBy { "${it.networkDir}/${it.buffer}/${it.line}" } to (current.second || previous.second)
                     }.getOrDefault(emptyList<LogSearchHit>() to false)
                 }
                 if (!job.isActive) return@launch
@@ -1079,7 +1080,7 @@ class IrcViewModel(
 
     /** The network a log folder belongs to, if a profile still has that name. */
     fun networkForLogDir(dir: String): NetworkProfile? =
-        _state.value.networks.firstOrNull { logs.networkDirName(it.name).equals(dir, ignoreCase = true) }
+        _state.value.networks.firstOrNull { (logs.networkDirName(it.name).equals(dir, ignoreCase = true) || personalLogNetwork(it.id) == dir) }
 
     /**
      * Open the buffer [hit] was found in and scroll to its line, when that line is in the
@@ -1746,7 +1747,7 @@ fun startAddNetwork() {
      */
     fun deleteInternalLogs(onDone: () -> Unit = {}) {
         viewModelScope.launch {
-            val ok = withContext(Dispatchers.IO) { runCatching { logs.deleteInternalLogs() }.isSuccess }
+            val ok = withContext(Dispatchers.IO) { runCatching { historyArchive.delete(historyArchive.list().map { it.path }.toSet()) }.isSuccess }
             logsToast(if (ok) R.string.setting_logs_deleted else R.string.setting_logs_delete_failed)
             onDone()
         }
@@ -1757,7 +1758,7 @@ fun startAddNetwork() {
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) {
                 runCatching {
-                    appContext.contentResolver.openOutputStream(uri)?.use { logs.exportInternalLogs(it) }
+                    appContext.contentResolver.openOutputStream(uri)?.use { historyArchive.export(historyArchive.list().map { f -> f.path }.toSet(), it) }
                         ?: throw java.io.IOException("no output stream")
                 }.isSuccess
             }
@@ -3098,6 +3099,7 @@ fun startAddNetwork() {
         val text: String,
         val isAction: Boolean,
         val localTs: Long,
+        val encryption: com.boxlabs.hexdroid.crypto.E2eScheme?,
     )
 
     /** The settings stored for [bufferKey], or the defaults. */

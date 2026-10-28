@@ -9,8 +9,8 @@ android {
         applicationId = "com.malekira.hexdroid.personal"
         minSdk = 26
         targetSdk = 37
-        versionCode = 36
-        versionName = "1.7.8"
+        versionCode = 38
+        versionName = "1.7.8-personal3.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     // Release signing
@@ -76,7 +76,20 @@ android {
         }
     )
 
+    val personalDebugFile = providers.environmentVariable("PERSONAL_DEBUG_KEYSTORE_FILE").orNull?.takeIf { it.isNotBlank() }
+    val personalDebugPassword = providers.environmentVariable("PERSONAL_DEBUG_KEYSTORE_PASSWORD").orNull?.takeIf { it.isNotBlank() }
+    val personalDebugAlias = providers.environmentVariable("PERSONAL_DEBUG_KEY_ALIAS").orNull?.takeIf { it.isNotBlank() }
+    val personalDebugValues = listOf(personalDebugFile, personalDebugPassword, personalDebugAlias)
+    require(personalDebugValues.all { it == null } || personalDebugValues.all { it != null }) { "Personal debug signing is partially configured" }
     signingConfigs {
+        if (personalDebugFile != null) {
+            getByName("debug") {
+                storeFile = file(personalDebugFile)
+                storePassword = personalDebugPassword
+                keyAlias = personalDebugAlias
+                keyPassword = personalDebugPassword
+            }
+        }
         if (signingRequested) {
             create("release") {
                 storeFile = file(keystorePath!!)

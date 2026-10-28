@@ -195,6 +195,7 @@ internal fun IrcClient.buildNumericHandlers(
                         "KNOCK" -> knockSupported = false
                         "CHANLIMIT" -> chanLimits.clear()
                         "BOUNCER_NETID" -> bouncerNetId = null
+                        "CALLERID" -> callerIdMode = null
                         "SOJU.IM/SAFERATE" -> safeRate = false
                     }
                     continue
@@ -266,6 +267,7 @@ internal fun IrcClient.buildNumericHandlers(
                     // BOUNCER_NETID=<id>: soju bound this connection to that upstream network.
                     "BOUNCER_NETID" -> bouncerNetId = v?.takeIf { it.isNotBlank() }
                     // soju.im/SAFERATE (valueless): the server will not flood-kill us.
+                    "CALLERID" -> callerIdMode = v ?: "g"
                     "SOJU.IM/SAFERATE" -> safeRate = true
                     // soju.im/FILEHOST / draft/FILEHOST: HTTP file-upload endpoint URL.
                     // Keys arrive uppercased by the tokenizer above; the value keeps its case.
@@ -303,6 +305,7 @@ internal fun IrcClient.buildNumericHandlers(
                 filehostUrl, networkIconUrl, extbanPrefix, extbanTypes, accountExtban,
                 bouncerNetId = bouncerNetId,
                 safeRate = safeRate,
+                callerIdMode = callerIdMode,
             ))
             // soju lists per-target metadata only once the connection is bound, which
             // BOUNCER_NETID announces after RPL_WELCOME.

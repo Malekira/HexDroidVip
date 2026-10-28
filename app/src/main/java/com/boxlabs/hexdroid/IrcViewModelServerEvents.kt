@@ -97,6 +97,8 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                         }
                     }
                     is IrcEvent.Disconnected -> {
+                        sessionPrivateAccepted.removeAll { id -> privateRequestNetworkKeys[netId]?.contains(id) == true }
+                        _state.update { it.copy(callerIdNetworks = it.callerIdNetworks - netId) }
                         whoisBlockTimeouts.keys.filter { it.first == netId }.toList().forEach { (_, id) -> flushWhoisBlock(netId, id) }
                         noteDebugError(netId, "Disconnected" + (ev.reason?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""))
                         // Only for a connection that was up: a failed connect attempt isn't a disconnect.
@@ -508,6 +510,7 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                             )
                         }.getOrNull()
                         val visibleText = if (scripted?.halted == true) null else scripted?.text ?: ev.text
+                        val callerIdHandled = visibleText == ev.text && handleCallerIdNumeric(netId, ev)
                         if (ev.isWhoisReply && ev.whoisRequestId != null && ev.whoisNick != null) {
                             val id = ev.whoisRequestId
                             val first = !whoisBlocks.contains(netId, id)
@@ -530,7 +533,7 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                                     flushWhoisBlock(netId, id)
                                 }
                             }
-                        } else if (visibleText != null) {
+                        } else if (visibleText != null && !callerIdHandled) {
                             append(targetKey, from = null, text = visibleText, doNotify = false, isMotd = isMotdLine)
                         }
 
@@ -681,6 +684,7 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                         }
                     }
                     is IrcEvent.ISupport -> {
+                        _state.update { it.copy(callerIdNetworks = if (ev.callerIdMode == "g") it.callerIdNetworks + netId else it.callerIdNetworks - netId) }
                         val rt = runtimes[netId]
                         if (rt != null) {
                             rt.support = NetSupport(
@@ -691,7 +695,8 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                                 statusMsg = ev.statusMsg,
                                 chanModes = ev.chanModes,
                                 linelen = ev.linelen,
-                                elist = ev.elist
+                                elist = ev.elist,
+                                callerIdMode = ev.callerIdMode
                             )
                         }
 

@@ -18,6 +18,8 @@
 
 package com.boxlabs.hexdroid.ui.script
 
+import com.boxlabs.hexdroid.ui.PersonalTopAppBar
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
@@ -60,7 +62,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -116,7 +117,7 @@ fun ScriptsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            PersonalTopAppBar(
                 title = { Text(stringResource(R.string.scripts_title)) },
                 navigationIcon = {
                     TextButton(
@@ -373,7 +374,7 @@ private fun ScriptEditorScreen(
     )
     Scaffold(
         topBar = {
-            TopAppBar(
+            PersonalTopAppBar(
                 title = { Text(name, fontFamily = FontFamily.Monospace, maxLines = 1) },
                 navigationIcon = {
                     TextButton(

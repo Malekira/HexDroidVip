@@ -53,7 +53,10 @@ internal fun IrcViewModel.formatLogLine(timeMs: Long, from: String?, text: Strin
     // One log line per message. A multiline message otherwise spills across several
     // physical lines, and everything after the first is read back as a fragment with no
     // timestamp and no sender, which can never be matched against the server's copy.
-    val t = stripIrcFormatting(text).replace("\r\n", "\n").replace('\r', '\n').replace("\n", " ")
+    val clean = stripIrcFormatting(text)
+    val escaped = clean.any { it == '\n' || it == '\r' || it == '\\' }
+    val t = if (escaped) encodeHistoryBody(clean) else clean
+
     val body = when {
         from == null -> t
         // *nick* text - asterisk-wrapped nick is unambiguous: server-status lines always
@@ -62,7 +65,7 @@ internal fun IrcViewModel.formatLogLine(timeMs: Long, from: String?, text: Strin
         isAction -> "*$from* $t"
         else -> "<$from> $t"
     }
-    return "$ts\t$body"
+    return "$ts\t${if (escaped) HISTORY_ESCAPED else ""}$body"
 }
 
 internal fun IrcViewModel.selfSendSig(text: String, isAction: Boolean): String = "${if (isAction) "A" else "M"}\u0000$text"
@@ -466,9 +469,9 @@ internal fun IrcViewModel.logOwnLine(sent: PendingOwnEcho, text: String, serverT
     val held = sent.heldLog ?: return
     sent.heldLog = null
     if (scope != null) {
-        writeLogLine(held.bufferKey, serverTs ?: held.localTs, held.from, text, held.isAction, scope = scope)
+        writeLogLine(held.bufferKey, serverTs ?: held.localTs, held.from, text, held.isAction, scope = scope, encryption = held.encryption)
     } else {
-        writeLogLine(held.bufferKey, serverTs ?: held.localTs, held.from, text, held.isAction)
+        writeLogLine(held.bufferKey, serverTs ?: held.localTs, held.from, text, held.isAction, encryption = held.encryption)
     }
 }
 
@@ -537,7 +540,8 @@ internal fun IrcViewModel.ensureBuffer(key: String) {
             // (SAF permission lost after a restore, a partly corrupted file). A failure only
             // means no scrollback preload.
             val lines = try {
-                logs.readTail(netName, bufferName, maxLines, st.settings.logFolderUri)
+                val current = logs.readTail(personalLogNetwork(netId), casefoldText(netId, bufferName), maxLines, null)
+                if (current.isNotEmpty()) current else logs.readTail(netName, bufferName, maxLines, st.settings.logFolderUri)
             } catch (t: Throwable) {
                 android.util.Log.w("IrcViewModel", "Scrollback preload failed for $key", t)
                 scrollbackRequested.remove(load.key)
@@ -952,6 +956,8 @@ internal fun IrcViewModel.parseLogLineToUiMessage(line: String, fallbackTimeMs: 
         }
     }
 
+    val escaped = body.startsWith(HISTORY_ESCAPED)
+    if (escaped) body = body.removePrefix(HISTORY_ESCAPED)
     var from: String? = null
     var text = body
     var isAction = false
@@ -1024,7 +1030,7 @@ internal fun IrcViewModel.parseLogLineToUiMessage(line: String, fallbackTimeMs: 
         id = nextUiMsgId.getAndIncrement(),
         timeMs = timeMs,
         from = from,
-        text = text,
+        text = if (escaped) decodeHistoryBody(text) else text,
         isAction = isAction,
         fromLog = true,
     )
@@ -1104,6 +1110,7 @@ internal fun IrcViewModel.append(
     fromOper: Boolean = false,
     /** Bot Mode: sender is a bot (see UiMessage.fromBot). */
     fromBot: Boolean = false,
+    isHighlightedNotice: Boolean = false,
 ) {
     val nowMs = System.currentTimeMillis()
     val ts = timeMs ?: nowMs
@@ -1144,6 +1151,7 @@ internal fun IrcViewModel.append(
                 pending = pending,
                 fromOper = fromOper,
                 fromBot = fromBot,
+                isHighlightedNotice = isHighlightedNotice,
             )
         }
     ) return
@@ -1169,6 +1177,7 @@ internal fun IrcViewModel.append(
         pending = pending,
         fromOper = fromOper,
         fromBot = fromBot,
+        isHighlightedNotice = isHighlightedNotice,
     )
 
     val origin = if (isHistory) MessageOrigin.REPLAY else MessageOrigin.LIVE
@@ -1192,7 +1201,10 @@ internal fun IrcViewModel.append(
     // before: a page reaching back to the user's own recent lines needs the tracker.
     // Suppressed messages still count toward the page length.
     if (isHistory) chatHistory.noteCatchupLine(bufferKey, msg)
-    if (isHistory && chatHistory.collect(bufferKey, msg, isSelfEchoReplayDuplicate, isChathistoryContext)) return
+    if (isHistory && chatHistory.collect(bufferKey, msg, isSelfEchoReplayDuplicate, isChathistoryContext)) {
+        if (!isSelfEchoReplayDuplicate) writeLogLine(bufferKey, ts, from, text, isAction, encryption = encryption, msgId = msgId, replay = true)
+        return
+    }
 
     // A stale live line is treated as history is: quiet unless the user asked otherwise.
     val settingsNow = _state.value.settings
@@ -1278,19 +1290,11 @@ internal fun IrcViewModel.append(
     // will do: a local line has no msgid and a clock the server never saw.
     if (!isHistory && !staleLive && !isLocal && from != null) sessionFirstLive.putIfAbsent(bufferKey, msg)
 
-    // Logging. A replay is written only when newer than what was logged before this
-    // connection; in-memory dedup cannot cover this alone, since the scrollback load runs on
-    // IO and a fast replay can beat it. Lines logged since the connection began, such as
-    // our join, don't count: a bouncer plays back what it held after sending the JOIN.
-    val alreadyOnDisk =
-        (isHistory || staleLive) && (loggedBeforeConnectMs[bufferKey]?.let { ts <= it } == true)
-    if (!alreadyOnDisk) {
-        val held = isFromMe && isLocal && !isHistory &&
-            holdOwnLogLine(bufferKey, from, text, isAction, ts, encryption)
-        if (!held) {
-            writeLogLine(bufferKey, ts, from, text, isAction)
-            if (timeMs != null) lastLoggedServerMs.merge(bufferKey, ts, ::maxOf)
-        }
+    // The durable index handles replay identity independently of the scrollback timestamp floor.
+    val held = isFromMe && isLocal && !isHistory && holdOwnLogLine(bufferKey, from, text, isAction, ts, encryption)
+    if (!held) {
+        writeLogLine(bufferKey, ts, from, text, isAction, encryption = encryption, msgId = msgId, replay = isHistory || staleLive)
+        if (timeMs != null) lastLoggedServerMs.merge(bufferKey, ts, ::maxOf)
     }
 
     // notifications
@@ -1373,17 +1377,29 @@ internal fun IrcViewModel.writeLogLine(
     text: String,
     isAction: Boolean,
     scope: kotlinx.coroutines.CoroutineScope = viewModelScope,
+    encryption: com.boxlabs.hexdroid.crypto.E2eScheme? = null,
+    msgId: String? = null,
+    replay: Boolean = false,
 ) {
     val st = _state.value
+    if (encryption != null && !st.settings.encryptedLogEnabled) return
     if (!st.settings.loggingEnabled) return
     val (netId, bufferName) = splitKey(bufferKey)
     if (bufferName == "*server*" && !st.settings.logServerBuffer) return
     val netName = st.networks.firstOrNull { it.id == netId }?.name ?: "network"
-    val logLine = formatLogLine(ts, from, text, isAction)
-    val logFolderUri = st.settings.logFolderUri
+    val safe = safeHistoryText(bufferName, text) ?: return
+    if (isPseudoBuffer(bufferName)) return
+    val logLine = formatLogLine(ts, from, safe, isAction)
     scope.launch(logLane) {
         val err = runCatching {
-            logs.append(netName, bufferName, logLine, logFolderUri)
+            val file = logs.logFileInternal(personalLogNetwork(netId), casefoldText(netId, bufferName))
+            val path = file.relativeTo(historyArchive.root).invariantSeparatorsPath
+            if (st.networks.count { it.name == netName } == 1) {
+                logs.releaseBuffer(netName, bufferName)
+                historyArchive.migrateLegacy(logs.logFileInternal(netName, bufferName), path)
+            }
+            historyArchive.append(path, logLine, msgId, replay)
+            null
         }.getOrElse { t -> t.message ?: t::class.java.simpleName }
         // A failure is reported in the server buffer. That report is logged in turn only
         // when the server buffer is logged, so a failing folder cannot loop.
@@ -1415,7 +1431,7 @@ internal fun IrcViewModel.holdOwnLogLine(
         val sent = dq.firstOrNull {
             it.heldLog == null && it.bufferKey == bufferKey && it.isAction == isAction && it.text == text
         } ?: return false
-        sent.heldLog = HeldOwnLine(bufferKey, from, text, isAction, localTs)
+        sent.heldLog = HeldOwnLine(bufferKey, from, text, isAction, localTs, encryption)
     }
     return true
 }
@@ -1424,3 +1440,5 @@ internal fun IrcViewModel.holdOwnLogLine(
 internal fun IrcViewModel.flushHeldOwnLines() {
     for (netId in pendingOwnEchoes.keys.toList()) flushOwnSends(netId, scope = appScope)
 }
+
+internal fun IrcViewModel.personalLogNetwork(netId: String): String = "network-" + historyDigest(netId).take(24)

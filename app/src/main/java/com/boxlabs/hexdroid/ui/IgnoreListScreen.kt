@@ -38,7 +38,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -48,7 +47,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -105,7 +103,7 @@ fun IgnoreListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            PersonalTopAppBar(
                 title = { Text(stringResource(R.string.ignore_title)) },
                 navigationIcon = { IconButton(onClick = onBack, modifier = Modifier.tvInitialFocus().focusHighlight()) { Text("←") } },
             )
@@ -137,7 +135,7 @@ fun IgnoreListScreen(
                 OutlinedButton(onClick = { netMenuExpanded = true }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
                     Text(selNet?.name ?: selectedNetId)
                 }
-                DropdownMenu(expanded = netMenuExpanded, onDismissRequest = { netMenuExpanded = false }) {
+                PersonalDropdownMenu(expanded = netMenuExpanded, onDismissRequest = { netMenuExpanded = false }) {
                     for (n in nets) {
                         DropdownMenuItem(
                             text = { Text(n.name) },

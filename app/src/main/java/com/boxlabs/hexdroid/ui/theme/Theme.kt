@@ -192,6 +192,7 @@ fun HexDroidIRCTheme(
     // Deprecated parameter kept for source-compatibility with call sites that pass darkTheme directly.
     // New callers should use themeMode instead.
     darkTheme: Boolean? = null,
+    personalTheme: com.boxlabs.hexdroid.PersonalTheme? = null,
     content: @Composable () -> Unit
 ) {
     val isMatrix = themeMode == ThemeMode.MATRIX
@@ -231,9 +232,11 @@ fun HexDroidIRCTheme(
         else -> DefaultAccents
     }
 
-    CompositionLocalProvider(LocalAccentColors provides accents) {
+    val personalColors = PersonalColors(personalTheme, resolvedDark)
+    val personalBaseScheme = personalScheme(colorScheme, personalColors)
+    CompositionLocalProvider(LocalAccentColors provides accents, LocalPersonalColors provides personalColors, LocalPersonalBaseScheme provides personalBaseScheme) {
         MaterialTheme(
-            colorScheme = colorScheme,
+            colorScheme = personalBaseScheme,
             typography = typography,
             shapes = HexShapes,
             content = content

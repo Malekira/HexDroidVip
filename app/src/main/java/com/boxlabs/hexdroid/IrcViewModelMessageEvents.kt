@@ -212,6 +212,9 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
                 val line = ownAnswer.line
                 logOwnLine(line, if (line.batches == 1) ev.text else line.text, ev.timeMs)
             }
+            val my = _state.value.connections[netId]?.myNick ?: runtimes[netId]?.myNick ?: _state.value.myNick
+            val fromMe = ev.from.equals(my, ignoreCase = true)
+            if (!fromMe && ev.isPrivate && isIgnoredSender(netId, ev.from, IgnoreType.PRIVATE)) return
             // +AGE transport tap: AGE MSG/DEAL/IDENT/INVITE/REKEY lines are protocol, not chat.
             // Hand them to the bridge (which raises age_msg/age_deal into scripts) and, if it
             // consumed the line, suppress it from the buffer. Cheap prefix guard first.
@@ -234,9 +237,7 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
             // #chan :`), which would render as a bare "<nick> " line. Text that only looks
             // blank because of a wrong encoding is kept, so the problem stays visible.
             if (ev.text.isEmpty()) return
-            val my = _state.value.connections[netId]?.myNick ?: runtimes[netId]?.myNick ?: _state.value.myNick
-            val fromMe = ev.from.equals(my, ignoreCase = true)
-            if (!fromMe && isIgnoredSender(netId, ev.from, if (ev.isPrivate) IgnoreType.PRIVATE else IgnoreType.CHANNEL)) return
+            if (!fromMe && !ev.isPrivate && isIgnoredSender(netId, ev.from, IgnoreType.CHANNEL)) return
             val st = _state.value
             val suppressUnread = ev.isHistory && !st.settings.ircHistoryCountsAsUnread
             val allowNotify = if (ev.isHistory) st.settings.ircHistoryTriggersNotifications else true
@@ -247,16 +248,8 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
                 return
             }
 
-            ensureBuffer(targetKey)
-            // Clear this nick's typing indicator when they send a message (implicit "done").
-            if (!fromMe) {
-                _state.update { st ->
-                    val buf = st.buffers[targetKey]
-                    if (buf != null && ev.from in buf.typingNicks) {
-                        st.copy(buffers = st.buffers + (targetKey to buf.copy(typingNicks = buf.typingNicks - ev.from)))
-                    } else st
-                }
-            }
+            val prepareBeforeScript = !st.settings.privateRequestsEnabled || !ev.isPrivate || fromMe
+            if (prepareBeforeScript) prepareIncomingMessageBuffer(targetKey, ev.from, fromMe)
             // Script TEXT hook: lets scripts react to incoming lines (e.g. translate.hex echoes
             // a translation underneath) and optionally transform or suppress them. Runs only for
             // live messages, since history replays on reconnect must not re-fire it. No-op until the
@@ -275,6 +268,8 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
                 if (r?.halted == true) return
                 r?.text ?: ev.text
             } else ev.text
+            if (gatePrivateMessage(netId, ev, shownText, targetKey)) return
+            if (!prepareBeforeScript) prepareIncomingMessageBuffer(targetKey, ev.from, fromMe)
             val highlight = if (fromMe) false else isHighlight(netId, shownText, ev.isPrivate, targetKey)
             if (!ev.isPrivate && isChannelOnNet(netId, splitKey(targetKey).second)) {
                 noteChannelSpeaker(netId, targetKey, ev.from, ev.timeMs)
@@ -512,4 +507,18 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
         }
         else -> Unit
     }
+}
+
+private fun IrcViewModel.prepareIncomingMessageBuffer(targetKey: String, sender: String, fromMe: Boolean) {
+    ensureBuffer(targetKey)
+    // Clear this nick's typing indicator when they send a message (implicit "done").
+    if (!fromMe) {
+        _state.update { st ->
+            val buf = st.buffers[targetKey]
+            if (buf != null && sender in buf.typingNicks) {
+                st.copy(buffers = st.buffers + (targetKey to buf.copy(typingNicks = buf.typingNicks - sender)))
+            } else st
+        }
+    }
+
 }

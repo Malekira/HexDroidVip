@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -303,6 +304,7 @@ internal fun SingleMessageItem(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .then(if (m.isHighlightedNotice) Modifier.testTag("highlighted-private-notice") else Modifier)
                 .focusHighlight()
                 .then(
                     when {
@@ -316,6 +318,7 @@ internal fun SingleMessageItem(
                             MaterialTheme.colorScheme.tertiary.copy(alpha = 0.10f)
                         )
                         mentionColor != null -> Modifier.background(mentionColor.copy(alpha = 0.22f))
+                        m.isHighlightedNotice -> Modifier.background(MaterialTheme.colorScheme.secondaryContainer)
                         else          -> Modifier
                     }
                 )
@@ -410,13 +413,18 @@ internal fun SingleMessageItem(
                         MaterialTheme.colorScheme.onTertiary
                     else
                         androidx.compose.ui.graphics.Color.Black
+                    val personal = com.boxlabs.hexdroid.ui.theme.LocalPersonalColors.current
+                    val noticeBackground = personal.color(com.boxlabs.hexdroid.ThemeRole.CHAT, MaterialTheme.colorScheme.background)
                     IrcLinkifiedText(
                         text = ts + bodyText,
                         mircColorsEnabled = mircColorsEnabled,
                         ansiColorsEnabled = ansiColorsEnabled,
                         linkStyle = linkStyle,
                         onAnnotationClick = onAnnotationClick,
-                        style = chatTextStyle,
+                        style = if (m.isHighlightedNotice) chatTextStyle.copy(
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        ) else chatTextStyle.copy(color = personal.text(com.boxlabs.hexdroid.ThemeRole.NOTICE, noticeBackground, chatTextStyle.color)),
                         findHighlight = findHighlight,
                         findHighlightBg = hlBg,
                         findHighlightFg = hlFg,

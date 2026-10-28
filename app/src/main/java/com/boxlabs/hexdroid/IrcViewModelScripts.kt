@@ -211,7 +211,14 @@ internal fun IrcViewModel.dispatchAge(event: String, fields: Map<String, String>
 /** Deliver a decrypted inbound +AGE channel message into the chat buffer (shown with a padlock). */
 internal fun IrcViewModel.appendIncomingAgeChat(channel: String, fromNick: String, text: String, netId: String? = null) {
     val net = netId ?: _state.value.activeNetworkId ?: return
-    append(bufKey(net, channel), from = fromNick, text = text,
+    val isPrivate = !isChannelOnNet(net, channel)
+    val key = resolveBufferKey(net, channel)
+    if (isPrivate) {
+        if (isIgnoredSender(net, fromNick, com.boxlabs.hexdroid.data.IgnoreType.PRIVATE)) return
+        val event = IrcEvent.ChatMessage(fromNick, channel, text, isPrivate = true, encryption = com.boxlabs.hexdroid.crypto.E2eScheme.AGE)
+        if (gatePrivateMessage(net, event, text, key)) return
+    }
+    append(key, from = fromNick, text = text, isPrivate = isPrivate,
            encryption = com.boxlabs.hexdroid.crypto.E2eScheme.AGE)
 }
 
@@ -266,11 +273,11 @@ internal fun IrcViewModel.ageBridgeFor(netId: String?): com.boxlabs.hexdroid.scr
                         "FAILED"      -> "*** " + appContext.getString(R.string.vm_age_failed, peer, detail)
                         else          -> "*** +AGE with $peer: $state"
                     }
-                    append(bufKey(net, peer), from = null, text = line, isLocal = true, doNotify = false)
+                    append(privateProtocolStatusKey(net, peer), from = null, text = line, isLocal = true, doNotify = false)
                 },
                 onPmInterest = { peer ->
                     append(
-                        bufKey(net, peer), from = null,
+                        privateProtocolStatusKey(net, peer), from = null,
                         text = "*** " + appContext.getString(R.string.vm_age_offer, peer),
                         isLocal = true, doNotify = false,
                     )
@@ -279,7 +286,7 @@ internal fun IrcViewModel.ageBridgeFor(netId: String?): com.boxlabs.hexdroid.scr
                     // The key was not pinned and waits for the user. Say so in the buffer
                     // they're looking at, and notify, so a changed key can't pass unnoticed.
                     append(
-                        bufKey(net, target), from = null,
+                        (if (isChannelOnNet(net, target)) bufKey(net, target) else privateProtocolStatusKey(net, target)), from = null,
                         text = "*** " + appContext.getString(R.string.vm_age_key_warning, nick, newFp.take(16), pinnedFp.take(16)),
                         isLocal = true, doNotify = true,
                     )
