@@ -791,7 +791,7 @@ class LogWriter(private val ctx: Context) {
                 .trim()
                 .take(120)
                 val base = if (cleaned.isBlank() || cleaned == "." || cleaned == "..") "buffer" else cleaned
-                return "$base.txt"
+                return "${uniqueHistoryFileBase(name, base)}.txt"
             }
 
             /** Filename for SAF providers. */

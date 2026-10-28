@@ -392,6 +392,7 @@ class IrcClient(val config: IrcConfig) {
      * soju.im/SAFERATE ISUPPORT token: the server delays a fast client rather than disconnecting
      * it, so our own flood pacing is off.
      */
+    @Volatile internal var callerIdMode: String? = null
     @Volatile internal var safeRate: Boolean = false
 
     /** What we last saw of a nick: ident, host and services account. */
@@ -1970,6 +1971,287 @@ class IrcClient(val config: IrcConfig) {
     /** Run the slash command [cmdLine], given without its slash, as typed in [currentBuffer]. */
     suspend fun handleSlashCommand(cmdLine: String, currentBuffer: String) = runSlashCommand(cmdLine, currentBuffer)
 
+    /** Batch expansion has its own state machine rather than multiplying the socket loop's frames. */
+    private suspend fun emitBatchOutput(out: ProducerScope<IrcEvent>, msg: IrcMessage): Unit = with(out) {
+        // allParams, not params: any of these three can arrive as the trailing
+        // parameter and mean exactly the same thing.
+        val idToken = msg.allParams.getOrNull(0) ?: return@with
+        if (idToken.startsWith("+")) {
+            val id = idToken.drop(1)
+            val type = msg.allParams.getOrNull(1) ?: ""
+            if (type.contains("chathistory", ignoreCase = true) ||
+                type.contains("event-playback", ignoreCase = true) ||
+                type.contains("playback", ignoreCase = true)
+            ) {
+                openPlaybackBatches.add(id)
+                msg.allParams.getOrNull(2)?.takeIf { isChannelName(it) }
+                    ?.let { playbackBatchTargets[id] = it }
+            }
+            // A CHATHISTORY batch names its target in param 2, which may be a nick
+            // as readily as a channel. Recorded and announced so the ViewModel can
+            // tell an explicit backfill's reply from ordinary catch-up replay.
+            // A server wrapping its reply in a labeled-response batch puts the label
+            // on the wrapper, so the inner batch looks up to its parent.
+            val batchLabel = msg.tags["label"]?.takeIf { it.isNotBlank() }
+                ?: msg.tags["batch"]?.let { batchLabels[it] }
+            if (batchLabel != null) {
+                if (batchLabels.size >= MAX_TRACKED_BATCHES) {
+                    batchLabels.remove(batchLabels.keys.first())
+                }
+                batchLabels[id] = batchLabel
+            }
+            if (type.equals("soju.im/search", ignoreCase = true)) openSearchBatch(id, batchLabel)
+            if (type.contains("chathistory", ignoreCase = true)) {
+                val histTarget = msg.allParams.getOrNull(2)?.takeIf { it.isNotBlank() }
+                if (histTarget != null) {
+                    // Evict rather than refuse: refusing left the close event unsent.
+                    if (chathistoryBatchTargets.size >= MAX_TRACKED_BATCHES) {
+                        chathistoryBatchTargets.remove(chathistoryBatchTargets.keys.first())
+                    }
+                    chathistoryBatchTargets[id] = histTarget
+                    // draft/chathistory-end on the opener means this page is the last
+                    // one. Servers that probe limit+1 to detect truncation send a
+                    // complete final page of exactly the requested size, so page
+                    // length alone cannot tell the client when to stop asking.
+                    val complete = if (msg.tags.containsKey("draft/chathistory-end")) true else null
+                    send(IrcEvent.HistoryBatchStart(histTarget, batchLabel, complete))
+                }
+            }
+            // Batches nest, and playback-ness is inherited: a multiline message
+            // replayed through CHATHISTORY opens an inner draft/multiline batch tagged
+            // with the outer one, and its lines reference the inner id. Record the
+            // parent so those lines count as replay.
+            val parentBatch = msg.tags["batch"]
+            if (parentBatch != null && openPlaybackBatches.contains(parentBatch)) {
+                openPlaybackBatches.add(id)
+                playbackBatchTargets[parentBatch]?.let { playbackBatchTargets[id] = it }
+            }
+            // netsplit/netjoin: track so we can collapse the JOIN/QUIT flood.
+            if (type.equals("netsplit", ignoreCase = true) || type.equals("netjoin", ignoreCase = true)) {
+                openNetsplitBatches[id] = type.lowercase()
+            }
+            // IRCv3 multiline: BATCH +<id> draft/multiline <target>
+            // Captures the target and the BATCH-level tags (server-time, msgid,
+            // account, etc.); inner PRIVMSG/NOTICE lines tagged with batch=<id>
+            // will be buffered instead of emitted, and flushed together when
+            // BATCH -<id> closes.
+            if (type.equals("draft/multiline", ignoreCase = true) ||
+                type.equals("multiline", ignoreCase = true)
+            ) {
+                val target = msg.allParams.getOrNull(2) ?: ""
+                if (target.isNotBlank() && openMultilineBatches.size < multilineMaxOpenBatches) {
+                    openMultilineBatches[id] = MultilineBatchState(
+                        target = target,
+                        command = "PRIVMSG",  // overwritten on first inner line
+                        openTags = msg.tags,
+                        openSenderPrefix = msg.prefix,
+                    )
+                }
+            }
+            // labeled-response: BATCH +<id> labeled-response - the reply batch for
+            // a labeled outbound command (e.g. CHATHISTORY or PRIVMSG with echo-message).
+            // We don't need to open any special state for it; incoming messages within
+            // this batch already carry the label tag for correlation. The batch is
+            // effectively a signal that the server is delivering a grouped reply.
+            // We do NOT add it to openPlaybackBatches to avoid misclassifying the
+            // echoed PRIVMSG reply as history.
+        } else if (idToken.startsWith("-")) {
+            val id = idToken.drop(1)
+            openPlaybackBatches.remove(id)
+            playbackBatchTargets.remove(id)
+            val closingLabel = batchLabels.remove(id)
+            val closingLines = chathistoryBatchLines.remove(id) ?: 0
+            chathistoryBatchTargets.remove(id)?.let {
+                send(IrcEvent.HistoryBatchEnd(it, closingLabel, closingLines))
+            }
+            closeSearchBatch(this, id)
+            // Flush a closing multiline batch as a single ChatMessage / Notice
+            // event with the joined body. Per spec: lines without
+            // +draft/multiline-concat get a "\n" separator; lines WITH it get
+            // no separator (handles flood-control mid-paragraph splits).
+            val mlState = openMultilineBatches.remove(id)
+            if (mlState != null) {
+                val joined = buildString {
+                    for ((idx, part) in mlState.parts.withIndex()) {
+                        if (idx > 0 && !part.second) append('\n')
+                        append(part.first)
+                    }
+                }
+                // Per spec, the BATCH command MAY carry a prefix but the
+                // authoritative sender lives on each inner PRIVMSG/NOTICE line.
+                // Prefer the inner-line prefix; fall back to the BATCH-line
+                // prefix if for some reason the inner lines arrived unprefixed
+                // (which would be a server bug, but we degrade gracefully).
+                val effectivePrefix = mlState.innerSenderPrefix ?: mlState.openSenderPrefix
+                val from = effectivePrefix?.substringBefore('!') ?: ""
+                if (from.isNotBlank() && joined.isNotEmpty()) {
+                    val tagsTime = parseServerTimeMs(mlState.openTags)
+                    val msgid = mlState.openTags["msgid"]
+                    val account = mlState.openTags["account"]
+                    val replyTo = mlState.openTags["+draft/reply"] ?: mlState.openTags["+reply"]
+                    val isChan = isChannelName(mlState.target)
+                    // A PM's batch target is whoever received it, which for an incoming
+                    // message is us. Name the buffer after the other party, as the
+                    // single-line PRIVMSG path does, or the conversation opens against
+                    // our own nick.
+                    val convo = when {
+                        isChan -> mlState.target
+                        nickEquals(from, currentNick) -> mlState.target
+                        else -> from
+                    }
+                    val nowMs2 = System.currentTimeMillis()
+                    // Reuse the same is-history determination the per-message
+                    // path uses (msg-time + heuristic) so a multiline message
+                    // replayed via chathistory is still classified correctly.
+                    val isHistMl = isPlaybackHistory(mlState.openTags) ||
+                        isHeuristicHistory(mlState.target, tagsTime, nowMs2)
+                    val ownMl = if (nickEquals(from, currentNick) && !isPlaybackHistory(mlState.openTags)) {
+                        confirmEcho(
+                            notice = mlState.command.equals("NOTICE", ignoreCase = true),
+                            rawTarget = mlState.target,
+                            text = joined,
+                            label = closingLabel,
+                        )
+                    } else null
+                    if (mlState.command.equals("NOTICE", ignoreCase = true)) {
+                        send(IrcEvent.Notice(
+                            from = from,
+                            target = convo,
+                            text = joined,
+                            isPrivate = !isChan,
+                            isServer = false,
+                            timeMs = tagsTime,
+                            isHistory = isHistMl,
+                            msgId = msgid,
+                            replyToMsgId = replyTo,
+                        ))
+                    } else {
+                        send(IrcEvent.ChatMessage(
+                            from = from,
+                            target = convo,
+                            text = joined,
+                            isPrivate = !isChan,
+                            isAction = false,  // multiline never carries CTCP wrapping
+                            multiline = true,
+                            timeMs = tagsTime,
+                            isHistory = isHistMl,
+                            msgId = msgid,
+                            replyToMsgId = replyTo,
+                            senderAccount = account,
+                            ownSendId = ownMl?.id,
+                        ))
+                    }
+                }
+            }
+            // Flush buffered netsplit/netjoin events as a single collapsed status line.
+            val batchType = openNetsplitBatches.remove(id)
+            if (batchType != null) {
+                val buffered = netsplitBuffer.remove(id)
+                if (!buffered.isNullOrEmpty()) {
+                    val verb = if (batchType == "netsplit") "Netsplit" else "Netjoin"
+                    val servers = msg.params.drop(2).joinToString(" ↔ ").ifBlank {
+                        buffered.flatMap { it.params.drop(0) }.distinct().joinToString(" ↔ ")
+                    }
+                    val count = buffered.size
+                    val serverInfo = if (servers.isNotBlank()) " ($servers)" else ""
+                    send(IrcEvent.ServerText("*** " + tr(R.string.core_netsplit, verb, serverInfo, "$count user${if (count == 1) "" else "s"}"), code = batchType.uppercase()))
+                }
+            }
+        }
+    }
+
+    /** Bound the coroutine state machine: routing remains before specialised numeric handlers. */
+    private suspend fun emitNumericOutput(out: ProducerScope<IrcEvent>, msg: IrcMessage): Unit = with(out) {
+        // server numerics (MOTD/WHOIS/errors/etc)
+        var numericText = formatNumeric(msg)
+
+        // 464 ERR_PASSWDMISMATCH: the server PASS was rejected. Emit AuthFailed so the
+        // ViewModel halts auto-reconnect instead of retrying the same password; the numeric
+        // still renders below.
+        if (msg.command == "464") {
+            send(IrcEvent.AuthFailed(
+                reason = msg.trailing ?: tr(R.string.core_password_incorrect),
+                source = "PASS"
+            ))
+        }
+
+        // Bans waiting on a WHOIS for the target's user, host or account.
+        if (pendingBansByNick.isNotEmpty()) handlePendingBanReply(msg)
+
+        // Route WHOIS numerics back to the buffer where the WHOIS was invoked.
+        val whoisRequest: WhoisRequest? = run {
+                            // WHOIS extensions vary by IRCd. Match the subject of an outstanding
+                            // query instead of losing unknown extension numerics to Status.
+                            if (msg.command.length != 3 || !msg.command.all { it.isDigit() }) return@run null
+            val nick = msg.params.getOrNull(1) ?: return@run null
+            val fold = casefold(nick)
+            whoisRequests.receive(fold, msg.command)
+        }
+        val specialNumericCodes = setOf(
+            "315",           // RPL_ENDOFWHO (sent after WHOX nicklist query; suppress from buffers)
+            "324",
+            "354",           // WHOX reply (handled silently; WhoxReply event emitted)
+            "367","368", // ban list
+            "346","347", // +I (invex) list
+            "348","349", // +e (except) list
+            "728","729", // +q (quiet) list
+            "471","472","473","474","475","476","477"
+        )
+        // 324 and 329 answer a MODE <channel> query, including the one the channel-ops
+        // drawer fires on open. Drop them for those, and otherwise route them to the
+        // channel they describe rather than the status buffer.
+        var modeNumericBuffer: String? = null
+        if (msg.command == "329" || msg.command == "324") {
+            val chan = msg.allParams.getOrNull(1)
+            if (chan != null) {
+                if (isSilentModeReply(chan)) numericText = null else modeNumericBuffer = chan
+                // 329 ends the reply; after a 324 it may still follow.
+                if (msg.command == "329") {
+                    finishModeQuery(casefold(chan))
+                    modeReplyOpen = null
+                } else {
+                    modeReplyOpen = casefold(chan)
+                }
+            }
+        }
+        if (numericText != null && msg.command !in specialNumericCodes) {
+            send(whoisServerOutput(numericText, msg, modeNumericBuffer, whoisRequest))
+        } else if (msg.command.length == 3 && msg.command.all { it.isDigit() }
+            && msg.command !in setOf(
+                "001",
+                "315",
+                "321","322","323",
+                // 324/329 are the MODE-query pair.
+                "324","329",
+                "332","333",
+                "352","353","354","366",
+                "367","368",
+                "346","347",
+                "348","349",
+                "728","729",
+                "433",
+                "471","472","473","474","475","476","477",
+                // draft/metadata-2 numerics: the metadata handlers already surface
+                // these (761/766 update the nick display silently; 770/771/772 emit a
+                // friendly status line; 774 retries the sync). Suppress the raw
+                // "[NNN] ..." fallback so they don't also spam the server window.
+                "761","766","770","771","772","774",
+                // SASL numerics: emitted as Status/Error by IrcSession's CAP state
+                // machine. Suppress the raw-form fallback so the user sees each
+                // event once, not twice.
+                "903","904","905","906","907","908"
+            )
+        ) {
+            // surface unknown numerics in a readable form, even if raw server lines are hidden.
+            val bodyParts = (msg.params.drop(1).map { stripIrcFormatting(it) } + listOfNotNull(msg.trailing?.let { stripIrcFormatting(it) }))
+                .filter { it.isNotBlank() }
+            val body = bodyParts.joinToString(" ")
+            if (body.isNotBlank()) {
+                send(whoisServerOutput("[${msg.command}] $body", msg, null, whoisRequest))
+            }
+        }
+    }
+
     fun events(): Flow<IrcEvent> = channelFlow {
         whoisRequests.clear()
         send(IrcEvent.Status(tr(R.string.core_connecting)))
@@ -2226,6 +2508,7 @@ class IrcClient(val config: IrcConfig) {
         botModeChar = null
         bouncerNetId = null
         safeRate = false
+        callerIdMode = null
         extbanPrefix = null
         extbanTypes = null
         accountExtban = null
@@ -2439,195 +2722,11 @@ class IrcClient(val config: IrcConfig) {
 					is IrcAction.EmitAuthFailed -> send(IrcEvent.AuthFailed(reason = a.reason, source = "SASL"))
 				}
 
-				// BATCH tracking (used for draft/chathistory, draft/event-playback, labeled-response).
-				if (msg.command == "BATCH") {
-					// allParams, not params: any of these three can arrive as the trailing
-					// parameter and mean exactly the same thing.
-					val idToken = msg.allParams.getOrNull(0) ?: continue
-					if (idToken.startsWith("+")) {
-						val id = idToken.drop(1)
-						val type = msg.allParams.getOrNull(1) ?: ""
-						if (type.contains("chathistory", ignoreCase = true) ||
-							type.contains("event-playback", ignoreCase = true) ||
-							type.contains("playback", ignoreCase = true)
-						) {
-							openPlaybackBatches.add(id)
-							msg.allParams.getOrNull(2)?.takeIf { isChannelName(it) }
-								?.let { playbackBatchTargets[id] = it }
-						}
-						// A CHATHISTORY batch names its target in param 2, which may be a nick
-						// as readily as a channel. Recorded and announced so the ViewModel can
-						// tell an explicit backfill's reply from ordinary catch-up replay.
-						// A server wrapping its reply in a labeled-response batch puts the label
-						// on the wrapper, so the inner batch looks up to its parent.
-						val batchLabel = msg.tags["label"]?.takeIf { it.isNotBlank() }
-							?: msg.tags["batch"]?.let { batchLabels[it] }
-						if (batchLabel != null) {
-							if (batchLabels.size >= MAX_TRACKED_BATCHES) {
-								batchLabels.remove(batchLabels.keys.first())
-							}
-							batchLabels[id] = batchLabel
-						}
-						if (type.equals("soju.im/search", ignoreCase = true)) openSearchBatch(id, batchLabel)
-						if (type.contains("chathistory", ignoreCase = true)) {
-							val histTarget = msg.allParams.getOrNull(2)?.takeIf { it.isNotBlank() }
-							if (histTarget != null) {
-								// Evict rather than refuse: refusing left the close event unsent.
-								if (chathistoryBatchTargets.size >= MAX_TRACKED_BATCHES) {
-									chathistoryBatchTargets.remove(chathistoryBatchTargets.keys.first())
-								}
-								chathistoryBatchTargets[id] = histTarget
-								// draft/chathistory-end on the opener means this page is the last
-								// one. Servers that probe limit+1 to detect truncation send a
-								// complete final page of exactly the requested size, so page
-								// length alone cannot tell the client when to stop asking.
-								val complete = if (msg.tags.containsKey("draft/chathistory-end")) true else null
-								send(IrcEvent.HistoryBatchStart(histTarget, batchLabel, complete))
-							}
-						}
-						// Batches nest, and playback-ness is inherited: a multiline message
-						// replayed through CHATHISTORY opens an inner draft/multiline batch tagged
-						// with the outer one, and its lines reference the inner id. Record the
-						// parent so those lines count as replay.
-						val parentBatch = msg.tags["batch"]
-						if (parentBatch != null && openPlaybackBatches.contains(parentBatch)) {
-							openPlaybackBatches.add(id)
-							playbackBatchTargets[parentBatch]?.let { playbackBatchTargets[id] = it }
-						}
-						// netsplit/netjoin: track so we can collapse the JOIN/QUIT flood.
-						if (type.equals("netsplit", ignoreCase = true) || type.equals("netjoin", ignoreCase = true)) {
-							openNetsplitBatches[id] = type.lowercase()
-						}
-						// IRCv3 multiline: BATCH +<id> draft/multiline <target>
-						// Captures the target and the BATCH-level tags (server-time, msgid,
-						// account, etc.); inner PRIVMSG/NOTICE lines tagged with batch=<id>
-						// will be buffered instead of emitted, and flushed together when
-						// BATCH -<id> closes.
-						if (type.equals("draft/multiline", ignoreCase = true) ||
-							type.equals("multiline", ignoreCase = true)
-						) {
-							val target = msg.allParams.getOrNull(2) ?: ""
-							if (target.isNotBlank() && openMultilineBatches.size < multilineMaxOpenBatches) {
-								openMultilineBatches[id] = MultilineBatchState(
-									target = target,
-									command = "PRIVMSG",  // overwritten on first inner line
-									openTags = msg.tags,
-									openSenderPrefix = msg.prefix,
-								)
-							}
-						}
-						// labeled-response: BATCH +<id> labeled-response - the reply batch for
-						// a labeled outbound command (e.g. CHATHISTORY or PRIVMSG with echo-message).
-						// We don't need to open any special state for it; incoming messages within
-						// this batch already carry the label tag for correlation. The batch is
-						// effectively a signal that the server is delivering a grouped reply.
-						// We do NOT add it to openPlaybackBatches to avoid misclassifying the
-						// echoed PRIVMSG reply as history.
-					} else if (idToken.startsWith("-")) {
-						val id = idToken.drop(1)
-						openPlaybackBatches.remove(id)
-						playbackBatchTargets.remove(id)
-						val closingLabel = batchLabels.remove(id)
-						val closingLines = chathistoryBatchLines.remove(id) ?: 0
-						chathistoryBatchTargets.remove(id)?.let {
-							send(IrcEvent.HistoryBatchEnd(it, closingLabel, closingLines))
-						}
-						closeSearchBatch(this, id)
-						// Flush a closing multiline batch as a single ChatMessage / Notice
-						// event with the joined body. Per spec: lines without
-						// +draft/multiline-concat get a "\n" separator; lines WITH it get
-						// no separator (handles flood-control mid-paragraph splits).
-						val mlState = openMultilineBatches.remove(id)
-						if (mlState != null) {
-							val joined = buildString {
-								for ((idx, part) in mlState.parts.withIndex()) {
-									if (idx > 0 && !part.second) append('\n')
-									append(part.first)
-								}
-							}
-							// Per spec, the BATCH command MAY carry a prefix but the
-							// authoritative sender lives on each inner PRIVMSG/NOTICE line.
-							// Prefer the inner-line prefix; fall back to the BATCH-line
-							// prefix if for some reason the inner lines arrived unprefixed
-							// (which would be a server bug, but we degrade gracefully).
-							val effectivePrefix = mlState.innerSenderPrefix ?: mlState.openSenderPrefix
-							val from = effectivePrefix?.substringBefore('!') ?: ""
-							if (from.isNotBlank() && joined.isNotEmpty()) {
-								val tagsTime = parseServerTimeMs(mlState.openTags)
-								val msgid = mlState.openTags["msgid"]
-								val account = mlState.openTags["account"]
-								val replyTo = mlState.openTags["+draft/reply"] ?: mlState.openTags["+reply"]
-								val isChan = isChannelName(mlState.target)
-								// A PM's batch target is whoever received it, which for an incoming
-								// message is us. Name the buffer after the other party, as the
-								// single-line PRIVMSG path does, or the conversation opens against
-								// our own nick.
-								val convo = when {
-									isChan -> mlState.target
-									nickEquals(from, currentNick) -> mlState.target
-									else -> from
-								}
-								val nowMs2 = System.currentTimeMillis()
-								// Reuse the same is-history determination the per-message
-								// path uses (msg-time + heuristic) so a multiline message
-								// replayed via chathistory is still classified correctly.
-								val isHistMl = isPlaybackHistory(mlState.openTags) ||
-									isHeuristicHistory(mlState.target, tagsTime, nowMs2)
-								val ownMl = if (nickEquals(from, currentNick) && !isPlaybackHistory(mlState.openTags)) {
-									confirmEcho(
-										notice = mlState.command.equals("NOTICE", ignoreCase = true),
-										rawTarget = mlState.target,
-										text = joined,
-										label = closingLabel,
-									)
-								} else null
-								if (mlState.command.equals("NOTICE", ignoreCase = true)) {
-									send(IrcEvent.Notice(
-										from = from,
-										target = convo,
-										text = joined,
-										isPrivate = !isChan,
-										isServer = false,
-										timeMs = tagsTime,
-										isHistory = isHistMl,
-										msgId = msgid,
-										replyToMsgId = replyTo,
-									))
-								} else {
-									send(IrcEvent.ChatMessage(
-										from = from,
-										target = convo,
-										text = joined,
-										isPrivate = !isChan,
-										isAction = false,  // multiline never carries CTCP wrapping
-										multiline = true,
-										timeMs = tagsTime,
-										isHistory = isHistMl,
-										msgId = msgid,
-										replyToMsgId = replyTo,
-										senderAccount = account,
-										ownSendId = ownMl?.id,
-									))
-								}
-							}
-						}
-						// Flush buffered netsplit/netjoin events as a single collapsed status line.
-						val batchType = openNetsplitBatches.remove(id)
-						if (batchType != null) {
-							val buffered = netsplitBuffer.remove(id)
-							if (!buffered.isNullOrEmpty()) {
-								val verb = if (batchType == "netsplit") "Netsplit" else "Netjoin"
-								val servers = msg.params.drop(2).joinToString(" ↔ ").ifBlank {
-									buffered.flatMap { it.params.drop(0) }.distinct().joinToString(" ↔ ")
-								}
-								val count = buffered.size
-								val serverInfo = if (servers.isNotBlank()) " ($servers)" else ""
-								send(IrcEvent.ServerText("*** " + tr(R.string.core_netsplit, verb, serverInfo, "$count user${if (count == 1) "" else "s"}"), code = batchType.uppercase()))
-							}
-						}
-					}
-					continue
-				}
+                // Preserve batch boundaries before normal numeric/message dispatch.
+                if (msg.command == "BATCH") {
+                    emitBatchOutput(this, msg)
+                    continue
+                }
 
 				val nowMs = System.currentTimeMillis()
 				val serverTimeMs = parseServerTimeMs(msg.tags)
@@ -2636,94 +2735,7 @@ class IrcClient(val config: IrcConfig) {
 
 				val isHistory = playbackHistory || isHeuristicHistory(null, serverTimeMs, nowMs) // Target will be set per-event
 
-				// server numerics (MOTD/WHOIS/errors/etc)
-				var numericText = formatNumeric(msg)
-
-				// 464 ERR_PASSWDMISMATCH: the server PASS was rejected. Emit AuthFailed so the
-				// ViewModel halts auto-reconnect instead of retrying the same password; the numeric
-				// still renders below.
-				if (msg.command == "464") {
-					send(IrcEvent.AuthFailed(
-						reason = msg.trailing ?: tr(R.string.core_password_incorrect),
-						source = "PASS"
-					))
-				}
-
-				// Bans waiting on a WHOIS for the target's user, host or account.
-				if (pendingBansByNick.isNotEmpty()) handlePendingBanReply(msg)
-
-				// Route WHOIS numerics back to the buffer where the WHOIS was invoked.
-				val whoisRequest: WhoisRequest? = run {
-                    // WHOIS extensions vary by IRCd. Match the subject of an outstanding
-                    // query instead of losing unknown extension numerics to Status.
-                    if (msg.command.length != 3 || !msg.command.all { it.isDigit() }) return@run null
-					val nick = msg.params.getOrNull(1) ?: return@run null
-					val fold = casefold(nick)
-					whoisRequests.receive(fold, msg.command)
-				}
-				val specialNumericCodes = setOf(
-					"315",           // RPL_ENDOFWHO (sent after WHOX nicklist query; suppress from buffers)
-					"324",
-					"354",           // WHOX reply (handled silently; WhoxReply event emitted)
-					"367","368", // ban list
-					"346","347", // +I (invex) list
-					"348","349", // +e (except) list
-					"728","729", // +q (quiet) list
-					"471","472","473","474","475","476","477"
-				)
-				// 324 and 329 answer a MODE <channel> query, including the one the channel-ops
-				// drawer fires on open. Drop them for those, and otherwise route them to the
-				// channel they describe rather than the status buffer.
-				var modeNumericBuffer: String? = null
-				if (msg.command == "329" || msg.command == "324") {
-					val chan = msg.allParams.getOrNull(1)
-					if (chan != null) {
-						if (isSilentModeReply(chan)) numericText = null else modeNumericBuffer = chan
-						// 329 ends the reply; after a 324 it may still follow.
-						if (msg.command == "329") {
-							finishModeQuery(casefold(chan))
-							modeReplyOpen = null
-						} else {
-							modeReplyOpen = casefold(chan)
-						}
-					}
-				}
-				if (numericText != null && msg.command !in specialNumericCodes) {
-					send(whoisServerOutput(numericText, msg, modeNumericBuffer, whoisRequest))
-				} else if (msg.command.length == 3 && msg.command.all { it.isDigit() }
-					&& msg.command !in setOf(
-						"001",
-						"315",
-						"321","322","323",
-						// 324/329 are the MODE-query pair.
-						"324","329",
-						"332","333",
-						"352","353","354","366",
-						"367","368",
-						"346","347",
-						"348","349",
-						"728","729",
-						"433",
-						"471","472","473","474","475","476","477",
-						// draft/metadata-2 numerics: the metadata handlers already surface
-						// these (761/766 update the nick display silently; 770/771/772 emit a
-						// friendly status line; 774 retries the sync). Suppress the raw
-						// "[NNN] ..." fallback so they don't also spam the server window.
-						"761","766","770","771","772","774",
-						// SASL numerics: emitted as Status/Error by IrcSession's CAP state
-						// machine. Suppress the raw-form fallback so the user sees each
-						// event once, not twice.
-						"903","904","905","906","907","908"
-					)
-				) {
-					// surface unknown numerics in a readable form, even if raw server lines are hidden.
-					val bodyParts = (msg.params.drop(1).map { stripIrcFormatting(it) } + listOfNotNull(msg.trailing?.let { stripIrcFormatting(it) }))
-						.filter { it.isNotBlank() }
-					val body = bodyParts.joinToString(" ")
-					if (body.isNotBlank()) {
-						send(whoisServerOutput("[${msg.command}] $body", msg, null, whoisRequest))
-					}
-				}
+                emitNumericOutput(this, msg)
 
 				if (msg.command.length == 3 && msg.command.all { it.isDigit() }) {
 					val h = numericHandlers[msg.command]

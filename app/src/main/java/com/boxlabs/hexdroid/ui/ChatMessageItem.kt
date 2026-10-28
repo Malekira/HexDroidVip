@@ -410,13 +410,15 @@ internal fun SingleMessageItem(
                         MaterialTheme.colorScheme.onTertiary
                     else
                         androidx.compose.ui.graphics.Color.Black
+                    val personal = com.boxlabs.hexdroid.ui.theme.LocalPersonalColors.current
+                    val noticeBackground = personal.color(com.boxlabs.hexdroid.ThemeRole.CHAT, MaterialTheme.colorScheme.background)
                     IrcLinkifiedText(
                         text = ts + bodyText,
                         mircColorsEnabled = mircColorsEnabled,
                         ansiColorsEnabled = ansiColorsEnabled,
                         linkStyle = linkStyle,
                         onAnnotationClick = onAnnotationClick,
-                        style = chatTextStyle,
+                        style = chatTextStyle.copy(color = personal.text(com.boxlabs.hexdroid.ThemeRole.NOTICE, noticeBackground, chatTextStyle.color)),
                         findHighlight = findHighlight,
                         findHighlightBg = hlBg,
                         findHighlightFg = hlFg,

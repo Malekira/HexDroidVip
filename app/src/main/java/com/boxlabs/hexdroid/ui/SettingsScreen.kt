@@ -133,6 +133,7 @@ import com.boxlabs.hexdroid.TimestampStyle
 import com.boxlabs.hexdroid.UiSettings
 import com.boxlabs.hexdroid.UiState
 import com.boxlabs.hexdroid.VibrateIntensity
+import com.boxlabs.hexdroid.withPersonal
 import com.boxlabs.hexdroid.data.ThemeMode
 import com.boxlabs.hexdroid.ui.tour.TourTarget
 import com.boxlabs.hexdroid.ui.tour.tourTarget
@@ -455,6 +456,9 @@ fun SettingsScreen(
     onOpenNetworks: () -> Unit,
     onOpenIgnoreList: () -> Unit,
     onOpenScripts: () -> Unit = {},
+    onOpenPersonalHistory: () -> Unit = {},
+    onOpenPrivateRequests: () -> Unit = {},
+    onRevokePrivateAuthorizations: () -> Unit = {},
     tourActive: Boolean = false,
     tourTarget: TourTarget? = null,
     /** Export a backup to the picked file, with passwords encrypted by the passphrase when one is given. */
@@ -801,7 +805,10 @@ fun SettingsScreen(
             }
 
             item {
-                ThemePicker(s.themeMode) { mode -> onUpdate { copy(themeMode = mode) } }
+                Column {
+                    ThemePicker(s.themeMode) { mode -> onUpdate { copy(themeMode = mode, personal = personal.copy(selectedThemeId = null)) } }
+                    PersonalThemeSettings(s, onUpdate)
+                }
             }
 
             item {
@@ -1597,6 +1604,7 @@ fun SettingsScreen(
 
             item { SettingToggle(stringResource(R.string.setting_enable_notifications), s.notificationsEnabled) { onUpdate { copy(notificationsEnabled = !notificationsEnabled) } } }
             item { SettingToggle(stringResource(R.string.setting_notify_highlights), s.notifyOnHighlights) { onUpdate { copy(notifyOnHighlights = !notifyOnHighlights) } } }
+            item { PrivateRequestSettings(s, onUpdate, state.privateRequests.size, onOpenPrivateRequests, onRevokePrivateAuthorizations) }
             item { SettingToggle(stringResource(R.string.setting_notify_pm), s.notifyOnPrivateMessages) { onUpdate { copy(notifyOnPrivateMessages = !notifyOnPrivateMessages) } } }
             item { SettingToggle(stringResource(R.string.setting_sound_highlight), s.playSoundOnHighlight) { onUpdate { copy(playSoundOnHighlight = !playSoundOnHighlight) } } }
             item { SettingToggle(stringResource(R.string.setting_vibrate_highlight), s.vibrateOnHighlight) { onUpdate { copy(vibrateOnHighlight = !vibrateOnHighlight) } } }
@@ -1613,8 +1621,9 @@ fun SettingsScreen(
             if (onePage || current == SettingsCategory.LOGGING) {
             if (onePage) item(key = "hdr_LOGGING") { OnePageHeader(SettingsCategory.LOGGING) }
 
+            item { Button(onClick = onOpenPersonalHistory) { Text("Consultar, buscar, exportar y restaurar historiales") } }
             item { SettingToggle(stringResource(R.string.setting_enable_logging), s.loggingEnabled) { onUpdate { copy(loggingEnabled = !loggingEnabled) } } }
-            item { SettingToggle(stringResource(R.string.setting_log_server), s.logServerBuffer) { onUpdate { copy(logServerBuffer = !logServerBuffer) } } }
+            item { Text("El historial permanente registra salas y privados. Los buffers de protocolo y autenticación quedan excluidos.") }
 
             item {
                 val label = if (s.logFolderUri.isNullOrBlank()) stringResource(R.string.setting_log_internal) else stringResource(R.string.setting_log_custom)
@@ -1655,17 +1664,7 @@ fun SettingsScreen(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { folderPicker.launchPicker(ctx, null) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.setting_choose_folder)) }
-                        if (!s.logFolderUri.isNullOrBlank()) {
-                            OutlinedButton(onClick = {
-                                releaseFolder(s.logFolderUri, s.dccDownloadFolderUri)
-                                onUpdate { copy(logFolderUri = null) }
-                            }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
-                                Text(stringResource(R.string.reset))
-                            }
-                        }
-                    }
+                    Text("Fase 3 guarda los mensajes nuevos en almacenamiento privado. La carpeta anterior se conserva para consultar los registros existentes; podés importarlos desde una copia ZIP compatible.")
                     // Logs in app storage: what they take, and a way to export or delete them. Shown
                     // without a folder, and with one while older logs remain in app storage. Nothing
                     // is shown until the size has been measured.
@@ -1701,20 +1700,8 @@ fun SettingsScreen(
                 }
             }
 
-            item {
-                NumberSettingField(
-                    value = s.retentionDays,
-                    range = 0..365,
-                    onCommit = { n -> onUpdate { copy(retentionDays = n) } },
-                    label = { Text(stringResource(R.string.setting_retention_days)) },
-                    supportingText = {
-                        Text(
-                            if (s.retentionDays <= 0) stringResource(R.string.setting_retention_forever)
-                            else stringResource(R.string.setting_retention_days_hint)
-                        )
-                    },
-                )
-            }
+            item { Text("Historial permanente: sin vencimiento. Solo se elimina mediante confirmación.") }
+            item { SettingToggle("Guardar conversaciones cifradas como texto descifrado (riesgo de privacidad)", s.encryptedLogEnabled) { onUpdate { withPersonal { copy(encryptedLogEnabled = !encryptedLogEnabled) } } } }
 
             item {
                 NumberSettingField(

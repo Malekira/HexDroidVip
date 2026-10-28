@@ -5,6 +5,7 @@ on:
     branches:
       - feat/personal-phase1-whois-notice
       - feat/personal-phase2
+      - feat/personal-phase3
   workflow_dispatch:
 
 permissions:
@@ -35,8 +36,33 @@ jobs:
         with:
           cache-read-only: false
 
+      - name: Configure optional stable development signature
+        env:
+          PERSONAL_DEBUG_KEYSTORE_B64: ${{ secrets.PERSONAL_DEBUG_KEYSTORE_B64 }}
+          PERSONAL_DEBUG_KEYSTORE_PASSWORD: ${{ secrets.PERSONAL_DEBUG_KEYSTORE_PASSWORD }}
+          PERSONAL_DEBUG_KEY_ALIAS: ${{ secrets.PERSONAL_DEBUG_KEY_ALIAS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$PERSONAL_DEBUG_KEYSTORE_B64$PERSONAL_DEBUG_KEYSTORE_PASSWORD$PERSONAL_DEBUG_KEY_ALIAS" ]]; then
+            test -n "$PERSONAL_DEBUG_KEYSTORE_B64" && test -n "$PERSONAL_DEBUG_KEYSTORE_PASSWORD" && test -n "$PERSONAL_DEBUG_KEY_ALIAS"
+            [[ "$PERSONAL_DEBUG_KEYSTORE_PASSWORD" != *$'\n'* && "$PERSONAL_DEBUG_KEYSTORE_PASSWORD" != *$'\r'* ]]
+            [[ "$PERSONAL_DEBUG_KEY_ALIAS" != *$'\n'* && "$PERSONAL_DEBUG_KEY_ALIAS" != *$'\r'* ]]
+            umask 077
+            printf '%s' "$PERSONAL_DEBUG_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/personal-debug.keystore"
+            {
+              echo "PERSONAL_DEBUG_KEYSTORE_FILE=$RUNNER_TEMP/personal-debug.keystore"
+              echo "PERSONAL_DEBUG_KEYSTORE_PASSWORD=$PERSONAL_DEBUG_KEYSTORE_PASSWORD"
+              echo "PERSONAL_DEBUG_KEY_ALIAS=$PERSONAL_DEBUG_KEY_ALIAS"
+            } >> "$GITHUB_ENV"
+            echo 'Firma de desarrollo estable configurada mediante GitHub Secrets.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '::warning::No stable debug signing secrets configured. This APK uses a new development key and may not update an earlier installation. Back up first; never uninstall without exporting your data.'
+            echo 'Firma debug temporal: puede requerir reinstalación. Exportá ajustes, scripts e historiales antes de desinstalar la versión anterior.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Build debug APK and run unit tests
-        run: bash ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --max-workers=2
+        run: bash ./gradlew :app:assembleDebug :app:testDebugUnitTest --no-daemon --max-workers=2 --no-configuration-cache
 
       - name: Enable KVM for Android UI tests
         run: |
@@ -44,14 +70,14 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Test the internal WHOIS panel on Android
+      - name: Test WHOIS and Phase 3 persistence and UI on Android
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           arch: x86_64
           profile: pixel_2
           disable-animations: true
-          script: bash ./gradlew :app:connectedDebugAndroidTest --no-daemon --max-workers=2
+          script: bash ./gradlew :app:connectedDebugAndroidTest --no-daemon --max-workers=2 --no-configuration-cache
 
       - name: Summarize executed tests
         if: always()
@@ -61,6 +87,7 @@ jobs:
           report_paths = sorted({p for p in pathlib.Path('app/build').rglob('*.xml') if 'result' in str(p).lower() or 'report' in str(p).lower()})
           expected = 'roomRemainsWhilePanelMovesMinimizesRestoresAndCloses'
           overlay_executed = False
+          phase3_passed = set()
           discovered = []
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
               out.write('## Resultados de pruebas\n')
@@ -73,22 +100,41 @@ jobs:
                   for case in cases:
                       identity = case.get('classname', '') + '.' + case.get('name', '')
                       discovered.append(identity)
+                      if 'PersonalPhase3' in case.get('classname', '') and case.find('skipped') is None and case.find('failure') is None and case.find('error') is None:
+                          phase3_passed.add(identity)
                       if expected in case.get('name', '') and case.find('skipped') is None and case.find('failure') is None and case.find('error') is None:
                           overlay_executed = True
                       for failure in list(case.findall('failure')) + list(case.findall('error')):
                           out.write(f"\n```text\n{identity}: {(failure.text or failure.get('message', ''))[:6000]}\n```\n")
+          if os.environ.get('GITHUB_REF_NAME') == 'feat/personal-phase3':
+              required = {'PersonalPhase3Test': 8, 'PersonalPhase3StorageTest': 4, 'PersonalPhase3UiTest': 3, 'PersonalPhase3PrivateFlowTest': 1}
+              for suite, count in required.items():
+                  if len([case for case in phase3_passed if suite + '.' in case]) < count:
+                      raise SystemExit('Required Phase 3 tests missing for ' + suite + ': ' + str(sorted(phase3_passed)))
           if not overlay_executed:
               diagnostic = ('Required WHOIS UI test not found as passed. Reports: ' + str([str(p) for p in report_paths]) + '; cases: ' + str(discovered))[:5000]
               print('::error::' + diagnostic)
               raise SystemExit(diagnostic)
 
 
+      - name: Upload diagnostic test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Phase3-test-reports
+          path: |
+            app/build/reports/tests/
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Verify signature and personal identity
         shell: bash
         run: |
           set -euo pipefail
           apk=app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose "$apk"
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk"
           "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
           grep -F "package: name='com.malekira.hexdroid.personal.debug'" "$RUNNER_TEMP/apk-badging.txt"
           grep -F "application-label:'HexDroid Personal'" "$RUNNER_TEMP/apk-badging.txt"
@@ -104,6 +150,11 @@ jobs:
           path: apk-download/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Remove signing material from the runner
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/personal-debug.keystore"
 
       - name: Write download instructions
         env:
@@ -122,8 +173,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   review-pr:
-    name: Open Phase 2 review PR
-    if: github.ref == 'refs/heads/feat/personal-phase2'
+    name: Open Phase 3 review PR
+    if: github.ref == 'refs/heads/feat/personal-phase3'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -145,7 +196,7 @@ jobs:
             echo "$error" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           }
-          if ! existing=$(gh api "repos/$GITHUB_REPOSITORY/pulls" --method GET -f state=open -f "head=${GITHUB_REPOSITORY_OWNER}:$GITHUB_REF_NAME" -f base=feat/personal-phase1-whois-notice --jq '.[0].html_url // ""' 2> "$RUNNER_TEMP/pr-error.txt"); then
+          if ! existing=$(gh api "repos/$GITHUB_REPOSITORY/pulls" --method GET -f state=open -f "head=${GITHUB_REPOSITORY_OWNER}:$GITHUB_REF_NAME" -f base=feat/personal-phase2 --jq '.[0].html_url // ""' 2> "$RUNNER_TEMP/pr-error.txt"); then
             report_error
           fi
           if [ -n "$existing" ]; then
@@ -153,11 +204,11 @@ jobs:
           else
             python3 - <<'PYCODE'
           import json, os, pathlib
-          payload = {'title': 'HexDroid Personal — Fase 2: WHOIS flotante, menciones y entrada', 'head': os.environ['GITHUB_REF_NAME'], 'base': 'feat/personal-phase1-whois-notice', 'body': pathlib.Path('docs/PERSONAL_PHASE2_PR.md').read_text()}
-          pathlib.Path(os.environ['RUNNER_TEMP'], 'phase2-pr.json').write_text(json.dumps(payload))
+          payload = {'title': 'HexDroid Personal — Fase 3: temas, formato, historial y solicitudes de privados', 'head': os.environ['GITHUB_REF_NAME'], 'base': 'feat/personal-phase2', 'body': pathlib.Path('docs/PERSONAL_PHASE3_PR.md').read_text()}
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'phase3-pr.json').write_text(json.dumps(payload))
           PYCODE
-            if ! url=$(gh api "repos/$GITHUB_REPOSITORY/pulls" --method POST --input "$RUNNER_TEMP/phase2-pr.json" --jq '.html_url' 2> "$RUNNER_TEMP/pr-error.txt"); then
+            if ! url=$(gh api "repos/$GITHUB_REPOSITORY/pulls" --method POST --input "$RUNNER_TEMP/phase3-pr.json" --jq '.html_url' 2> "$RUNNER_TEMP/pr-error.txt"); then
               report_error
             fi
           fi
-          echo "[PR de Fase 2 para revisión]($url)" >> "$GITHUB_STEP_SUMMARY"
+          echo "[PR de Fase 3 para revisión]($url)" >> "$GITHUB_STEP_SUMMARY"

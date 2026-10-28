@@ -53,6 +53,11 @@ import com.boxlabs.hexdroid.R
 import androidx.compose.ui.unit.Density
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.boxlabs.hexdroid.withPersonal
+import com.boxlabs.hexdroid.personalLogNetwork
+import com.boxlabs.hexdroid.callerIdAction
+import com.boxlabs.hexdroid.resolvePrivateRequest
+import com.boxlabs.hexdroid.revokePrivateAuthorizations
 import com.boxlabs.hexdroid.AppScreen
 import com.boxlabs.hexdroid.ui.script.ScriptsScreen
 import com.boxlabs.hexdroid.ui.script.ScriptViewHost
@@ -238,7 +243,8 @@ fun AppRoot(
         HexDroidIRCTheme(
             themeMode = themeMode,
             fontChoice = state.settings.fontChoice,
-            customFontPath = state.settings.customFontPath
+            customFontPath = state.settings.customFontPath,
+            personalTheme = state.settings.personalThemes.firstOrNull { it.id == state.settings.selectedThemeId }
         ) {
         Surface(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -287,6 +293,8 @@ fun AppRoot(
 
             when (state.screen) {
                 AppScreen.CHAT -> ChatScreen(
+                    onOpenPrivateRequests = { vm.goTo(AppScreen.PRIVATE_REQUESTS) },
+                    onWritingStyle = { style -> vm.updateSettings { withPersonal { copy(writingStyle = style) } } },
                     state = state,
                     onSelectBuffer = vm::openBuffer,
                     onSend = vm::sendUserInput,
@@ -391,7 +399,12 @@ fun AppRoot(
                     onOpenSettings = { vm.goTo(AppScreen.SETTINGS) },
                 )
 
+                AppScreen.PERSONAL_HISTORY -> PersonalHistoryScreen(vm.historyArchive, vm::backToChat, state.networks.associate { vm.personalLogNetwork(it.id) to it.name })
+                AppScreen.PRIVATE_REQUESTS -> PrivateRequestsScreen(state, vm::backToChat, vm::resolvePrivateRequest, vm::callerIdAction)
                 AppScreen.SETTINGS -> SettingsScreen(
+                    onOpenPersonalHistory = { vm.goTo(AppScreen.PERSONAL_HISTORY) },
+                    onOpenPrivateRequests = { vm.goTo(AppScreen.PRIVATE_REQUESTS) },
+                    onRevokePrivateAuthorizations = vm::revokePrivateAuthorizations,
                     state = state,
                     onBack = vm::backToChat,
                     onUpdate = vm::updateSettings,

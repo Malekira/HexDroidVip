@@ -18,6 +18,12 @@
 
 package com.boxlabs.hexdroid.ui
 import com.boxlabs.hexdroid.nickToken
+import com.boxlabs.hexdroid.ui.theme.PersonalArea
+import com.boxlabs.hexdroid.ui.theme.LocalPersonalColors
+import com.boxlabs.hexdroid.ThemeRole
+import com.boxlabs.hexdroid.NickCompletion
+import com.boxlabs.hexdroid.advanceNickCompletion
+import com.boxlabs.hexdroid.completionMatches
 import com.boxlabs.hexdroid.completeNickToken
 import com.boxlabs.hexdroid.NickToken
 
@@ -264,6 +270,7 @@ fun ChatScreen(
     state: UiState,
     onSelectBuffer: (String) -> Unit,
     onSend: (String) -> Unit,
+    onWritingStyle: (com.boxlabs.hexdroid.WritingStyle) -> Unit = {},
     /** Send a threaded reply to [msgId]. Falls back to quote-prefix on servers without draft/reply. */
     onSendReply: (networkId: String, buffer: String, text: String, from: String, originalText: String, msgId: String?) -> Unit = { _, _, _, _, _, _ -> },
     onSendReaction: (msgId: String, emoji: String, remove: Boolean) -> Unit = { _, _, _ -> },
@@ -292,6 +299,7 @@ fun ChatScreen(
     onOpenList: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenScripts: () -> Unit = {},
+    onOpenPrivateRequests: () -> Unit = {},
     scriptLaunchers: List<Pair<String, String>> = emptyList(),
     onRunLauncher: (command: String) -> Unit = {},
     onOpenNetworks: () -> Unit,
@@ -592,12 +600,17 @@ fun ChatScreen(
         stringResource(R.string.format_colour),
         stringResource(R.string.format_clear),
     )
-    var selectedFgColor by rememberSaveable { mutableStateOf<Int?>(null) }   // 0-15 or null
-    var selectedBgColor by rememberSaveable { mutableStateOf<Int?>(null) }   // 0-15 or null
-    var boldActive by rememberSaveable { mutableStateOf(false) }
-    var italicActive by rememberSaveable { mutableStateOf(false) }
-    var underlineActive by rememberSaveable { mutableStateOf(false) }
-    var reverseActive by rememberSaveable { mutableStateOf(false) }
+    val savedStyle = state.settings.writingStyle
+    var selectedFgColor by remember(savedStyle) { mutableStateOf(savedStyle.foreground) }
+    var selectedBgColor by remember(savedStyle) { mutableStateOf(savedStyle.background) }
+    var boldActive by remember(savedStyle) { mutableStateOf(savedStyle.bold) }
+    var italicActive by remember(savedStyle) { mutableStateOf(savedStyle.italic) }
+    var underlineActive by remember(savedStyle) { mutableStateOf(savedStyle.underline) }
+    var reverseActive by remember(savedStyle) { mutableStateOf(savedStyle.reverse) }
+    LaunchedEffect(selectedFgColor, selectedBgColor, boldActive, italicActive, underlineActive, reverseActive) {
+        val style = com.boxlabs.hexdroid.WritingStyle(selectedFgColor, selectedBgColor, boldActive, italicActive, underlineActive, reverseActive)
+        if (style != state.settings.writingStyle) onWritingStyle(style)
+    }
     // Formatting items appended to the input's text menu, after Cut/Copy/Paste. They act on the
     // selection, or on what's typed next when nothing is selected.
     val formatMenu: TextContextMenuBuilderScope.() -> Unit = {
@@ -737,6 +750,8 @@ fun ChatScreen(
     }
     val currentModeString = if (isChannel) state.buffers[selected]?.modeString else null
 
+    val personalColors = LocalPersonalColors.current
+    val chatBackground = personalColors.color(ThemeRole.CHAT, MaterialTheme.colorScheme.background)
     val bgLum = MaterialTheme.colorScheme.background.luminance()
 
     // Collect all own nicks across every connected network so the custom colour
@@ -781,6 +796,7 @@ fun ChatScreen(
         // A user's self-chosen colour (via metadata) wins over the hash, but never
         // over your own manual override for your own nick, handled above.
         metadataNickColor(base)?.let { return it }
+        if (personalColors.theme != null) return personalColors.text(ThemeRole.NICK, chatBackground, Color.Unspecified)
         // Stable hash-based colour for messages — never changes regardless of who
         // else is in the channel. The nicklist panel uses nicklistColorMap
         // (pre-computed with adjacency nudge) instead.
@@ -859,27 +875,9 @@ fun ChatScreen(
             .replace(Regex("^\u0003\\d{0,2}(?:,\\d{0,2})?"), "")
             .startsWith("/")
 
-        val formattedText = if (isCommand) {
-            // Commands: never prepend formatting — the slash must be the first character
-            // so the ViewModel can detect and parse it correctly without stripping.
-            t
-        } else buildString {
-            if (boldActive) append("\u0002")
-            if (italicActive) append("\u001D")
-            if (underlineActive) append("\u001F")
-            if (reverseActive) append("\u0016")
-
-            if (selectedFgColor != null) {
-                append("\u0003")
-                append(selectedFgColor.toString().padStart(2, '0'))
-                if (selectedBgColor != null) {
-                    append(",")
-                    append(selectedBgColor.toString().padStart(2, '0'))
-                }
-            }
-
-            append(t)
-        }
+        val formattedText = if (isCommand) t else com.boxlabs.hexdroid.WritingStyle(
+            selectedFgColor, selectedBgColor, boldActive, italicActive, underlineActive, reverseActive,
+        ).apply(t)
 
         if (inputHistory.lastOrNull() != t) inputHistory.add(t)
         if (inputHistory.size > 50) inputHistory.removeAt(0)
@@ -923,6 +921,8 @@ fun ChatScreen(
 
 	@Composable
 	fun BufferDrawer(mod: Modifier = Modifier) {
+        PersonalArea(ThemeRole.SIDEBAR) {
+
 		// Sidebar list plus its drag-to-reorder engine.
 		val listState = rememberLazyListState()
 		val reorder = rememberGroupReorderState(listState) { key ->
@@ -1014,7 +1014,7 @@ fun ChatScreen(
 		// margin around the whole app, which showed as a border on every side.
 		val edgeInset = if (isTvDevice()) 20.dp else 0.dp
 		Column(
-			mod.padding(start = 16.dp + edgeInset, end = 16.dp, top = 8.dp, bottom = 8.dp),
+			mod.background(personalColors.color(ThemeRole.SIDEBAR, MaterialTheme.colorScheme.surface)).padding(start = 16.dp + edgeInset, end = 16.dp, top = 8.dp, bottom = 8.dp),
 			verticalArrangement = Arrangement.spacedBy(4.dp)
 		) {
 			// Side panel toolbar (collapse all, mark all read, search) with the logo at the left.
@@ -1205,7 +1205,8 @@ fun ChatScreen(
 					SecondaryScrollableTabRow(
 						selectedTabIndex = selIdx,
 						edgePadding = 0.dp,
-						containerColor = Color.Transparent,
+						containerColor = personalColors.color(ThemeRole.TABS, Color.Transparent),
+                        contentColor = personalColors.text(ThemeRole.UI_TEXT, personalColors.color(ThemeRole.TABS, MaterialTheme.colorScheme.surface), MaterialTheme.colorScheme.onSurface),
 					) {
 						visibleNets.forEachIndexed { i, net ->
 							val con = state.connections[net.id]
@@ -1446,11 +1447,15 @@ fun ChatScreen(
 			}
 			}
 		}
-	}
+
+        } // personal area
+}
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun NicklistContent(mod: Modifier = Modifier, nickPaneDp: Dp = Dp.Unspecified) {
+        PersonalArea(ThemeRole.NICKLIST) {
+
         // Linear ramp from 10 sp at the narrowest pane (70 dp) to 20 sp at the widest (280 dp)
         //   70 dp  → 10.0 sp (portrait narrowest)
         //  110 dp  → 11.9 sp (landscape min)
@@ -1463,7 +1468,7 @@ fun ChatScreen(
             if (nickPaneDp == Dp.Unspecified) 14f
             else (10f + (nickPaneDp.value - 70f) * (10f / 210f)).coerceIn(10f, 20f)
         ).plus(nickFontOffset).coerceAtLeast(8f)
-        Column(mod.padding(horizontal = 6.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        Column(mod.background(personalColors.color(ThemeRole.NICKLIST, MaterialTheme.colorScheme.surface)).padding(horizontal = 6.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
             Text(
                 text = pluralStringResource(R.plurals.chat_nicklist_users, nicklist.size, nicklist.size),
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = (nickFontSp - 2f).coerceAtLeast(8f).sp),
@@ -1558,6 +1563,7 @@ fun ChatScreen(
                             n,
                             color = if (state.settings.colorizeNicks)
                                 metadataNickColor(cleaned.lowercase())
+                                    ?: (if (personalColors.theme != null) personalColors.text(ThemeRole.NICK, personalColors.color(ThemeRole.NICKLIST, chatBackground), Color.Unspecified) else null)
                                     ?: nicklistColorMap[cleaned.lowercase()]
                                     ?: NickColors.colorForNick(cleaned.lowercase(), bgLum)
                             else Color.Unspecified,
@@ -1584,7 +1590,9 @@ fun ChatScreen(
                 }
             }
         }
-    }
+
+        } // personal area
+}
 
     // Fresh listState per buffer — each buffer independently remembers its scroll position.
     val listState = remember(selected) { LazyListState() }
@@ -1896,11 +1904,13 @@ fun ChatScreen(
     // scrollback on every recomposition.
     val bodyMedium = MaterialTheme.typography.bodyMedium
     val chatLineHeightFactor = state.settings.chatFontLineHeight.coerceIn(0.9f, 2.0f)
-    val chatTextStyle = remember(bodyMedium, chatFontFamily, baseWeight, baseStyle, chatLineHeightFactor) {
+    val messageColor = personalColors.text(ThemeRole.TEXT, chatBackground, bodyMedium.color)
+    val chatTextStyle = remember(bodyMedium, chatFontFamily, baseWeight, baseStyle, chatLineHeightFactor, messageColor) {
         bodyMedium.copy(
             fontFamily = chatFontFamily,
             fontWeight = baseWeight,
             fontStyle = baseStyle,
+            color = messageColor,
             // Font line height: the leading between the wrapped lines of ONE message.
             lineHeight = bodyMedium.fontSize * chatLineHeightFactor,
             platformStyle = PlatformTextStyle(includeFontPadding = false),
@@ -1948,6 +1958,8 @@ fun ChatScreen(
     } else null
 
     val topBar: @Composable () -> Unit = {
+        PersonalArea(ThemeRole.TOP) {
+
         val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         val imeInsets = WindowInsets.ime
         // A menu opened over the keyboard is placed in the space above it and stays there once the
@@ -1985,11 +1997,12 @@ fun ChatScreen(
                            else MaterialTheme.typography.titleMedium
 
         val cs = MaterialTheme.colorScheme
-        val topBarBrush = remember(cs) {
+        val topBg = personalColors.color(ThemeRole.TOP, cs.surface)
+        val topBarBrush = remember(cs, topBg) {
             Brush.verticalGradient(
                 listOf(
-                    cs.surfaceColorAtElevation(6.dp),
-                    cs.surface
+                    if (personalColors.theme != null) topBg else cs.surfaceColorAtElevation(6.dp),
+                    topBg
                 )
             )
         }
@@ -2248,6 +2261,7 @@ fun ChatScreen(
                                     })
                                 }
                                 add(MenuEntry(stringResource(R.string.menu_settings)) { overflowExpanded = false; onOpenSettings() })
+                                add(MenuEntry("Privados pendientes (${state.privateRequests.size})") { overflowExpanded = false; onOpenPrivateRequests() })
                                 add(MenuEntry("Scripts") { overflowExpanded = false; onOpenScripts() })
                                 add(MenuEntry(stringResource(R.string.menu_networks)) { overflowExpanded = false; onOpenNetworks() })
                                 if (isIrcOper) {
@@ -2309,12 +2323,16 @@ fun ChatScreen(
                 }
             }
         }
-    }
+
+        } // personal area
+}
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun MessagesPane(mod: Modifier = Modifier) {
-        Box(mod.clipToBounds()) {
+        PersonalArea(ThemeRole.CHAT) {
+
+        Box(mod.background(chatBackground).clipToBounds()) {
         Column(Modifier.fillMaxSize()) {
             if (state.settings.showTopicBar && isChannel && !topic.isNullOrBlank()) {
                 Surface(
@@ -2950,15 +2968,20 @@ fun ChatScreen(
             }
         }
     } // end outer Box
-    } // end MessagesPane
+
+        } // personal area
+} // end MessagesPane
 
 	val bottomBar: @Composable () -> Unit = {
+        PersonalArea(ThemeRole.INPUT) {
+
         val cs = MaterialTheme.colorScheme
-        val bottomBarBrush = remember(cs) {
+        val inputBg = personalColors.color(ThemeRole.INPUT, cs.surface)
+        val bottomBarBrush = remember(cs, inputBg) {
             Brush.verticalGradient(
                 listOf(
-                    cs.surfaceColorAtElevation(6.dp),
-                    cs.surface
+                    if (personalColors.theme != null) inputBg else cs.surfaceColorAtElevation(6.dp),
+                    inputBg
                 )
             )
         }
@@ -2993,67 +3016,12 @@ fun ChatScreen(
             parent to rest
         }
 
-        // Tab completion of nicks, for anyone with a physical keyboard.
-        var nickCycle by remember { mutableStateOf<NickCycle?>(null) }
-
-        /**
-         * Completes the word before the cursor against the nicklist.
-         * A repeat press cycles forward through the matches, Shift+Tab backwards.
-         * Returns false when there is nothing to complete.
-         */
+        var nickCycle by remember(selected) { mutableStateOf<NickCompletion?>(null) }
         fun completeNick(backwards: Boolean): Boolean {
-            if (completionNicks.isEmpty()) return false
-
-            fun bare(n: String) = n.trimStart('~', '&', '@', '%', '+')
-
-            // Non-null only while the field still holds exactly what the last completion
-            // left, so an edit in between starts a fresh completion rather than cycling
-            // matches for a word that is no longer there.
-            val cycle = nickCycle?.takeIf {
-                input.text == it.text &&
-                    input.selection.start == it.cursor &&
-                    input.selection.collapsed
-            }
-
-            val start: Int
-            val hadAt: Boolean
-            val matches: List<String>
-            val index: Int
-
-            if (cycle != null) {
-                start = cycle.start
-                hadAt = cycle.hadAt
-                matches = cycle.matches
-                index = if (backwards) {
-                    (cycle.index - 1 + matches.size) % matches.size
-                } else {
-                    (cycle.index + 1) % matches.size
-                }
-            } else {
-                val cursor = input.selection.start
-                if (!input.selection.collapsed) return false
-                var wordStart = cursor
-                while (wordStart > 0 && !input.text[wordStart - 1].isWhitespace()) wordStart--
-                val word = input.text.substring(wordStart, cursor)
-                if (word.isEmpty()) return false
-                hadAt = word.startsWith("@")
-                val prefix = if (hadAt) word.substring(1) else word
-                if (prefix.isEmpty()) return false
-                matches = completionNicks
-                    .map { bare(it) }
-                    .filter { it.startsWith(prefix, ignoreCase = true) }
-                    .distinct()
-                    .sortedBy { it.lowercase() }
-                if (matches.isEmpty()) return false
-                start = wordStart
-                index = 0
-            }
-            var end = input.selection.start
-            if (cycle == null) while (end < input.text.length && !input.text[end].isWhitespace()) end++
-            val token = NickToken(start, input.selection.start, end, "", hadAt)
-            val (newText, newCursor) = completeNickToken(input.text, token, matches[index])
-            input = TextFieldValue(newText, TextRange(newCursor))
-            nickCycle = NickCycle(start, hadAt, matches, index, newText, newCursor)
+            if (!input.selection.collapsed) return false
+            val result = advanceNickCompletion(input.text, input.selection.start, completionNicks, nickCycle, backwards) ?: return false
+            input = TextFieldValue(result.text, TextRange(result.cursor))
+            nickCycle = result
             return true
         }
 
@@ -3094,7 +3062,8 @@ fun ChatScreen(
                     SecondaryScrollableTabRow(
                         selectedTabIndex = barSelIdx,
                         edgePadding = 0.dp,
-                        containerColor = Color.Transparent,
+                        containerColor = personalColors.color(ThemeRole.TABS, Color.Transparent),
+                        contentColor = personalColors.text(ThemeRole.UI_TEXT, personalColors.color(ThemeRole.TABS, MaterialTheme.colorScheme.surface), MaterialTheme.colorScheme.onSurface),
                     ) {
                         allTabKeys.forEachIndexed { i, key ->
                             val (keyNet, keyName) = splitKey(key)
@@ -3170,21 +3139,24 @@ fun ChatScreen(
             // Priority: nick hints > subcommand hints > command hints. Nick hints
             // win on channels (user is mid-@mention). Subcommand hints win when
             // we're past the parent-command space. Command hints are the baseline.
-            if (nickQuery != null && cmdQuery == null && subCmdQuery == null) {
-                NickHints(
-                    prefix = nickQuery,
-                    nicks = completionNicks,
-                    inputText = input.text,
-                    onPick = { completion ->
-                        completionToken?.let { token ->
-                            val nick = completion.trim().removeSuffix(":")
-                            val (newText, cursor) = completeNickToken(input.text, token, nick)
-                            input = TextFieldValue(newText, TextRange(cursor))
-                            nickCycle = null
-                            onTypingChanged(newText)
-                        }
+            val liveCycle = nickCycle?.takeIf { it.text == input.text && it.cursor == input.selection.start }
+            val matches = (liveCycle?.prefix ?: nickQuery)?.let { completionMatches(completionNicks, it) }.orEmpty()
+            LaunchedEffect(input.text, input.selection, completionNicks) {
+                if (nickQuery != null && matches.size == 1 && liveCycle == null && cmdQuery == null && subCmdQuery == null) {
+                    kotlinx.coroutines.delay(300)
+                    completeNick(false)
+                    onTypingChanged(input.text)
+                }
+            }
+            if (matches.size > 1 && cmdQuery == null && subCmdQuery == null) {
+                NickChoiceList(matches, liveCycle?.let { it.matches[it.index] }) { nick ->
+                    val token = liveCycle?.let { NickToken(it.start, it.cursor, it.cursor, "", it.hadAt) } ?: completionToken
+                    if (token != null) {
+                        val (newText, cursor) = completeNickToken(input.text, token, nick)
+                        input = TextFieldValue(newText, TextRange(cursor)); nickCycle = null
+                        onTypingChanged(newText)
                     }
-                )
+                }
             }
             // Subcommand hints — shown after the user has typed a parent with a
             // known sub-verb set (e.g. "/ns ", "/znc list", "/bouncerserv network ").
@@ -3407,7 +3379,7 @@ fun ChatScreen(
                     }
                 }
                 // Build the text style for the input based on active formatting
-                val defaultTextColor = MaterialTheme.colorScheme.onSurface
+                val defaultTextColor = personalColors.text(ThemeRole.INPUT_TEXT, inputBg, MaterialTheme.colorScheme.onSurface)
                 val inputTextStyle = chatTextStyle.copy(
                     color = selectedFgColor?.let { mircColor(it) } ?: defaultTextColor,
                     fontWeight = if (boldActive) FontWeight.Bold else chatTextStyle.fontWeight,
@@ -3616,7 +3588,9 @@ fun ChatScreen(
         } // closes Row
         } // closes Column(Modifier.fillMaxWidth) wrapping typing indicator + Row
         } // closes Surface
-        } // closes Column wrapper for CommandHints + Surface
+
+        } // personal area
+} // closes Column wrapper for CommandHints + Surface
 
     val scaffoldContent: @Composable (PaddingValues) -> Unit = { padding ->
         if (!isWide) {
@@ -3914,7 +3888,7 @@ fun ChatScreen(
                 // Match the landscape pane: surface colour at 1 dp tonal elevation, so both drawers
                 // are the same shade.
                 ModalDrawerSheet(
-                    drawerContainerColor = MaterialTheme.colorScheme.surface,
+                    drawerContainerColor = personalColors.color(ThemeRole.SIDEBAR, MaterialTheme.colorScheme.surface),
                     drawerTonalElevation = 1.dp,
                 ) { BufferDrawer() }
             }
@@ -4252,6 +4226,8 @@ fun ChatScreen(
 
                 // ── Header ────────────────────────────────────────────────────
                 Text(stringResource(R.string.chat_text_formatting), style = MaterialTheme.typography.titleMedium)
+                Text("Este formato se recuerda en todas las salas y redes, incluso al reiniciar.")
+                TextButton(onClick = { selectedFgColor = null; selectedBgColor = null; boldActive = false; italicActive = false; underlineActive = false; reverseActive = false; input = clearFormat(input); onWritingStyle(com.boxlabs.hexdroid.WritingStyle()) }) { Text("Restablecer formato normal") }
 
                 // ── Live preview ──────────────────────────────────────────────
                 val previewText = buildAnnotatedString {

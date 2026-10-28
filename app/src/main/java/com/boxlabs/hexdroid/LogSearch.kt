@@ -90,7 +90,7 @@ object LogSearch {
     /** The message part of a log line: everything after the timestamp's tab. */
     fun bodyOf(line: String): String {
         val tab = line.indexOf('\t')
-        return if (tab in 0..25) line.substring(tab + 1) else line
+        return (if (tab in 0..25) line.substring(tab + 1) else line).removePrefix(HISTORY_ESCAPED)
     }
 
     /** The sender of a chat or action line, or null for a status line. */

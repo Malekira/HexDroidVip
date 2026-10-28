@@ -21,6 +21,7 @@ package com.boxlabs.hexdroid
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -87,6 +88,20 @@ class IrcClientRepliesTest {
     }
 
     private val harnesses = mutableListOf<IrcTestHarness>()
+
+    @Test fun callerIdAdvertisementAndBlockedNoticeRemainRealServerEvents() {
+        val h = harness()
+        h.server.send(":srv 005 me CALLERID=g :supported")
+        h.sync("callerid-advertised")
+        assertEquals("g", h.client.callerIdMode)
+        h.server.send(":srv 718 me DemoNick01 demo@host.invalid :is messaging you while caller-id is enabled")
+        val blocked = h.await<IrcEvent.ServerText> { it.code == "718" }
+        assertEquals("DemoNick01", blocked.serverParams[1])
+        assertFalse(blocked.isWhoisReply)
+        h.server.send(":srv 005 me -CALLERID :supported")
+        h.sync("callerid-withdrawn")
+        assertNull(h.client.callerIdMode)
+    }
 
     private fun harness(caps: String = LABELED) = IrcTestHarness(caps).also { harnesses += it }
 
