@@ -1930,7 +1930,7 @@ fun ChatScreen(
     }
 
     val linkStyle = SpanStyle(
-        color = MaterialTheme.colorScheme.primary,
+        color = personalColors.text(ThemeRole.BUTTON, chatBackground, MaterialTheme.colorScheme.primary),
         textDecoration = TextDecoration.Underline
     )
 

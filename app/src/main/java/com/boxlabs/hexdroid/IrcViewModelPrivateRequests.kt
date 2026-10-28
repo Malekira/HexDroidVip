@@ -59,7 +59,7 @@ internal suspend fun IrcViewModel.sendPrivateRequestNotice(netId: String, nick: 
     check(_state.value.connections[netId]?.connected == true) { "Red desconectada; no se envió el aviso" }
     val line = "NOTICE $nick :$text"
     require(line.toByteArray(Charsets.UTF_8).size + 2 <= (rt.support.linelen ?: 512) - 64) { "El mensaje automático excede el límite IRC; acortalo en Ajustes" }
-    rt.client.sendRaw(line)
+    rt.client.sendNotice(nick, text, suppressEcho = true)
 }
 
 fun IrcViewModel.resolvePrivateRequest(request: PrivateRequest, decision: String, reason: String = "") {

@@ -89,6 +89,16 @@ class IrcClientRepliesTest {
 
     private val harnesses = mutableListOf<IrcTestHarness>()
 
+    @Test fun automaticPrivateRequestNoticesDoNotReopenBuffersThroughTheirEcho() {
+        val h = harness()
+        val text = "Aviso automático de prueba"
+        h.run { h.client.sendNotice("DemoNick01", text, suppressEcho = true) }
+        h.server.expect { it == "NOTICE DemoNick01 :$text" }
+        h.server.send(":me!demo@host.invalid NOTICE DemoNick01 :$text")
+        h.sync("automatic-notice-echo")
+        assertFalse(h.events.filterIsInstance<IrcEvent.Notice>().any { it.from == "me" && it.text == text })
+    }
+
     @Test fun callerIdAdvertisementAndBlockedNoticeRemainRealServerEvents() {
         val h = harness()
         h.server.send(":srv 005 me CALLERID=g :supported")

@@ -118,7 +118,8 @@ aceptados quedan autorizados entre sesiones. También se accede desde el menú d
 - **Ignorar:** descarta la solicitud sin contestar, sin añadir ningún ignore, ban ni bloqueo.
 
 Los mensajes automáticos son NOTICE para evitar ciclos entre respondedores y no crean un
-buffer de privado. Son avisos sin cifrar: no incluyen el contenido del privado, pero los textos
+buffer de privado. Sus ecos `echo-message` se suprimen para no crear privados propios.
+Son avisos sin cifrar: no incluyen el contenido del privado, pero los textos
 personalizados y el motivo opcional de rechazo tampoco deben contener información sensible. El aviso de espera se reclama una sola vez por contacto/red y no se reenvía
 por cada mensaje o reconexión. Las identidades de mensajes evitan duplicar los pendientes.
 Una persona puede volver a solicitar un privado después de un rechazo/ignorar; no queda bloqueada.

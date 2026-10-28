@@ -20,7 +20,7 @@ Base: `feat/personal-phase2`. No hacer merge automático. Identidad debug: `com.
 GPLv3 y créditos originales conservados. Ver `docs/PERSONAL_PHASE3.md` para ajustes, protocolo, privacidad,
 limitaciones de firma y respaldo, instalación en Samsung y comprobaciones manuales.
 
-Validación local: APK debug y APK de instrumentación generadas; 77 pruebas unitarias ejecutadas, sin fallos ni omisiones.
+Validación local: APK debug y APK de instrumentación generadas; 78 pruebas unitarias ejecutadas, sin fallos ni omisiones.
 La instrumentación se exige en el emulador de GitHub Actions antes de publicar el APK.
 
 Los resultados efectivamente ejecutados aparecen en el resumen y los informes del run de GitHub Actions.
