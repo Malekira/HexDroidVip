@@ -10,6 +10,8 @@ persistentes y elección de múltiples coincidencias de nick desde Android.
   autorización por sesión o persistente y notificaciones dirigidas a la lista pendiente.
 - CALLERID anunciado y numeric 718: diferencia entre intentos bloqueados y mensajes recibidos; comandos +g/-g/ACCEPT
   condicionados a la capacidad real del servidor, sin simular confirmaciones.
+- Los privados +AGE descifrados respetan solicitudes, ignores y política separada de registro; sus avisos de negociación no crean un PV pendiente.
+- Cabeceras, pestañas y menús mantienen su propia paleta y contraste, incluidas combinaciones de fondos opuestos.
 - Lista vertical de coincidencias sin límite de 16 y ciclo Tab compartido. No se modifica `/buenosdias` ni los scripts del usuario.
 - Workflow de APK debug con pruebas unitarias e instrumentación Android, comprobación de tests ejecutados,
   verificación de firma/identidad y artifact descargable. Firma estable opcional mediante GitHub Secrets, sin material privado en Git.

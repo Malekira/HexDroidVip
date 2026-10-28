@@ -15,10 +15,12 @@ El botón **Restaurar tema original** desactiva el tema personalizado sin borrar
 Para cambiar la base clara/oscura, elegí el modo original y luego pulsá **Usar** en
 tu tema. Con el modo Sistema la paleta sigue la preferencia de Android.
 
-Se configuran fondos de aplicación, salas/privados, barras, pestañas, botones,
+Se configuran fondos de aplicación, salas/privados, barras (también en Ajustes, redes y scripts), pestañas, botones,
 menús, panel lateral, lista de usuarios, mensajes, nicks, avisos, texto de interfaz
 y barra de escritura. El texto de los temas se ajusta a un contraste mínimo 4,5:1
-cuando la combinación elegida no resulta legible. Las preferencias de formato IRC
+cuando la combinación elegida no resulta legible. Los menús recuperan su propia paleta
+al abrirse desde una cabecera con un fondo diferente. Los iconos de estado/navegación de
+Android también se adaptan al fondo elegido para conservar el contraste. Las preferencias de formato IRC
 y los colores explícitos recibidos dentro de los mensajes siguen siendo independientes:
 no se reescriben sus códigos mIRC/ANSI. Se conserva la prioridad de los colores
 propios de nick y de metadatos que ya admitía la app.
@@ -116,10 +118,14 @@ aceptados quedan autorizados entre sesiones. También se accede desde el menú d
 - **Ignorar:** descarta la solicitud sin contestar, sin añadir ningún ignore, ban ni bloqueo.
 
 Los mensajes automáticos son NOTICE para evitar ciclos entre respondedores y no crean un
-buffer de privado. El aviso de espera se reclama una sola vez por contacto/red y no se reenvía
+buffer de privado. Son avisos sin cifrar: no incluyen el contenido del privado, pero los textos
+personalizados y el motivo opcional de rechazo tampoco deben contener información sensible. El aviso de espera se reclama una sola vez por contacto/red y no se reenvía
 por cada mensaje o reconexión. Las identidades de mensajes evitan duplicar los pendientes.
 Una persona puede volver a solicitar un privado después de un rechazo/ignorar; no queda bloqueada.
 Los ignores se comprueban antes de los scripts y de la solicitud, y de nuevo antes de responder.
+Los privados descifrados +AGE pasan también por las solicitudes; sus avisos de negociación
+aparecen en Status mientras el contacto no esté aceptado, sin abrir un PV automáticamente.
+Los callbacks y señales de los scripts +AGE se conservan sin volver a disparar TEXT.
 Los scripts pueden transformar o suprimir el mensaje antes de que se guarde la solicitud.
 
 La lista y los mensajes pendientes se guardan en SQLite dentro del almacenamiento privado;

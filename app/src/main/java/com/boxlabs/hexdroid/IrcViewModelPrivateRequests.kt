@@ -16,7 +16,6 @@ internal fun IrcViewModel.refreshPrivateRequests() {
 internal fun IrcViewModel.gatePrivateMessage(netId: String, ev: IrcEvent.ChatMessage, shown: String, targetKey: String): Boolean {
     val s = _state.value.settings
     if (!s.privateRequestsEnabled || !ev.isPrivate || isMyNick(netId, ev.from) || !isReplyNick(ev.from)) return false
-    if (bareMember(ev.from).lowercase() in setOf("nickserv", "authserv", "chanserv", "operserv", "q", "x")) return false
     val id = privateRequestId(netId, casefoldText(netId, ev.from))
     privateRequestNetworkKeys.getOrPut(netId) { mutableSetOf() }.add(id)
     if (id in sessionPrivateAccepted) return false
@@ -133,4 +132,12 @@ fun IrcViewModel.callerIdAction(netId: String, operation: String) {
             _state.update { it.copy(privateRequestMessage = "Solicitud $command enviada; consultá la respuesta del servidor en Status") }
         } catch (e: Exception) { _state.update { it.copy(privateRequestMessage = "No se envió la operación +g: ${e.message}") } }
     }
+}
+
+/** Handshake/status output must not create an unaccepted encrypted private buffer. */
+internal fun IrcViewModel.privateProtocolStatusKey(netId: String, peer: String): String {
+    val key = resolveBufferKey(netId, peer)
+    val id = privateRequestId(netId, casefoldText(netId, peer))
+    return if (_state.value.settings.privateRequestsEnabled && id !in sessionPrivateAccepted && key !in _state.value.buffers)
+        bufKey(netId, "*server*") else key
 }

@@ -30,7 +30,7 @@ internal fun uniqueHistoryFileBase(original: String, sanitized: String): String 
 
 /** Excludes authentication exchanges; redacts accidental credential assignments in conversation text. */
 internal fun safeHistoryText(buffer: String, text: String): String? {
-    if (bareMember(buffer).lowercase() in setOf("nickserv", "authserv", "chanserv", "operserv", "q", "x")) return null
+    if (bareMember(buffer).lowercase() in setOf("nickserv", "authserv", "chanserv", "operserv")) return null
     val clean = stripIrcFormatting(text)
     if (Regex("(?i)^\\s*(?:/|(?:PRIVMSG\\s+\\S+\\s+:))?(?:identify|authenticate|pass|oper|sasl|login|auth)\\b").containsMatchIn(clean)) return null
     return clean.replace(Regex("(?i)\\b(password|passwd|contraseña|token|secret|api[_-]?key|authorization)\\s*[:=]\\s*[^\\s]+"), "$1=[REDACTADO]")
@@ -171,11 +171,14 @@ internal class HistoryArchive(ctx: Context) {
                     HistoryFiles.resolve(staging, path).bufferedReader(Charsets.UTF_8).useLines { lines -> lines.forEach { line ->
                         val tab = line.indexOf('\t')
                         val rawBody = if (tab >= 0) line.substring(tab + 1) else line
+                        val escaped = rawBody.startsWith(HISTORY_ESCAPED)
                         val body = rawBody.removePrefix(HISTORY_ESCAPED)
                         val text = LogSearch.textOf(body)
-                        val safe = safeHistoryText(path.substringAfter('/').removeSuffix(".txt"), text)
+                        val decoded = if (escaped) decodeHistoryBody(text) else text
+                        val safe = safeHistoryText(path.substringAfter('/').removeSuffix(".txt"), decoded)
                         if (safe != null) {
-                            val sanitized = if (safe == text) line else (if (tab >= 0) line.substring(0, tab + 1) else "") + body.removeSuffix(text) + safe
+                            val sanitized = if (safe == decoded) line else (if (tab >= 0) line.substring(0, tab + 1) else "") +
+                                (if (escaped) HISTORY_ESCAPED else "") + body.removeSuffix(text) + (if (escaped) encodeHistoryBody(safe) else safe)
                             val key = historyDigest(sanitized)
                             index.execSQL("INSERT OR IGNORE INTO restore_counts(identity) VALUES (?)", arrayOf(key))
                             index.execSQL("UPDATE restore_counts SET incoming=incoming+1 WHERE identity=?", arrayOf(key))

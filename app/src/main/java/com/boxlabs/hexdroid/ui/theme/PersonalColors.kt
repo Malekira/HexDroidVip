@@ -13,6 +13,7 @@ data class PersonalColors(val theme: PersonalTheme?, val dark: Boolean) {
         Color(readableThemeText(it.color(role, dark), background.toArgb()))
     } ?: fallback
 }
+val LocalPersonalBaseScheme = staticCompositionLocalOf<ColorScheme?> { null }
 val LocalPersonalColors = staticCompositionLocalOf { PersonalColors(null, true) }
 internal fun personalScheme(base: ColorScheme, c: PersonalColors): ColorScheme {
     if (c.theme == null) return base
@@ -22,7 +23,7 @@ internal fun personalScheme(base: ColorScheme, c: PersonalColors): ColorScheme {
     return base.copy(
         background = bg(ThemeRole.APP), onBackground = fg(ThemeRole.UI_TEXT, ThemeRole.APP),
         surface = bg(ThemeRole.MENU), onSurface = fg(ThemeRole.UI_TEXT, ThemeRole.MENU),
-        surfaceVariant = bg(ThemeRole.TOP), onSurfaceVariant = fg(ThemeRole.UI_TEXT, ThemeRole.TOP),
+        surfaceVariant = bg(ThemeRole.MENU), onSurfaceVariant = fg(ThemeRole.UI_TEXT, ThemeRole.MENU),
         surfaceContainer = bg(ThemeRole.MENU), surfaceContainerLow = bg(ThemeRole.MENU),
         surfaceContainerHigh = bg(ThemeRole.MENU), surfaceContainerHighest = bg(ThemeRole.MENU),
         surfaceContainerLowest = bg(ThemeRole.APP), surfaceBright = bg(ThemeRole.MENU), surfaceDim = bg(ThemeRole.MENU),

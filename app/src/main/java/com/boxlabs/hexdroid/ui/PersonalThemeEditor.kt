@@ -67,7 +67,7 @@ internal fun ThemeEditor(initial: PersonalTheme, dismiss: () -> Unit, save: (Per
                 var expanded by remember { mutableStateOf(false) }
                 Box {
                     OutlinedButton(onClick = { expanded = true }) { Text(role.label + " ▾") }
-                    DropdownMenu(expanded, { expanded = false }, Modifier.heightIn(max = 340.dp)) {
+                    PersonalDropdownMenu(expanded, { expanded = false }, Modifier.heightIn(max = 340.dp)) {
                         ThemeRole.entries.forEach { r -> DropdownMenuItem(text = { Text(r.label) }, onClick = { role = r; expanded = false }) }
                     }
                 }

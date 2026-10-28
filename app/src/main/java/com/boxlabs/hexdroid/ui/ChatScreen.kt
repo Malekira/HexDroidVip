@@ -142,7 +142,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -1202,7 +1201,8 @@ fun ChatScreen(
 					// bar, a shrinking tab list can leave the cached selected index one past the new list during
 					// layout and crash. A fresh identity per set discards that stale state.
 					key(visibleNets.map { it.id }) {
-					SecondaryScrollableTabRow(
+					PersonalArea(ThemeRole.TABS) {
+                    SecondaryScrollableTabRow(
 						selectedTabIndex = selIdx,
 						edgePadding = 0.dp,
 						containerColor = personalColors.color(ThemeRole.TABS, Color.Transparent),
@@ -1254,6 +1254,7 @@ fun ChatScreen(
 							)
 						}
 					}
+                    } // personal tab palette
 					}
 
 					val grouped = buffersByNet[activeNet]
@@ -2193,7 +2194,7 @@ fun ChatScreen(
                                      modifier = Modifier.size(accentGlyphSize)
                                 )
                             }
-                            DropdownMenu(
+                            PersonalDropdownMenu(
                                 expanded = launcherExpanded,
                                 onDismissRequest = { launcherExpanded = false }
                             ) {
@@ -2214,7 +2215,7 @@ fun ChatScreen(
                             modifier = Modifier.tourTarget(TourTarget.CHAT_OVERFLOW_BUTTON),
                             initialFocus = false,
                         ) { Text("⋮") }
-                        DropdownMenu(
+                        PersonalDropdownMenu(
                             expanded = overflowExpanded,
                             onDismissRequest = { overflowExpanded = false }
                         ) {
@@ -3059,6 +3060,7 @@ fun ChatScreen(
                     // new, shorter list and throw IndexOutOfBounds. A fresh identity per set discards the
                     // stale layout state and sidesteps the crash.
                     key(allTabKeys) {
+                    PersonalArea(ThemeRole.TABS) {
                     SecondaryScrollableTabRow(
                         selectedTabIndex = barSelIdx,
                         edgePadding = 0.dp,
@@ -3133,6 +3135,7 @@ fun ChatScreen(
                             )
                         }
                     }
+                    } // personal tab palette
                     }
                 }
             }
@@ -4656,7 +4659,8 @@ fun ChatScreen(
                 val noExceptSupportStr = stringResource(R.string.chat_no_except_support)
                 val noInvexSupportStr = stringResource(R.string.chat_no_invex_support)
 
-                PrimaryTabRow(selectedTabIndex = chanListTab) {
+                PersonalArea(ThemeRole.TABS) {
+                    PrimaryTabRow(selectedTabIndex = chanListTab, containerColor = personalColors.color(ThemeRole.TABS, MaterialTheme.colorScheme.surface)) {
                     Tab(
                         selected = chanListTab == 0,
                         onClick = { chanListTab = 0 }
@@ -4710,6 +4714,7 @@ fun ChatScreen(
                         }
                     ) { Text(stringResource(R.string.chat_invex_title)) }
                 }
+                    } // personal tab palette
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val canRefresh = when (chanListTab) {

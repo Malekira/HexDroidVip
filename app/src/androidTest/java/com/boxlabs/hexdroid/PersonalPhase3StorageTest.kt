@@ -71,6 +71,14 @@ class PersonalPhase3StorageTest {
                 assertFalse(legacy.exists())
                 assertEquals(listOf(a), reopened.page("network-demo/#old-demo.txt", "", 0).lines)
                 assertFalse(reopened.append("network-demo/#old-demo.txt", a, replay = true))
+                val multiPath = "network-demo/#multiline-demo.txt"
+                val multi = "2026-10-27 20:17:00\t" + HISTORY_ESCAPED + "<DemoNick01> " + encodeHistoryBody("token=[REDACTADO]\nSegunda línea 🙂")
+                reopened.append(multiPath, multi)
+                val multiBackup = ByteArrayOutputStream(); reopened.export(setOf(multiPath), multiBackup)
+                reopened.delete(setOf(multiPath))
+                assertEquals(1, reopened.restore(ByteArrayInputStream(multiBackup.toByteArray())))
+                assertEquals(listOf(multi), reopened.page(multiPath, "", 0).lines)
+                assertEquals(0, reopened.restore(ByteArrayInputStream(multiBackup.toByteArray())))
             } finally { reopened.close() }
         } finally { archive.close(); ctx.root.deleteRecursively() }
     }

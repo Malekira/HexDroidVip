@@ -83,7 +83,7 @@ jobs:
         if: always()
         shell: python
         run: |
-          import os, pathlib, xml.etree.ElementTree as E
+          import os, pathlib, re, xml.etree.ElementTree as E
           report_paths = sorted({p for p in pathlib.Path('app/build').rglob('*.xml') if 'result' in str(p).lower() or 'report' in str(p).lower()})
           expected = 'roomRemainsWhilePanelMovesMinimizesRestoresAndCloses'
           overlay_executed = False
@@ -106,11 +106,21 @@ jobs:
                           overlay_executed = True
                       for failure in list(case.findall('failure')) + list(case.findall('error')):
                           out.write(f"\n```text\n{identity}: {(failure.text or failure.get('message', ''))[:6000]}\n```\n")
+                          diagnostic = identity + ': ' + (failure.text or failure.get('message', ''))[:4000]
+                          print('::error::' + diagnostic.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           if os.environ.get('GITHUB_REF_NAME') == 'feat/personal-phase3':
-              required = {'PersonalPhase3Test': 8, 'PersonalPhase3StorageTest': 4, 'PersonalPhase3UiTest': 3, 'PersonalPhase3PrivateFlowTest': 1}
-              for suite, count in required.items():
-                  if len([case for case in phase3_passed if suite + '.' in case]) < count:
-                      raise SystemExit('Required Phase 3 tests missing for ' + suite + ': ' + str(sorted(phase3_passed)))
+              sources = [pathlib.Path('app/src/test/java/com/boxlabs/hexdroid/PersonalPhase3Test.kt')]
+              sources += [pathlib.Path('app/src/androidTest/java/com/boxlabs/hexdroid', name) for name in ['PersonalPhase3StorageTest.kt', 'PersonalPhase3UiTest.kt', 'PersonalPhase3PrivateFlowTest.kt']]
+              for source in sources:
+                  methods = re.findall(r'@Test\s+fun\s+(\w+)\s*\(', source.read_text())
+                  if not methods:
+                      raise SystemExit('No tests found in required suite: ' + str(source))
+                  for method in methods:
+                      required = source.stem + '.' + method
+                      if not any(required in case for case in phase3_passed):
+                          diagnostic = 'Required Phase 3 test not passed: ' + required
+                          print('::error::' + diagnostic)
+                          raise SystemExit(diagnostic)
           if not overlay_executed:
               diagnostic = ('Required WHOIS UI test not found as passed. Reports: ' + str([str(p) for p in report_paths]) + '; cases: ' + str(discovered))[:5000]
               print('::error::' + diagnostic)

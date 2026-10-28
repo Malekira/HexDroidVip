@@ -16,6 +16,7 @@ internal fun PrivateRequestSettings(s: UiSettings, update: (UiSettings.() -> UiS
         Text("Solicitudes de privados", style = MaterialTheme.typography.titleMedium)
         Text("Los mensajes quedan pendientes sin abrir una conversación. Las solicitudes se conservan al cerrar la app. Los mensajes pendientes se cifran en el teléfono mediante Android Keystore; no forman parte de la copia TXT del historial.")
         Row { Text("Activar solicitudes", Modifier.weight(1f)); Switch(s.privateRequestsEnabled, { v -> update { withPersonal { copy(privateRequestsEnabled = v) } } }) }
+        Text("Los avisos automáticos se envían sin cifrar y no incluyen el contenido del privado. Evitá añadir información sensible a sus textos o al motivo de rechazo.")
         Row { Text("Mensajes automáticos (NOTICE)", Modifier.weight(1f)); Switch(s.privateAutoMessages, { v -> update { withPersonal { copy(privateAutoMessages = v) } } }) }
         Row { Text("Recordar aceptados entre sesiones", Modifier.weight(1f)); Switch(s.privateRememberAccepted, { v -> update { withPersonal { copy(privateRememberAccepted = v) } } }) }
         OutlinedTextField(s.privateWaitText, { text -> update { withPersonal { copy(privateWaitText = text) } } }, label = { Text("Mensaje de espera") }, modifier = Modifier.fillMaxWidth())
@@ -32,7 +33,7 @@ internal fun PrivateRequestSettings(s: UiSettings, update: (UiSettings.() -> UiS
 internal fun PrivateRequestsScreen(state: UiState, back: () -> Unit, resolve: (PrivateRequest, String, String) -> Unit, callerId: (String, String) -> Unit) {
     var rejecting by remember { mutableStateOf<PrivateRequest?>(null) }
     var reason by remember { mutableStateOf("") }
-    Scaffold(topBar = { TopAppBar(title = { Text("Privados pendientes (${state.privateRequests.size})") }, navigationIcon = { TextButton(onClick = back) { Text("Volver") } }) }) { padding ->
+    Scaffold(topBar = { PersonalTopAppBar(title = { Text("Privados pendientes (${state.privateRequests.size})") }, navigationIcon = { TextButton(onClick = back) { Text("Volver") } }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Text("Aceptar abre el privado; rechazar puede enviar un NOTICE; ignorar descarta sin responder ni bloquear. Las notificaciones llevan a esta lista.") }
             state.callerIdNetworks.forEach { netId -> item {

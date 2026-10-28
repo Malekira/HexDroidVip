@@ -90,7 +90,7 @@ fun ListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            PersonalTopAppBar(
                 title = { Text(stringResource(R.string.list_channels_title)) },
                 navigationIcon = { IconButton(onClick = onBack, modifier = Modifier.tvInitialFocus().focusHighlight()) { Text("←") } },
                 actions = {

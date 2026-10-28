@@ -61,7 +61,7 @@ internal fun PersonalHistoryScreen(archive: HistoryArchive, back: () -> Unit, ne
         delay(200)
         page = withContext(Dispatchers.IO) { archive.page(path, query, offset) }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Historial permanente") }, navigationIcon = { TextButton(onClick = { if (conversation != null) { conversation = null; query = ""; offset = 0 } else back() }) { Text("Volver") } }) }) { padding ->
+    Scaffold(topBar = { PersonalTopAppBar(title = { Text("Historial permanente") }, navigationIcon = { TextButton(onClick = { if (conversation != null) { conversation = null; query = ""; offset = 0 } else back() }) { Text("Volver") } }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Almacenamiento privado: ${files.sumOf { it.bytes }} bytes · ${files.size} conversaciones")
             Text("Los TXT y ZIP exportados pueden contener información privada y mensajes descifrados. Guardalos en un lugar seguro.")

@@ -233,9 +233,10 @@ fun HexDroidIRCTheme(
     }
 
     val personalColors = PersonalColors(personalTheme, resolvedDark)
-    CompositionLocalProvider(LocalAccentColors provides accents, LocalPersonalColors provides personalColors) {
+    val personalBaseScheme = personalScheme(colorScheme, personalColors)
+    CompositionLocalProvider(LocalAccentColors provides accents, LocalPersonalColors provides personalColors, LocalPersonalBaseScheme provides personalBaseScheme) {
         MaterialTheme(
-            colorScheme = personalScheme(colorScheme, personalColors),
+            colorScheme = personalBaseScheme,
             typography = typography,
             shapes = HexShapes,
             content = content

@@ -2,6 +2,8 @@
 package com.boxlabs.hexdroid
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.graphics.toArgb
+import com.boxlabs.hexdroid.ui.theme.HexDroidIRCTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.test.*
@@ -13,6 +15,27 @@ import org.junit.Test
 
 class PersonalPhase3UiTest {
     @get:Rule val compose = createComposeRule()
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Test fun phase3HeaderAndPopupRetainContrastWithOppositeBackgrounds() {
+        val theme = PersonalTheme(darkColors = mapOf("TOP" to 0xff000000.toInt(), "MENU" to 0xffffffff.toInt(), "UI_TEXT" to 0xffffffff.toInt()))
+        var headerColor: Int? = null
+        var menuColor: Int? = null
+        compose.setContent {
+            HexDroidIRCTheme(personalTheme = theme) {
+                PersonalTopAppBar(title = { headerColor = LocalContentColor.current.toArgb(); Text("Cabecera demo") }, actions = {
+                    PersonalDropdownMenu(true, {}) {
+                        menuColor = LocalContentColor.current.toArgb()
+                        DropdownMenuItem(text = { Text("Opción demo") }, onClick = {})
+                    }
+                })
+            }
+        }
+        compose.onNodeWithText("Opción demo").assertExists()
+        compose.runOnIdle {
+            assertEquals(0xffffffff.toInt(), headerColor)
+            assertEquals(0xff000000.toInt(), menuColor)
+        }
+    }
     @Test fun phase3ThemeEditorPreviewsSavesAndDuplicates() {
         var settings by mutableStateOf(UiSettings())
         compose.setContent { MaterialTheme { PersonalThemeSettings(settings) { update -> settings = settings.update() } } }
