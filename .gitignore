@@ -20,3 +20,4 @@ local.properties
 *.p12
 *.pfx
 DREAMS_RELEASE_KEYSTORE_B64*
+__pycache__/

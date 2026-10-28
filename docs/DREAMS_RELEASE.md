@@ -16,8 +16,9 @@ configurados. La APK final se instala junto a la APK de prueba, lo que permite
 trasladar datos sin borrar primero la instalación que funciona. Android mantiene
 separados los datos de ambos paquetes: no se copian por cambiar el nombre visible.
 
-Este cambio prepara la publicación. No fusiona PRs, no crea un tag ni publica una
-GitHub Release automáticamente. Una compilación debug con el nuevo nombre sigue
+Este cambio prepara la publicación. No fusiona PRs, no crea un tag de versión ni publica una
+GitHub Release automáticamente. El método simple de firma usa únicamente un borrador privado
+y un tag interno con la huella pública del certificado. Una compilación debug con el nuevo nombre sigue
 siendo una versión de prueba, no una APK final firmada con identidad estable.
 
 ## Firma permanente: requisito pendiente de configuración
@@ -27,14 +28,25 @@ versión nueva usará además un código interno mayor para poder actualizarse. 
 clave temporal de las compilaciones debug anteriores no se puede recuperar desde
 una APK; no debe confundirse con una identidad de publicación permanente.
 
-El propietario eligió crear una clave nueva una sola vez en su Samsung.
-Seguir [DREAMS_SIGNING_SAMSUNG.md](DREAMS_SIGNING_SAMSUNG.md): el asistente usa
-`keytool` en Termux y permite copiar el secreto sin mostrarlo en la terminal.
-La copia de seguridad y contraseñas se conservan fuera de Git. No enviar claves
-ni contraseñas por chat, PRs, issues o logs.
+El propietario eligió una clave nueva y un proceso sin instalar aplicaciones.
+Seguir [DREAMS_SIGNING_SIMPLE.md](DREAMS_SIGNING_SIMPLE.md): solo se configura
+`DREAMS_SIGNING_PASSWORD` en GitHub Secrets. Actions crea la clave una vez, guarda
+su PKCS12 protegido en un borrador privado y comprueba su huella en cada ejecución.
+No requiere Termux ni tokens personales. Conservar la copia y contraseña fuera de Git.
+No enviar claves ni contraseñas por chat, PRs, issues o logs.
 
 En el repositorio, configurar mediante la interfaz de GitHub:
 **Settings → Secrets and variables → Actions → New repository secret**.
+
+Método simple: un único secreto **`DREAMS_SIGNING_PASSWORD`**, de 20 a 128 caracteres,
+sin acentos, emojis ni saltos de línea. El job gestiona el borrador privado con
+`contents: write`, usando el token automático de GitHub. El archivo de firma nunca
+se incluye en los artifacts de APK ni cachés; el tag `dreams-signing-identity` solo
+contiene una huella pública. No publicar el borrador de firma. Descargar una copia
+privada del PKCS12 y conservar la contraseña por separado.
+
+Como alternativa avanzada, para importar una clave ya existente se mantienen los
+cuatro secretos siguientes. No mezclarlos con el método simple:
 
 | Secreto | Contenido |
 | --- | --- |
@@ -45,8 +57,9 @@ En el repositorio, configurar mediante la interfaz de GitHub:
 
 Los cuatro son obligatorios juntos. La página de Secrets se puede abrir desde
 Chrome en el Samsung; estos valores deben proceder de una clave guardada de forma
-segura. La clave solo se genera al ejecutar el asistente localmente en el teléfono;
-preparar el código o ejecutar Actions no crea ni publica la clave de producción.
+segura. La guía de Termux queda como alternativa opcional; no es necesaria para
+el método simple. La clave nueva se crea en Actions solo después de configurar
+la contraseña y aprobar las pruebas; nunca se publica su contenido privado.
 
 No basta con guardar la clave únicamente en Secrets: GitHub no permite descargar
 su contenido después. Hay que conservar una copia privada recuperable por separado.
@@ -60,16 +73,18 @@ las fases anteriores y de las cuatro correcciones ya validadas.
 - **Sin firma configurada:** publica `HexDroid-Dreams-debug` y avisa que la APK
   final está pendiente. El job de release queda omitido, sin producir un APK sin
   firmar ni usar como sustituto la firma debug temporal.
-- **Con firma completa:** después de aprobar las pruebas, compila el release con
+- **Con el secreto simple o una firma importada completa:** después de aprobar las pruebas, compila el release con
   R8/reducción de recursos y `-PrequireSigning=true`, verifica firma, nombre,
   paquete y que no sea depurable, y publica **HexDroid-Dreams-release**.
 - **Con firma parcial:** falla la comprobación e indica que deben configurarse los
   cuatro secretos; no se publica una APK final.
 
-El keystore solo se escribe con permisos privados en `RUNNER_TEMP` y se elimina
+Durante el build, el keystore solo se escribe con permisos privados en `RUNNER_TEMP` y se elimina
 incluso si falla la compilación. No se sube a artifacts ni a cachés. La caché de
 configuración de Gradle está desactivada durante la firma. El artifact final solo
 contiene la APK, SHA256SUMS y datos del certificado público en SIGNATURE.txt.
+En el método simple se conserva únicamente la copia protegida del PKCS12 en el
+borrador privado de Releases, para poder reutilizarla después de limpiar el runner.
 
 Tras configurar los secretos, volver a ejecutar todos los jobs de la ejecución de
 esta rama en Actions, o publicar un nuevo commit. El artifact dura 30 días. Para

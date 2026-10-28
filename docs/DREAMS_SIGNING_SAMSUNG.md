@@ -1,5 +1,8 @@
 # Crear la firma permanente de Dreams desde Samsung
 
+**Alternativa opcional avanzada.** Para el proceso actual sin instalar aplicaciones,
+seguir [DREAMS_SIGNING_SIMPLE.md](DREAMS_SIGNING_SIMPLE.md). Termux no es obligatorio.
+
 La clave de publicación se crea **en tu teléfono**, con `keytool` de OpenJDK.
 No se genera una clave de producción en un runner temporal ni se envían claves o
 contraseñas por chat. No hace falta una computadora ni desinstalar HexDroid Personal.
