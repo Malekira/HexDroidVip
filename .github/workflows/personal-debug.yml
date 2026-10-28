@@ -1,4 +1,4 @@
-name: HexDroid Personal - APK debug
+name: HexDroid Dreams - APK
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - feat/personal-phase1-whois-notice
       - feat/personal-phase2
       - feat/personal-phase3
+      - feat/hexdroid-dreams-release
   workflow_dispatch:
 
 permissions:
@@ -127,7 +128,7 @@ jobs:
                           out.write(f"\n```text\n{identity}: {(failure.text or failure.get('message', ''))[:6000]}\n```\n")
                           diagnostic = identity + ': ' + (failure.text or failure.get('message', ''))[:4000]
                           print('::error::' + diagnostic.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
-          if os.environ.get('GITHUB_REF_NAME') == 'feat/personal-phase3':
+          if os.environ.get('GITHUB_REF_NAME') in ('feat/personal-phase3', 'feat/hexdroid-dreams-release'):
               sources = [pathlib.Path('app/src/test/java/com/boxlabs/hexdroid/PersonalPhase3Test.kt')]
               sources += [pathlib.Path('app/src/androidTest/java/com/boxlabs/hexdroid', name) for name in ['PersonalPhase3StorageTest.kt', 'PersonalPhase3UiTest.kt', 'PersonalPhase3PrivateFlowTest.kt']]
               for source in sources:
@@ -166,16 +167,16 @@ jobs:
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk"
           "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
           grep -F "package: name='com.malekira.hexdroid.personal.debug'" "$RUNNER_TEMP/apk-badging.txt"
-          grep -F "application-label:'HexDroid Personal'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "application-label:'HexDroid Dreams'" "$RUNNER_TEMP/apk-badging.txt"
           mkdir -p apk-download
-          cp "$apk" apk-download/HexDroid-Personal-debug.apk
-          (cd apk-download && sha256sum HexDroid-Personal-debug.apk > SHA256SUMS.txt)
+          cp "$apk" apk-download/HexDroid-Dreams-debug.apk
+          (cd apk-download && sha256sum HexDroid-Dreams-debug.apk > SHA256SUMS.txt)
 
       - name: Upload APK for download from Android
         id: apk
         uses: actions/upload-artifact@v4
         with:
-          name: HexDroid-Personal-debug
+          name: HexDroid-Dreams-debug
           path: apk-download/
           if-no-files-found: error
           retention-days: 30
@@ -190,15 +191,128 @@ jobs:
           ARTIFACT_URL: ${{ steps.apk.outputs.artifact-url }}
         run: |
           {
-            echo '## HexDroid Personal — descarga para Android'
+            echo '## HexDroid Dreams — descarga de prueba para Android'
             echo
             echo "[Descargar APK debug (ZIP)]($ARTIFACT_URL)"
             echo
             echo 'Inicia sesión en GitHub, descarga el ZIP y extráelo con Mis archivos de Samsung.'
-            echo 'Abre HexDroid-Personal-debug.apk y autoriza la instalación desde esa fuente si Android lo solicita.'
+            echo 'Abre HexDroid-Dreams-debug.apk y autoriza la instalación desde esa fuente si Android lo solicita.'
             echo 'La APK usa com.malekira.hexdroid.personal.debug y convive con HexDroid oficial.'
             echo "Código compilado: $GITHUB_SHA"
             echo 'El archivo estará disponible durante 30 días. No se publica ninguna clave privada.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release-signing:
+    name: Check final release signing readiness
+    if: github.ref == 'refs/heads/feat/hexdroid-dreams-release'
+    runs-on: ubuntu-24.04
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - name: Require a complete stable release identity
+        id: check
+        env:
+          DREAMS_RELEASE_KEYSTORE_B64: ${{ secrets.DREAMS_RELEASE_KEYSTORE_B64 }}
+          DREAMS_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.DREAMS_RELEASE_KEYSTORE_PASSWORD }}
+          DREAMS_RELEASE_KEY_ALIAS: ${{ secrets.DREAMS_RELEASE_KEY_ALIAS }}
+          DREAMS_RELEASE_KEY_PASSWORD: ${{ secrets.DREAMS_RELEASE_KEY_PASSWORD }}
+        shell: python
+        run: |
+          import os
+          names = ['DREAMS_RELEASE_KEYSTORE_B64', 'DREAMS_RELEASE_KEYSTORE_PASSWORD', 'DREAMS_RELEASE_KEY_ALIAS', 'DREAMS_RELEASE_KEY_PASSWORD']
+          present = [bool(os.environ.get(name)) for name in names]
+          if any(present) and not all(present):
+              raise SystemExit('Firma final incompleta: configurá los cuatro secretos DREAMS_RELEASE antes de generar la APK final.')
+          ready = all(present)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('ready=' + str(ready).lower() + '\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('## Firma de HexDroid Dreams\n')
+              out.write('Firma estable configurada; la APK final requiere que las pruebas aprueben.\n' if ready else 'APK final pendiente: faltan los secretos de firma estable. Solo se genera la APK de prueba. Ver docs/DREAMS_RELEASE.md.\n')
+          if not ready:
+              print('::warning::APK final pendiente de firma estable. No se publicará una APK release sin firma ni con la clave debug temporal.')
+
+  dreams-release:
+    name: Build and upload final signed APK
+    needs: [debug-apk, release-signing]
+    if: needs.release-signing.outputs.ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 build-tools;37.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+      - name: Configure stable release signing
+        env:
+          DREAMS_RELEASE_KEYSTORE_B64: ${{ secrets.DREAMS_RELEASE_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.DREAMS_RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DREAMS_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.DREAMS_RELEASE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            value="${!name}"
+            test -n "$value"
+            [[ "$value" != *$'\n'* && "$value" != *$'\r'* ]]
+          done
+          umask 077
+          printf '%s' "$DREAMS_RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/dreams-release.keystore"
+          {
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/dreams-release.keystore"
+            echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "KEY_ALIAS=$KEY_ALIAS"
+            echo "KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+      - name: Build optimized release with mandatory signing
+        run: bash ./gradlew :app:assembleRelease -PrequireSigning=true --no-daemon --max-workers=2 --no-configuration-cache
+      - name: Verify final APK identity and signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-release.apk
+          mkdir -p dreams-release-download
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk" > dreams-release-download/SIGNATURE.txt
+          "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" > "$RUNNER_TEMP/dreams-release-badging.txt"
+          grep -F "package: name='com.malekira.hexdroid.personal'" "$RUNNER_TEMP/dreams-release-badging.txt"
+          grep -F "application-label:'HexDroid Dreams'" "$RUNNER_TEMP/dreams-release-badging.txt"
+          if grep -q 'application-debuggable' "$RUNNER_TEMP/dreams-release-badging.txt"; then
+            echo '::error::La APK final no debe ser depurable.'
+            exit 1
+          fi
+          cp "$apk" dreams-release-download/HexDroid-Dreams-release.apk
+          (cd dreams-release-download && sha256sum HexDroid-Dreams-release.apk > SHA256SUMS.txt)
+      - name: Upload final APK
+        id: final-apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: HexDroid-Dreams-release
+          path: dreams-release-download/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Remove release signing material
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/dreams-release.keystore"
+      - name: Final APK download instructions
+        env:
+          ARTIFACT_URL: ${{ steps.final-apk.outputs.artifact-url }}
+        shell: bash
+        run: |
+          {
+            echo '## HexDroid Dreams — APK final firmada'
+            echo "[Descargar APK final (ZIP)]($ARTIFACT_URL)"
+            echo 'Abrí el ZIP en Mis archivos de Samsung y luego HexDroid-Dreams-release.apk.'
+            echo 'Paquete: com.malekira.hexdroid.personal. Se instala junto a la prueba .debug; exportá e importá los datos que quieras trasladar.'
+            echo 'No es una publicación en GitHub Releases ni un merge. El artifact dura 30 días.'
           } >> "$GITHUB_STEP_SUMMARY"
 
   review-pr:

@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.boxlabs.hexdroid.*
+import com.boxlabs.hexdroid.R
 import com.boxlabs.hexdroid.ui.theme.HexDroidIRCTheme
 
 @Composable
@@ -88,7 +89,7 @@ internal fun ThemeEditor(initial: PersonalTheme, dismiss: () -> Unit, save: (Per
                     val bg = Color(draft.color(ThemeRole.CHAT, dark))
                     Surface(color = bg, contentColor = Color(readableThemeText(draft.color(ThemeRole.TEXT, dark), bg.toArgb()))) {
                         Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Surface(color = Color(draft.color(ThemeRole.TOP, dark)), contentColor = Color(readableThemeText(draft.color(ThemeRole.UI_TEXT, dark), draft.color(ThemeRole.TOP, dark)))) { Text("#sala-demo — HexDroid Personal", Modifier.padding(8.dp)) }
+                            Surface(color = Color(draft.color(ThemeRole.TOP, dark)), contentColor = Color(readableThemeText(draft.color(ThemeRole.UI_TEXT, dark), draft.color(ThemeRole.TOP, dark)))) { Text("#sala-demo — " + androidx.compose.ui.res.stringResource(R.string.personal_app_name), Modifier.padding(8.dp)) }
                             Text("<DemoNick01> Mensaje de prueba 🙂")
                             Text("Aviso del servidor", color = Color(readableThemeText(draft.color(ThemeRole.NOTICE, dark), draft.color(ThemeRole.CHAT, dark))))
                             OutlinedTextField("Escribir…", {}, readOnly = true, modifier = Modifier.fillMaxWidth())
