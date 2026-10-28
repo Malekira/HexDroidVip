@@ -65,6 +65,11 @@ class PersonalPhase3Test {
         assertEquals("Su privado fue rechazado Motivo: motivo de prueba", rejectionText("Su privado fue rechazado", "motivo de prueba"))
         assertEquals("hola  PRIVMSG #demo :x", safeAutomaticText("hola\r\nPRIVMSG #demo :x"))
         assertNotEquals(privateRequestId("net-1", "demonick01"), privateRequestId("net-2", "demonick01"))
+        assertTrue(rejectionText("Rechazo", "").startsWith("Su privado fue rechazado"))
+        assertEquals("MODE DemoNick01 +g", callerIdCommand("g", true, "DemoNick01", "enable"))
+        assertEquals("ACCEPT +DemoNick02", callerIdCommand("g", true, "DemoNick01", "accept", "DemoNick02"))
+        try { callerIdCommand(null, true, "DemoNick01", "list"); fail("Invented CALLERID support") } catch (_: IllegalArgumentException) { }
+        try { callerIdCommand("g", false, "DemoNick01", "accept", "DemoNick02"); fail("Sent ACCEPT while offline") } catch (_: IllegalStateException) { }
     }
     @Test fun historyStreamsSearchPaginationAndCompatibleZipWithoutLoss() {
         val root = Files.createTempDirectory("history-unit").toFile()

@@ -72,8 +72,8 @@ fun IrcViewModel.resolvePrivateRequest(request: PrivateRequest, decision: String
             if (decision != "IGNORED") check(!isIgnoredSender(request.network, request.nick, IgnoreType.PRIVATE)) { "Este usuario está ignorado; solo se puede descartar su solicitud" }
             if (request.serverBlocked && decision == "ACCEPTED") {
                 val rt = runtimes[request.network] ?: error("Conectá la red antes de solicitar ACCEPT")
-                require(rt.support.callerIdMode == "g") { "La red no anunció CALLERID=g; no se envió una autorización al servidor" }
-                rt.client.sendRaw("ACCEPT +${request.nick}")
+                val ownNick = _state.value.connections[request.network]?.myNick.orEmpty()
+                rt.client.sendRaw(callerIdCommand(rt.support.callerIdMode, rt.client.isConnectedNow(), ownNick, "accept", request.nick))
             }
             if (decision == "ACCEPTED") {
                 val messages = withContext(privateRequestLane) { privateRequests.messages(request.id) }
@@ -127,9 +127,8 @@ fun IrcViewModel.callerIdAction(netId: String, operation: String) {
     viewModelScope.launch {
         try {
             val rt = runtimes[netId] ?: error("Red desconectada")
-            require(rt.support.callerIdMode == "g") { "La red no anunció CALLERID=g" }
-            val myNick = _state.value.connections[netId]?.myNick?.takeIf(::isReplyNick) ?: error("Nick propio no disponible")
-            val command = when (operation) { "enable" -> "MODE $myNick +g"; "disable" -> "MODE $myNick -g"; "list" -> "ACCEPT *"; else -> error("Operación desconocida") }
+            val myNick = _state.value.connections[netId]?.myNick.orEmpty()
+            val command = callerIdCommand(rt.support.callerIdMode, rt.client.isConnectedNow(), myNick, operation)
             rt.client.sendRaw(command)
             _state.update { it.copy(privateRequestMessage = "Solicitud $command enviada; consultá la respuesta del servidor en Status") }
         } catch (e: Exception) { _state.update { it.copy(privateRequestMessage = "No se envió la operación +g: ${e.message}") } }

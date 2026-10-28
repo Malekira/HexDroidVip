@@ -47,7 +47,12 @@ class PersonalPhase3StorageTest {
         try {
             val writer = LogWriter(ctx)
             assertNotEquals(writer.logFileInternal("DemoNet", "#demo/a"), writer.logFileInternal("DemoNet", "#demo_a"))
-            assertTrue(writer.logFileInternal("DemoNet", "#" + "🙂".repeat(120)).name.toByteArray(Charsets.UTF_8).size < 255)
+            val unicodeLog = writer.logFileInternal("DemoNet", "#" + "🙂".repeat(120))
+            assertTrue(unicodeLog.name.toByteArray(Charsets.UTF_8).size < 255)
+            unicodeLog.parentFile!!.mkdirs()
+            unicodeLog.writeText(a, Charsets.UTF_8)
+            assertEquals(a, unicodeLog.readText(Charsets.UTF_8))
+            assertTrue(unicodeLog.delete())
             assertTrue(archive.append(path, a, "msg-demo-1"))
             assertFalse(archive.append(path, a, "msg-demo-1", true))
             archive.close()

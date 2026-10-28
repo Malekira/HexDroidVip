@@ -18,7 +18,9 @@ internal fun uniqueHistoryFileBase(original: String, sanitized: String): String 
     var bytes = 0
     val points = sanitized.codePoints().iterator()
     while (points.hasNext()) {
-        val chars = String(Character.toChars(points.nextInt()))
+        val point = points.nextInt()
+        if (point in 0xd800..0xdfff) continue // A legacy UTF-16 truncation can leave an isolated surrogate.
+        val chars = String(Character.toChars(point))
         val size = chars.toByteArray(Charsets.UTF_8).size
         if (bytes + size > 160) break
         prefix.append(chars); bytes += size

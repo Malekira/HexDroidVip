@@ -515,7 +515,7 @@ private fun IrcViewModel.prepareIncomingMessageBuffer(targetKey: String, sender:
         _state.update { st ->
             val buf = st.buffers[targetKey]
             if (buf != null && sender in buf.typingNicks) {
-        st.copy(buffers = st.buffers + (targetKey to buf.copy(typingNicks = buf.typingNicks - sender)))
+                st.copy(buffers = st.buffers + (targetKey to buf.copy(typingNicks = buf.typingNicks - sender)))
             } else st
         }
     }

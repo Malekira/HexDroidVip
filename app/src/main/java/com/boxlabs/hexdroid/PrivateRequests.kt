@@ -41,7 +41,7 @@ internal data class PendingPrivateMessage(val text: String, val timeMs: Long, va
 internal fun privateRequestId(network: String, foldedNick: String) = historyDigest(network + "\u0000" + foldedNick)
 internal fun rejectionText(configured: String, reason: String): String {
     val text = configured.trim()
-    val required = if (text.contains("rechaz", true)) text else "Su privado fue rechazado. $text"
+    val required = if (Regex("(?i)\\bsu privado (?:fue|ha sido) rechazado\\b").containsMatchIn(text)) text else "Su privado fue rechazado. $text"
     return required + reason.trim().takeIf { it.isNotEmpty() }?.let { " Motivo: $it" }.orEmpty()
 }
 internal fun safeAutomaticText(text: String): String = stripIrcFormatting(text).replace(Regex("[\\r\\n\\u0000]"), " ").trim()
