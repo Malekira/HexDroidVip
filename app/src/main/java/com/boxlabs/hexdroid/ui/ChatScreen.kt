@@ -222,6 +222,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.toClipEntry
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -3144,14 +3145,8 @@ fun ChatScreen(
             // we're past the parent-command space. Command hints are the baseline.
             val liveCycle = nickCycle?.takeIf { it.text == input.text && it.cursor == input.selection.start }
             val matches = (liveCycle?.prefix ?: nickQuery)?.let { completionMatches(completionNicks, it) }.orEmpty()
-            LaunchedEffect(input.text, input.selection, completionNicks) {
-                if (nickQuery != null && matches.size == 1 && liveCycle == null && cmdQuery == null && subCmdQuery == null) {
-                    kotlinx.coroutines.delay(300)
-                    completeNick(false)
-                    onTypingChanged(input.text)
-                }
-            }
-            if (matches.size > 1 && cmdQuery == null && subCmdQuery == null) {
+            // Suggestions never edit the draft until the user chooses one or presses Tab.
+            if (matches.isNotEmpty() && cmdQuery == null && subCmdQuery == null) {
                 NickChoiceList(matches, liveCycle?.let { it.matches[it.index] }) { nick ->
                     val token = liveCycle?.let { NickToken(it.start, it.cursor, it.cursor, "", it.hadAt) } ?: completionToken
                     if (token != null) {
@@ -3418,6 +3413,7 @@ fun ChatScreen(
 					visualTransformation = inputFormatting,
 					modifier = Modifier
 						.weight(1f)
+						.testTag("chat-input")
 						.heightIn(min = 40.dp)
 						.tourTarget(TourTarget.CHAT_INPUT)
 						.appendTextContextMenuComponents(formatMenu)

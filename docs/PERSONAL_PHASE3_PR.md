@@ -2,7 +2,7 @@ HexDroid Personal conserva la Fase 2 y añade personalización persistente de te
 historial privado permanente con consulta/exportación/restauración, solicitudes de privados
 persistentes y elección de múltiples coincidencias de nick desde Android.
 
-- Temas nombrados, paletas clara/oscura, RGB/hex, vista previa, edición, duplicación, eliminación y restauración.
+- Temas nombrados, paletas clara/oscura, selector táctil HSV y RGB/hex, vista previa, edición, duplicación, eliminación y restauración.
 - Formato global persistente: colores mIRC, negrita, cursiva, subrayado e inversión; reset y protección de comandos.
 - TXT UTF-8 por red/conversación, índice SQLite de deduplicación independiente del scrollback, sin purga automática,
   búsqueda paginada, copia, exportación TXT/ZIP, restauración y eliminación confirmada. Control separado para texto descifrado.
@@ -12,7 +12,10 @@ persistentes y elección de múltiples coincidencias de nick desde Android.
   condicionados a la capacidad real del servidor, sin simular confirmaciones.
 - Los privados +AGE descifrados respetan solicitudes, ignores y política separada de registro; sus avisos de negociación no crean un PV pendiente.
 - Cabeceras, pestañas y menús mantienen su propia paleta y contraste, incluidas combinaciones de fondos opuestos.
-- Lista vertical de coincidencias sin límite de 16 y ciclo Tab compartido. No se modifica `/buenosdias` ni los scripts del usuario.
+- Lista vertical de coincidencias sin límite de 16 y ciclo Tab compartido; ninguna coincidencia se inserta sin elección explícita.
+- Los saludos se resuelven por scripts `.hex`, sin interceptación nativa de `/buenosdias` ni sustitución de scripts importados.
+- Los intentos de PV bloqueados por +g se muestran como NOTICE local resaltado en la ventana activa de su red,
+  además de Status y pendientes, sin duplicar buffers ni enviar un NOTICE a IRC.
 - Workflow de APK debug con pruebas unitarias e instrumentación Android, comprobación de tests ejecutados,
   verificación de firma/identidad y artifact descargable. Firma estable opcional mediante GitHub Secrets, sin material privado en Git.
 

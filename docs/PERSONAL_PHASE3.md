@@ -3,13 +3,14 @@
 Base: `feat/personal-phase2`, commit `ecd4849`. Rama: `feat/personal-phase3`.
 La revisión se dirige a Fase 2; no se fusionan ni se cambian las ramas anteriores.
 Se conserva GPLv3, los créditos originales, el nombre HexDroid Personal y el paquete
-`com.malekira.hexdroid.personal.debug` de la APK debug. Versión: `1.7.8-personal3` (37).
+`com.malekira.hexdroid.personal.debug` de la APK debug. Versión: `1.7.8-personal3.1` (38).
 
 ## Temas
 
 En **Ajustes → Apariencia**, debajo de los temas originales, está **Temas personalizados**.
 Podés crear, nombrar, guardar, aplicar, editar, duplicar y eliminar temas. El editor
-incluye dos paletas independientes, clara y oscura, selector RGB continuo, código
+incluye dos paletas independientes, clara y oscura, un selector visual HSV (superficie
+táctil de saturación/brillo y barra de tono), controles RGB, código
 `#RRGGBB`, vista previa y restauración de colores. No se aplica hasta guardar.
 El botón **Restaurar tema original** desactiva el tema personalizado sin borrarlo.
 Para cambiar la base clara/oscura, elegí el modo original y luego pulsá **Usar** en
@@ -157,11 +158,19 @@ y que el remitente tendrá que reenviar el mensaje retenido. No se finge una con
 crea texto del mensaje bloqueado. Las redes sin esa señal de capacidad o con dialectos distintos
 conservan el flujo de comandos/Status existente; no se presupone que admitan ACCEPT.
 
+El aviso real 718 también aparece como **NOTICE local resaltado** en la ventana activa,
+si pertenece a la misma red. Se conserva en Status y pendientes; si Status ya está activo,
+se muestra una sola vez allí. Los avisos repetidos de una misma solicitud pendiente se
+consolidan. No se envía un NOTICE por IRC para mostrarlo, no se crea un PV, no se escribe
+en otra red y la copia visual no dispara otra notificación Android. Se respetan los ignores
+y la supresión o transformación del numeric por los scripts.
+
 ## Autocompletado
 
 Con tres caracteres aparecen los nicks de la red/sala actual, sin exigir `@`.
-Una coincidencia se completa tras una breve pausa; varias abren una lista vertical desplazable
-sobre el compositor. Podés tocar un nick o recorrerlos con Tab táctil/físico (Shift+Tab retrocede).
+Una o varias coincidencias se ofrecen en una lista vertical desplazable sobre el compositor.
+El borrador no cambia automáticamente al hacer una pausa: se completa solo al tocar un nick
+o pulsar Tab táctil/físico (Shift+Tab retrocede).
 La lista conserva todas las coincidencias; no se limita a las primeras 16. Se eliminan prefijos
 de operador/voz únicamente al insertar el nick y se conserva el texto a ambos lados del cursor.
 Al cambiar de sala se reinicia el ciclo y se usa la nueva lista de usuarios.
@@ -170,9 +179,14 @@ Al cambiar de sala se reinicia el ciclo y se usa la nueva lista de usuarios.
 
 Se mantienen WHOIS flotante interno, movimiento/minimización/cierre, idle 317, agrupamiento 318,
 destinos simultáneos WHOIS/NOTICE, notificaciones y resaltado de menciones, motor `.hex`,
-`$members()`/`$membernames()`, importación de scripts, colores IRC y emojis. No se cambia
-`IrcViewModelPersonal.kt` ni el comando integrado `/buenosdias`. Los scripts de saludos del
-usuario siguen siendo independientes y no se sustituyen.
+`$members()`/`$membernames()`, importación de scripts, colores IRC y emojis.
+Por la corrección solicitada tras probar Fase 3, se retira la interceptación nativa de
+`/buenosdias`: los saludos se resuelven mediante los alias del script `.hex` instalado,
+incluidas las variantes con argumentos y mayúsculas/minúsculas. No se añaden saludos fijos
+ni se reemplazan los scripts del usuario. En Ajustes se ofrece **Configurar saludos en
+Scripts**; sus exclusiones y textos se administran en el script. Se conserva el antiguo
+valor de `greetingBots` en los datos para no perder configuraciones, aunque ya no controla
+un saludo nativo. Sin un script que lo defina, el comando no produce un saludo integrado.
 
 ## Compilación, pruebas y artifact
 
@@ -260,4 +274,9 @@ bajar a **Artifacts → HexDroid-Personal-debug**, descargar el ZIP, extraer en 
 - En una red que anuncie CALLERID=g, probar +g y un intento bloqueado; comprobar Status y el
   reenvío tras ACCEPT. No confundir la aceptación local con la confirmación del servidor.
 - Escribir un prefijo que coincida con varios nicks con @/+; elegir en la lista y recorrer con Tab.
+- Con una sola coincidencia, hacer una pausa y seguir escribiendo una palabra; no debe sustituirse.
+- Ejecutar los saludos del script importado, con argumentos y distintas mayúsculas, sin duplicados.
+- Elegir colores tocando/arrastrando la superficie del selector y su barra de tono; comprobar hex,
+  vista previa, cancelación y paletas guardadas.
+- Con +g, comprobar el NOTICE resaltado en una sala/PV/Status de la misma red y su ausencia en otra red.
 - Repetir WHOIS 317/flotante, destinos múltiples, NOTICE, mención con sala visible y scripts `.hex`.

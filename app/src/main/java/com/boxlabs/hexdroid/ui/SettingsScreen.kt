@@ -1306,8 +1306,8 @@ fun SettingsScreen(
                 )
             }
             item {
-                OutlinedTextField(value = s.greetingBots, onValueChange = { text -> onUpdate { copy(greetingBots = text) } },
-                    label = { Text(stringResource(R.string.p2_bots)) }, modifier = Modifier.fillMaxWidth())
+                Text("Los saludos y sus exclusiones se configuran en el script .hex que utilices.")
+                TextButton(onClick = onOpenScripts) { Text("Configurar saludos en Scripts") }
             }
             item { SettingToggle(stringResource(R.string.setting_highlight_on_nick), s.highlightOnNick) { onUpdate { copy(highlightOnNick = !highlightOnNick) } } }
 

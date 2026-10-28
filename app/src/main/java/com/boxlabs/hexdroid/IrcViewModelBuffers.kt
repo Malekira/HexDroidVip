@@ -1110,6 +1110,7 @@ internal fun IrcViewModel.append(
     fromOper: Boolean = false,
     /** Bot Mode: sender is a bot (see UiMessage.fromBot). */
     fromBot: Boolean = false,
+    isHighlightedNotice: Boolean = false,
 ) {
     val nowMs = System.currentTimeMillis()
     val ts = timeMs ?: nowMs
@@ -1150,6 +1151,7 @@ internal fun IrcViewModel.append(
                 pending = pending,
                 fromOper = fromOper,
                 fromBot = fromBot,
+                isHighlightedNotice = isHighlightedNotice,
             )
         }
     ) return
@@ -1175,6 +1177,7 @@ internal fun IrcViewModel.append(
         pending = pending,
         fromOper = fromOper,
         fromBot = fromBot,
+        isHighlightedNotice = isHighlightedNotice,
     )
 
     val origin = if (isHistory) MessageOrigin.REPLAY else MessageOrigin.LIVE

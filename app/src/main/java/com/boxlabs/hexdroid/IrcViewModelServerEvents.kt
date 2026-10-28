@@ -510,7 +510,7 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                             )
                         }.getOrNull()
                         val visibleText = if (scripted?.halted == true) null else scripted?.text ?: ev.text
-                        if (visibleText == ev.text) handleCallerIdNumeric(netId, ev)
+                        val callerIdHandled = visibleText == ev.text && handleCallerIdNumeric(netId, ev)
                         if (ev.isWhoisReply && ev.whoisRequestId != null && ev.whoisNick != null) {
                             val id = ev.whoisRequestId
                             val first = !whoisBlocks.contains(netId, id)
@@ -533,7 +533,7 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                                     flushWhoisBlock(netId, id)
                                 }
                             }
-                        } else if (visibleText != null) {
+                        } else if (visibleText != null && !callerIdHandled) {
                             append(targetKey, from = null, text = visibleText, doNotify = false, isMotd = isMotdLine)
                         }
 

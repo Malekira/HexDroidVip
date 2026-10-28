@@ -73,8 +73,9 @@ internal fun ThemeEditor(initial: PersonalTheme, dismiss: () -> Unit, save: (Per
                 }
                 OutlinedTextField(hex, { hex = it.removePrefix("#").take(6); parseThemeHex(hex)?.let(::setColor) },
                     label = { Text("#RRGGBB") }, isError = parseThemeHex(hex) == null, modifier = Modifier.fillMaxWidth())
-                // Visual RGB selector: permits every 24-bit colour, not just predefined swatches.
                 val argb = draft.color(role, dark)
+                key(role, dark) { ThemeColorPicker(argb, ::setColor) }
+                // RGB and hexadecimal remain available alongside the touch palette.
                 listOf("Rojo" to 16, "Verde" to 8, "Azul" to 0).forEach { (label, shift) ->
                     Text("$label: ${(argb ushr shift) and 255}")
                     Slider(((argb ushr shift) and 255).toFloat(), { value ->

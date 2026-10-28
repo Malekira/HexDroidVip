@@ -104,22 +104,43 @@ fun IrcViewModel.revokePrivateAuthorizations() {
     sessionPrivateAccepted.clear()
     viewModelScope.launch { withContext(privateRequestLane) { privateRequests.revokeAll() }; _state.update { it.copy(privateRequestMessage = "Autorizaciones locales eliminadas; la lista ACCEPT del servidor se administra por separado en Status") } }
 }
-internal fun IrcViewModel.handleCallerIdNumeric(netId: String, ev: IrcEvent.ServerText) {
-    if (ev.code != "718" || !_state.value.settings.privateRequestsEnabled) return
+internal fun IrcViewModel.handleCallerIdNumeric(netId: String, ev: IrcEvent.ServerText): Boolean {
+    if (ev.code != "718" || !_state.value.settings.privateRequestsEnabled) return false
     // charybdis/solanum: 718 <me> <source> <user@host> :is messaging you ...
-    val nick = ev.serverParams.getOrNull(1)?.takeIf(::isReplyNick) ?: return
-    if (isIgnoredSender(netId, nick, IgnoreType.PRIVATE)) return
+    val nick = ev.serverParams.getOrNull(1)?.takeIf(::isReplyNick) ?: return false
+    if (isIgnoredSender(netId, nick, IgnoreType.PRIVATE)) return false
     val id = privateRequestId(netId, casefoldText(netId, nick))
+    // Capture the visible conversation at receipt; a later screen switch must not reroute it.
+    val status = bufKey(netId, "*server*")
+    val active = _state.value.selectedBuffer.takeIf {
+        splitKey(it).first == netId && it in _state.value.buffers
+    }
     viewModelScope.launch {
         try {
-            withContext(privateRequestLane) { privateRequests.enqueue(id, netId, nick, null, true) }
+            val first = withContext(privateRequestLane) {
+                val alreadyPending = privateRequests.pending().any { it.id == id && it.serverBlocked }
+                privateRequests.enqueue(id, netId, nick, null, true)
+                !alreadyPending
+            }
+            if (first) {
+                val notice = "* <$nick> Solicitud de PV bloqueada por +g. El servidor no entregó el contenido del mensaje. Revisá Privados pendientes."
+                for (key in setOfNotNull(status, active)) {
+                    append(key, from = null, text = if (key == status) "$notice ${ev.text}" else notice,
+                        isHighlightedNotice = key == active, doNotify = false)
+                }
+            }
             refreshPrivateRequests()
             _state.update { it.copy(privateRequestMessage = "El servidor bloqueó un intento de $nick mediante +g. No recibimos el contenido del mensaje.") }
             val s = _state.value.settings
-            if (s.notificationsEnabled && s.notifyOnPrivateMessages && withContext(privateRequestLane) { privateRequests.claimWait(id) })
+            if (first && s.notificationsEnabled && s.notifyOnPrivateMessages && !isNotifyIgnoredSender(netId, nick) && withContext(privateRequestLane) { privateRequests.claimWait(id) })
                 runCatching { notifier.notifySimple(netId, PRIVATE_REQUESTS_BUFFER, "Intento de privado bloqueado: $nick", "El servidor retuvo el mensaje (+g)") }
-        } catch (e: Exception) { _state.update { it.copy(privateRequestMessage = "No se pudo guardar el aviso +g: ${e.message}") } }
+        } catch (e: Exception) {
+            // Keep the real server response visible even if the pending store failed.
+            append(status, from = null, text = ev.text, doNotify = false)
+            _state.update { it.copy(privateRequestMessage = "No se pudo guardar el aviso +g: ${e.message}") }
+        }
     }
+    return true
 }
 
 fun IrcViewModel.callerIdAction(netId: String, operation: String) {

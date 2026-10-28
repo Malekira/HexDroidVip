@@ -3,6 +3,10 @@ package com.boxlabs.hexdroid
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
+import kotlinx.collections.immutable.persistentListOf
 import com.boxlabs.hexdroid.ui.theme.HexDroidIRCTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,6 +19,75 @@ import org.junit.Test
 
 class PersonalPhase3UiTest {
     @get:Rule val compose = createComposeRule()
+
+    @Composable private fun RealChat(state: UiState) {
+        ChatScreen(state, onSelectBuffer = {}, onSend = {}, onDisconnect = {}, onReconnect = {}, onExit = {},
+            onToggleBufferList = {}, onToggleNickList = {}, onToggleChannelsOnly = {}, onWhois = {},
+            onIgnoreNick = { _, _ -> }, onUnignoreNick = { _, _ -> }, onIgnoreNotifications = { _, _ -> },
+            onUnignoreNotifications = { _, _ -> }, onRefreshNicklist = {}, onRefreshChannelModes = {},
+            onOpenList = {}, onOpenSettings = {}, onOpenNetworks = {}, onOpenTransfers = {}, onSysInfo = {},
+            onAbout = {}, onUpdateSettings = {})
+    }
+
+    @Test fun phase3RealComposerNeverCompletesASingleNickWithoutAnExplicitChoice() {
+        val key = "network-demo::#demo"
+        val state = UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo")),
+            nicklists = mapOf(key to listOf("@DemoNick01")), showBufferList = false, showNickList = false)
+        compose.setContent { HexDroidIRCTheme { RealChat(state) } }
+        val input = compose.onNodeWithTag("chat-input")
+        input.performTextInput("dem")
+        compose.onNodeWithTag("nick-choices").assertExists()
+        // Let the real former 300 ms coroutine deadline elapse with the UI thread running.
+        android.os.SystemClock.sleep(650)
+        input.assertTextEquals("dem")
+        input.performTextInput("ora")
+        input.assertTextEquals("demora")
+        input.performTextReplacement("dem")
+        compose.onNodeWithText("DemoNick01", useUnmergedTree = true).performClick()
+        input.assertTextEquals("DemoNick01: ")
+        input.performTextReplacement("Hola dem después")
+        input.performSemanticsAction(SemanticsActions.SetSelection) { it(8, 8, false) }
+        compose.onNodeWithText("Tab", useUnmergedTree = true).performClick()
+        input.assertTextEquals("Hola DemoNick01 después")
+    }
+
+    @Test fun phase3VisualColorPickerUpdatesHexPreviewAndBothSavedPalettes() {
+        var settings by mutableStateOf(UiSettings())
+        compose.setContent { MaterialTheme { PersonalThemeSettings(settings) { update -> settings = settings.update() } } }
+        compose.onNodeWithText("Crear tema").performClick()
+        compose.onNodeWithText("Nombre").performTextReplacement("Tema de prueba visual")
+        compose.onNodeWithText("#RRGGBB").performTextReplacement("FF0000")
+        compose.onNodeWithTag("theme-hue").performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(120f) }
+        compose.onNodeWithTag("theme-saturation-value").performScrollTo().performTouchInput {
+            click(Offset(width / 2f, height / 2f))
+        }
+        compose.onNodeWithText("#RRGGBB").assertTextContains("408040")
+        compose.onNodeWithText("Claro").performScrollTo().performClick()
+        compose.onNodeWithText("#RRGGBB").performTextReplacement("123456")
+        compose.onNodeWithText("Guardar y aplicar").performScrollTo().performClick()
+        compose.runOnIdle {
+            val theme = settings.personalThemes.single()
+            assertEquals(0xff408040.toInt(), theme.color(ThemeRole.CHAT, true))
+            assertEquals(0xff123456.toInt(), theme.color(ThemeRole.CHAT, false))
+        }
+        compose.onNodeWithText("Crear tema").performClick()
+        compose.onNodeWithText("#RRGGBB").performTextReplacement("ABCDEF")
+        compose.onNodeWithText("Cancelar").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(1, settings.personalThemes.size) }
+    }
+
+    @Test fun phase3CallerIdNoticeIsVisiblyHighlightedInTheRealChat() {
+        val key = "network-demo::#demo"
+        val message = UiMessage(1, System.currentTimeMillis(), null, "* <DemoNick01> Solicitud de PV bloqueada por +g", isHighlightedNotice = true)
+        val state = UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo", log = BufferLog(messages = persistentListOf(message)))),
+            showBufferList = false, showNickList = false)
+        var background = 0
+        compose.setContent { HexDroidIRCTheme { background = MaterialTheme.colorScheme.secondaryContainer.toArgb(); RealChat(state) } }
+        val notice = compose.onNodeWithTag("highlighted-private-notice").assertIsDisplayed()
+        val pixels = notice.captureToImage().toPixelMap()
+        assertEquals(background, pixels[1, 1].toArgb())
+        compose.onNodeWithText(message.text, substring = true).assertIsDisplayed()
+    }
     @OptIn(ExperimentalMaterial3Api::class)
     @Test fun phase3HeaderAndPopupRetainContrastWithOppositeBackgrounds() {
         val theme = PersonalTheme(darkColors = mapOf("TOP" to 0xff000000.toInt(), "MENU" to 0xffffffff.toInt(), "UI_TEXT" to 0xffffffff.toInt()))

@@ -97,6 +97,8 @@ data class UiMessage(
     val fromOper: Boolean = false,
     /** Bot Mode `bot` tag: the sender is a bot; rendered as a badge before the nick. */
     val fromBot: Boolean = false,
+    /** A local, highlighted NOTICE for a server-blocked private request; not a mention. */
+    val isHighlightedNotice: Boolean = false,
 )
 data class UiBuffer(
     val name: String,
