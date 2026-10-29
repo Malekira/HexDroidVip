@@ -30,7 +30,8 @@ pendientes conservan el almacén anterior. Los scripts importados se mantienen.
 
 Con el script habilitado, la pantalla Scripts y el menú de scripts de la sala ofrecen **Solicitudes de
 privados** y **Configurar solicitudes de privados**. También funcionan
-`/privados` y `/configurarprivados`. La segunda abre controles de avisos NOTICE,
+`/dreamspv` y `/dreamspvconfig`. Estos nombres evitan reemplazar comandos habituales de scripts importados.
+La segunda abre controles de avisos NOTICE,
 textos, autorizaciones entre sesiones y acceso a los pendientes. No se envía una
 respuesta automática desde el cuerpo del evento del script: el servicio del
 cliente se encarga de enviarla una sola vez, sin revelar el contenido del privado.

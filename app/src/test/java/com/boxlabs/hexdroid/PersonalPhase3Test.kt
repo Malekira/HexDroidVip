@@ -141,6 +141,7 @@ class PersonalPhase3Test {
         val commands = mutableMapOf<String, Any>()
         val events = mutableMapOf<String, MutableList<Any>>()
         val capabilities = mutableListOf<String>()
+        val echoes = mutableListOf<String>()
         val launchers = mutableListOf<List<String>>()
         val callbacks = java.lang.reflect.Proxy.newProxyInstance(
             com.boxlabs.hexdroid.script.EngineCallbacks::class.java.classLoader,
@@ -151,22 +152,26 @@ class PersonalPhase3Test {
                 "registerEvent" -> { events.getOrPut(args[0] as String) { mutableListOf() }.add(args[1]); Unit }
                 "capability" -> { capabilities += args[0] as String; "true" }
                 "uiIntent" -> { if (args[0] == "sidebar") launchers += (args[1] as List<*>).map { it.toString() }; Unit }
-                "log", "echo" -> Unit
+                "echo" -> { echoes += args[2] as String; Unit }
+                "log" -> Unit
                 else -> null
             }
         } as com.boxlabs.hexdroid.script.EngineCallbacks
         val backend = com.boxlabs.hexdroid.script.HexScriptBackend()
         backend.start(callbacks, com.boxlabs.hexdroid.script.Budget(100_000, 1000))
         val source = listOf(File("src/main/assets/hex/solicitudes-pv.hex"), File("app/src/main/assets/hex/solicitudes-pv.hex")).first { it.exists() }.readText()
+        assertNull(backend.loadScript("imported.hex", "alias privados {\n echo -a IMPORTADO_CONSERVADO\n}"))
         assertNull(backend.loadScript("solicitudes-pv.hex", source))
         backend.dispatchNotify(events.getValue("LOAD"), com.boxlabs.hexdroid.script.EventData(network = "demo-network", buffer = "#demo"))
         assertEquals(2, launchers.size)
-        assertEquals(listOf("privados", "configurarprivados"), launchers.map { it[2] })
+        assertEquals(listOf("dreamspv", "dreamspvconfig"), launchers.map { it[2] })
         val request = com.boxlabs.hexdroid.script.EventData(network = "demo-network", buffer = "DemoNick01", from = "DemoNick01", text = "Prueba 🙂", isPrivate = true)
         assertTrue(backend.dispatchTransform(events.getValue("PRIVATE_REQUEST"), request).halted)
-        backend.runCommand(commands.getValue("privados"), "", "demo-network", "#demo")
-        backend.runCommand(commands.getValue("configurarprivados"), "", "demo-network", "#demo")
+        backend.runCommand(commands.getValue("dreamspv"), "", "demo-network", "#demo")
+        backend.runCommand(commands.getValue("dreamspvconfig"), "", "demo-network", "#demo")
         assertEquals(listOf("private.open", "private.settings"), capabilities)
+        backend.runCommand(commands.getValue("privados"), "", "demo-network", "#demo")
+        assertEquals(listOf("IMPORTADO_CONSERVADO"), echoes)
         backend.reset(); events.clear()
         val dollar = '$'
         assertNull(backend.loadScript("custom-policy.hex", "on PRIVATE_REQUEST {\n if (${dollar}nick == AllowedDemoNick) { return }\n halt\n}"))

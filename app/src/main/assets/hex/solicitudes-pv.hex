@@ -6,18 +6,18 @@
 ; Do not send automatic replies here: the client deduplicates configured NOTICEs.
 
 on LOAD {
-  sidebar add dreams-pv privados Solicitudes de privados
-  sidebar add dreams-pv-config configurarprivados Configurar solicitudes de privados
+  sidebar add dreams-pv dreamspv Solicitudes de privados
+  sidebar add dreams-pv-config dreamspvconfig Configurar solicitudes de privados
 }
 
 on PRIVATE_REQUEST {
   halt
 }
 
-alias privados {
+alias dreamspv {
   private.open
 }
 
-alias configurarprivados {
+alias dreamspvconfig {
   private.settings
 }
