@@ -509,7 +509,8 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                                 ),
                             )
                         }.getOrNull()
-                        val visibleText = if (scripted?.halted == true) null else scripted?.text ?: ev.text
+                        // Run scripts before suppressing the automatic hidden-host announcement.
+                        val visibleText = if (scripted?.halted == true || (code == "396" && !ev.isWhoisReply)) null else scripted?.text ?: ev.text
                         val callerIdHandled = visibleText == ev.text && handleCallerIdNumeric(netId, ev)
                         if (ev.isWhoisReply && ev.whoisRequestId != null && ev.whoisNick != null) {
                             val id = ev.whoisRequestId

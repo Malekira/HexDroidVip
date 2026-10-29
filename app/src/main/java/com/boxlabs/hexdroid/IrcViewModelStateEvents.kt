@@ -30,30 +30,8 @@ import kotlinx.coroutines.launch
 /** User state, history, push, metadata, reactions and redactions. */
 internal fun IrcViewModel.handleStateEvent(netId: String, ev: IrcEvent) {
     when (ev) {
-        // IRCv3 CHGHOST: update user@host for nick in all shared channel nicklists.
-        // The nicklist stores raw "prefix+nick" strings, not full masks, so we don't need
-        // to update the display - just surface an info line in channels where the nick is present.
-        is IrcEvent.Chghost -> {
-            if (ev.isHistory) return
-            val myNick = _state.value.connections[netId]?.myNick ?: return
-            val isMe = casefoldText(netId, ev.nick) == casefoldText(netId, myNick)
-            // Find channels where this nick is present
-            val affectedChannels = _state.value.nicklists
-                .filterKeys { it.startsWith("$netId::") }
-                .filter { (_, list) ->
-                    list.any { parseNickWithPrefixes(netId, it).first.let { b ->
-                        casefoldText(netId, b) == casefoldText(netId, ev.nick) } }
-                }
-                .map { it.key }
-            val line = if (isMe) "* " + appContext.getString(R.string.vm_ev_your_host_now, ev.newUser, ev.newHost)
-                       else "* " + appContext.getString(R.string.vm_ev_host_now, ev.nick, ev.newUser, ev.newHost)
-            for (k in affectedChannels) {
-                append(k, from = null, text = line, timeMs = ev.timeMs, doNotify = false, isLocal = true)
-            }
-            if (affectedChannels.isEmpty()) {
-                append(bufKey(netId, "*server*"), from = null, text = line, timeMs = ev.timeMs, doNotify = false, isLocal = true)
-            }
-        }
+        // IrcClient already updates its user/host cache. Keep ident/vhost chatter silent.
+        is IrcEvent.Chghost -> Unit
 
         // IRCv3 ACCOUNT: services account login/logout notification.
         is IrcEvent.AccountChanged -> {
@@ -64,24 +42,7 @@ internal fun IrcViewModel.handleStateEvent(netId: String, ev: IrcEvent) {
                 val acct = ev.account.takeIf { it != "*" && it.isNotBlank() }
                 setNetConn(netId) { it.copy(myAccount = acct) }
             }
-            val line = when {
-                ev.account == "*" -> if (isMe) "* " + appContext.getString(R.string.vm_ev_you_logged_out)
-                                     else "* " + appContext.getString(R.string.vm_ev_logged_out, ev.nick)
-                isMe -> "* " + appContext.getString(R.string.vm_ev_you_logged_in_as, ev.account)
-                else -> "* " + appContext.getString(R.string.vm_ev_nick_logged_in_as, ev.nick, ev.account)
-            }
-            // Surface in channels where this nick is visible, or server buffer
-            val affected = _state.value.nicklists
-                .filterKeys { it.startsWith("$netId::") }
-                .filter { (_, list) ->
-                    list.any { parseNickWithPrefixes(netId, it).first.let { b ->
-                        casefoldText(netId, b) == casefoldText(netId, ev.nick) } }
-                }
-                .map { it.key }
-            val targets = if (affected.isNotEmpty()) affected else listOf(bufKey(netId, "*server*"))
-            for (k in targets) {
-                append(k, from = null, text = line, timeMs = ev.timeMs, doNotify = false, isLocal = true)
-            }
+            // Keep authentication state without announcing logins/logouts in chat.
         }
 
         // IRCv3 SETNAME: user changed their realname.

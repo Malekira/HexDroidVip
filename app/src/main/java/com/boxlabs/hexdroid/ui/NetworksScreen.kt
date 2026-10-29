@@ -360,6 +360,7 @@ private fun NetworkDetailPane(
     orderedIds: List<String>,
     onSelect: (String) -> Unit,
     onEdit: (String) -> Unit,
+    onDuplicate: (String) -> Unit,
     onDelete: (String) -> Unit,
     onConnect: (String) -> Unit,
     onDisconnect: (String) -> Unit,
@@ -431,6 +432,11 @@ private fun NetworkDetailPane(
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.networks_edit))
         }
+
+        OutlinedButton(
+            onClick = { onDuplicate(profile.id); onActionTaken() },
+            modifier = Modifier.fillMaxWidth().focusHighlight(RoundedCornerShape(50)),
+        ) { Text(stringResource(R.string.networks_duplicate)) }
 
         HorizontalDivider()
 
@@ -510,6 +516,7 @@ fun NetworksScreen(
     onSelect: (String) -> Unit,
     onAdd: () -> Unit,
     onEdit: (String) -> Unit,
+    onDuplicate: (String) -> Unit,
     onDelete: (String) -> Unit,
     onSetAutoConnect: (String, Boolean) -> Unit,
     onSetShowInSidebar: (String, Boolean) -> Unit,
@@ -827,6 +834,7 @@ fun NetworksScreen(
                         orderedIds = orderedIds,
                         onSelect = onSelect,
                         onEdit = onEdit,
+                        onDuplicate = onDuplicate,
                         onDelete = onDelete,
                         onConnect = onConnect,
                         onDisconnect = onDisconnect,
@@ -871,6 +879,7 @@ fun NetworksScreen(
                 orderedIds = orderedIds,
                 onSelect = onSelect,
                 onEdit = onEdit,
+                onDuplicate = onDuplicate,
                 onDelete = onDelete,
                 onConnect = onConnect,
                 onDisconnect = onDisconnect,

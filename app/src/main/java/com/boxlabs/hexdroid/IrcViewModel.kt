@@ -1466,7 +1466,11 @@ fun startAddNetwork() {
         _state.value = _state.value.copy(screen = AppScreen.NETWORK_EDIT, editingNetwork = n, networkEditError = null)
     }
 
-    fun startEditNetwork(id: String) {
+    fun startEditNetwork(id: String) = startNetworkEditor(id, duplicate = false)
+
+    fun startDuplicateNetwork(id: String) = startNetworkEditor(id, duplicate = true)
+
+    private fun startNetworkEditor(id: String, duplicate: Boolean) {
         viewModelScope.launch {
             val st0 = _state.value
             val n = st0.networks.firstOrNull { it.id == id } ?: return@launch
@@ -1490,7 +1494,7 @@ fun startAddNetwork() {
             val st1 = _state.value
             _state.value = st1.copy(
                 screen = AppScreen.NETWORK_EDIT,
-                editingNetwork = withSecrets,
+                editingNetwork = if (duplicate) duplicateNetworkProfile(withSecrets, st1.networks.map { it.name }) else withSecrets,
                 networkEditError = null
             )
         }

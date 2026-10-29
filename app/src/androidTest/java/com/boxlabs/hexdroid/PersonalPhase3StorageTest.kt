@@ -125,4 +125,21 @@ class PersonalPhase3StorageTest {
             } finally { reopened.close() }
         } finally { store.close(); ctx.root.deleteRecursively() }
     }
+
+    @Test fun dreamsPermanentArchiveKeepsMoreThanFiveThousandLinesAndExportsAllOfThem() {
+        val ctx = Phase3TestContext(context)
+        val archive = HistoryArchive(ctx)
+        val path = "network-demo/#history-demo.txt"
+        try {
+            repeat(5_005) { index ->
+                assertTrue(archive.append(path, "2026-10-29 12:00:00\t<DemoNick01> Mensaje $index á 🙂", "history-demo-$index"))
+            }
+            val out = ByteArrayOutputStream()
+            archive.exportText(path, out)
+            val lines = out.toString("UTF-8").lineSequence().filter { it.isNotEmpty() }.toList()
+            assertEquals(5_005, lines.size)
+            assertTrue(lines.first().endsWith("Mensaje 0 á 🙂"))
+            assertTrue(lines.last().endsWith("Mensaje 5004 á 🙂"))
+        } finally { archive.close(); ctx.root.deleteRecursively() }
+    }
 }

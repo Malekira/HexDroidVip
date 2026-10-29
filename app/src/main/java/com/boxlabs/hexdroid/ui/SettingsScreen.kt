@@ -1707,8 +1707,9 @@ fun SettingsScreen(
                     value = s.maxScrollbackLines,
                     range = 200..5000,
                     onCommit = { n -> onUpdate { copy(maxScrollbackLines = n) } },
-                    label = { Text(stringResource(R.string.setting_max_scrollback)) },
+                    label = { Text(stringResource(R.string.setting_scrollback_loaded_lines)) },
                 )
+                Text(stringResource(R.string.setting_scrollback_loaded_lines_desc), style = MaterialTheme.typography.bodySmall)
             }
 
             }

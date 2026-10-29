@@ -1939,4 +1939,7 @@
     <string name="debug_info_check">Revísalo antes de compartirlo en público.</string>
     <string name="debug_info_copy">Copiar</string>
     <string name="debug_info_copied">Información de depuración copiada</string>
+    <string name="networks_duplicate">Duplicar red</string>
+    <string name="setting_scrollback_loaded_lines">Mensajes cargados en pantalla</string>
+    <string name="setting_scrollback_loaded_lines_desc">Solo limita los mensajes cargados en memoria. El historial TXT guardado no tiene límite de líneas ni vencimiento; depende únicamente del espacio disponible.</string>
 </resources>

@@ -144,4 +144,74 @@ class PersonalPhase3PrivateFlowTest {
             repo.updateSettings { original }
         }
     }
+
+    @Test fun dreamsChannelEventsAndNetworkDuplicationUseTheRealViewModel() = runBlocking {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val ctx = instrumentation.targetContext
+        val repo = SettingsRepository(ctx)
+        val original = repo.settingsFlow.first()
+        val networks = repo.networksFlow.first()
+        val id = "dreams-test-${java.util.UUID.randomUUID()}"
+        val room = "$id::#demo"
+        val source = repo.defaultNetworks().first().copy(id = id, name = "Red demo", host = "irc.example.invalid", autoConnect = false)
+        val store = ViewModelStore()
+        lateinit var vm: IrcViewModel
+        var created = false
+        var copyId: String? = null
+        fun main(block: () -> Unit) = instrumentation.runOnMainSync(block)
+        suspend fun until(condition: () -> Boolean) { withTimeout(10_000) { while (!condition()) delay(25) } }
+        try {
+            repo.updateSettings { it.copy(loggingEnabled = false, notificationsEnabled = false, keepAliveInBackground = false,
+                showConnectionStatusNotification = false, hideJoins = false, hideParts = false, hideQuits = false,
+                hideNickChanges = false, smartFilter = false, hideHostnames = false, colorChannelEvents = true) }
+            repo.upsertNetwork(source)
+            repo.secretStore.setServerPassword(id, "fake-test-password")
+            main { vm = IrcViewModel(repo, ctx); store.put("dreams", vm); created = true }
+            until { vm.state.value.settingsLoaded && vm.state.value.networks.any { it.id == id } }
+            main {
+                vm._state.value = vm.state.value.copy(activeNetworkId = id, connections = mapOf(id to NetConnState(myNick = "OwnDemoNick")))
+                vm.openBuffer(room)
+                vm.handleEvent(id, IrcEvent.Joined("#demo", "DemoNick01", "demo@2001:db8::1234", account = "DemoAccount"))
+                val before = vm.state.value.buffers.mapValues { it.value.messages.size }
+                vm.handleEvent(id, IrcEvent.Chghost("DemoNick01", "newident", "cloak.example.invalid"))
+                vm.handleEvent(id, IrcEvent.AccountChanged("DemoNick01", "DemoAccount"))
+                vm.handleEvent(id, IrcEvent.AccountChanged("OwnDemoNick", "OwnDemoAccount"))
+                vm.handleEvent(id, IrcEvent.ServerText("host virtual de prueba", code = "396"))
+                assertEquals(before, vm.state.value.buffers.mapValues { it.value.messages.size })
+                assertEquals("OwnDemoAccount", vm.state.value.connections.getValue(id).myAccount)
+                vm.handleEvent(id, IrcEvent.AccountChanged("OwnDemoNick", "*"))
+                assertNull(vm.state.value.connections.getValue(id).myAccount)
+                vm.handleEvent(id, IrcEvent.NickChanged("DemoNick01", "DemoNick02"))
+                assertTrue(vm.state.value.nicklists.getValue(room).contains("DemoNick02"))
+                vm.handleEvent(id, IrcEvent.Parted("#demo", "DemoNick02", "newident@cloak.example.invalid", "Hasta luego"))
+                vm.handleEvent(id, IrcEvent.Joined("#demo", "DemoNick03", "demo@192.0.2.1"))
+                vm.handleEvent(id, IrcEvent.Quit("DemoNick03", "demo@192.0.2.1", "Salida de prueba"))
+                val text = vm.state.value.buffers.getValue(room).messages.map { stripIrcFormatting(it.text) }
+                assertTrue(text.contains("→ JOIN DemoNick01 (demo@2001:db8::1234) #demo"))
+                assertTrue(text.contains("← PART DemoNick02 (newident@cloak.example.invalid) #demo [Hasta luego]"))
+                assertTrue(text.contains("← QUIT DemoNick03 (demo@192.0.2.1) [Salida de prueba]"))
+                assertTrue(text.any { "DemoNick01" in it && "DemoNick02" in it })
+                assertFalse(text.any { "DemoAccount" in it || "host virtual de prueba" in it })
+                vm.startDuplicateNetwork(id)
+            }
+            until { vm.state.value.editingNetwork?.id?.let { it != id } == true }
+            val draft = vm.state.value.editingNetwork!!
+            copyId = draft.id
+            assertEquals("Red demo — copia", draft.name)
+            assertEquals("fake-test-password", draft.serverPassword)
+            assertFalse(repo.networksFlow.first().any { it.id == draft.id })
+            main { vm.saveEditingNetwork(draft, null, false) }
+            until { vm.state.value.networks.any { it.id == draft.id } }
+            assertEquals("fake-test-password", repo.secretStore.getServerPassword(draft.id))
+            assertEquals("fake-test-password", repo.secretStore.getServerPassword(id))
+            assertEquals("Red demo", vm.state.value.networks.first { it.id == id }.name)
+            assertNull(vm.state.value.networks.first { it.id == draft.id }.serverPassword)
+        } finally {
+            if (created) main { store.clear(); vm.privateRequests.close(); vm.historyArchive.close() }
+            repo.secretStore.clearServerPassword(id)
+            copyId?.let { repo.secretStore.clearServerPassword(it) }
+            repo.saveNetworks(networks)
+            repo.updateSettings { original }
+        }
+    }
 }

@@ -1941,4 +1941,7 @@
     <string name="debug_info_check">Read it through before sharing it publicly.</string>
     <string name="debug_info_copy">Copy</string>
     <string name="debug_info_copied">Debug info copied</string>
+    <string name="networks_duplicate">Duplicate network</string>
+    <string name="setting_scrollback_loaded_lines">Messages loaded on screen</string>
+    <string name="setting_scrollback_loaded_lines_desc">This only limits messages loaded in memory. Saved TXT history has no line limit or expiry; it is limited only by available storage.</string>
 </resources>

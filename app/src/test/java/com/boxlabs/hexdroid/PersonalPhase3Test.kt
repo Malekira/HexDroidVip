@@ -102,4 +102,38 @@ class PersonalPhase3Test {
             assertTrue(HistoryFiles.list(root).isEmpty())
         } finally { root.deleteRecursively(); stage.deleteRecursively() }
     }
+
+    @Test fun dreamsMembershipEventsKeepFullMasksWithoutFabricatingUnknownHosts() {
+        assertEquals("→ JOIN DemoNick01 (demo@2001:db8::1234) #demo", stripIrcFormatting(membershipEventLine(MembershipEvent.JOIN, "DemoNick01", "demo@2001:db8::1234", "#demo")))
+        assertEquals("← PART DemoNick01 (demo@host.example.invalid) #demo [Hasta luego 🙂]", stripIrcFormatting(membershipEventLine(MembershipEvent.PART, "DemoNick01", "demo@host.example.invalid", "#demo", "Hasta luego 🙂")))
+        assertEquals("← QUIT DemoNick01", stripIrcFormatting(membershipEventLine(MembershipEvent.QUIT, "DemoNick01", null)))
+        assertEquals("→ JOIN DemoNick01 #demo", membershipEventLine(MembershipEvent.JOIN, "DemoNick01", "demo@host.invalid", "#demo", hideHostnames = true, colors = false))
+    }
+
+    @Test fun dreamsMembershipEventsColorOnlyTheArrowAndKeepReasonsGrey() {
+        for (event in MembershipEvent.entries) {
+            val text = membershipEventLine(event, "DemoNick01", "demo@192.0.2.1", reason = "\u000304Motivo\u000f")
+            assertTrue(text.startsWith("\u0003${event.color}${event.arrow}\u000314 "))
+            assertTrue(text.endsWith("[Motivo]\u000f"))
+            assertEquals(listOf(3, 6, 4), MembershipEvent.entries.map { it.color })
+        }
+    }
+
+    @Test fun dreamsDuplicateNetworkCreatesIndependentDraftAndUniqueNames() {
+        val original = com.boxlabs.hexdroid.data.NetworkProfile(
+            id = "demo-source", name = "Red demo", host = "irc.example.invalid", port = 6697,
+            useTls = true, allowInvalidCerts = false, nick = "OwnDemoNick", altNick = "OwnDemoNick_",
+            username = "demo", realname = "Identidad de prueba", saslEnabled = true,
+            saslMechanism = SaslMechanism.PLAIN, caps = CapPrefs(), autoJoin = emptyList(),
+            autoConnect = true, tlsClientCertId = "source-cert", tlsTofuFingerprint = "source-pin",
+        )
+        val copy = duplicateNetworkProfile(original, listOf("Red demo", "Red demo — copia", "Red demo — copia 2"))
+        assertEquals("Red demo — copia 3", copy.name)
+        assertNotEquals(original.id, copy.id)
+        assertNotEquals(copy.id, duplicateNetworkProfile(original, emptyList()).id)
+        assertEquals(original.host, copy.host); assertEquals(original.nick, copy.nick)
+        assertEquals(original.caps, copy.caps); assertEquals(original.autoJoin, copy.autoJoin)
+        assertFalse(copy.autoConnect); assertNull(copy.tlsClientCertId); assertNull(copy.tlsTofuFingerprint)
+        assertTrue(original.autoConnect); assertEquals("source-cert", original.tlsClientCertId)
+    }
 }

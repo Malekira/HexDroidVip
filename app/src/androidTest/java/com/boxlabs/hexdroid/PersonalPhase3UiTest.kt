@@ -6,6 +6,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.unit.dp
 import kotlinx.collections.immutable.persistentListOf
 import com.boxlabs.hexdroid.ui.theme.HexDroidIRCTheme
 import androidx.compose.material3.*
@@ -57,17 +59,24 @@ class PersonalPhase3UiTest {
         compose.onNodeWithText("Crear tema").performClick()
         compose.onNodeWithText("Nombre").performTextReplacement("Tema de prueba visual")
         compose.onNodeWithText("#RRGGBB").performTextReplacement("FF0000")
-        compose.onNodeWithTag("theme-hue").performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(120f) }
-        compose.onNodeWithTag("theme-saturation-value").performScrollTo().performTouchInput {
-            click(Offset(width / 2f, height / 2f))
+        val wheel = compose.onNodeWithTag("theme-color-wheel")
+        wheel.performScrollTo().performTouchInput {
+            click(Offset(width * .375f, height * .71650635f))
         }
-        compose.onNodeWithText("#RRGGBB").assertTextContains("408040")
+        compose.onNodeWithTag("theme-brightness").performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(.5f) }
+        val chosen = parseThemeHex(compose.onNodeWithText("#RRGGBB").fetchSemanticsNode().config[SemanticsProperties.EditableText].text)!!
+        assertTrue(((chosen ushr 8) and 255) in 126..130)
+        assertTrue(((chosen ushr 16) and 255) in 61..67)
+        assertTrue((chosen and 255) in 61..67)
+        wheel.assertWidthIsEqualTo(160.dp)
+        val preview = compose.onNodeWithTag("theme-preview", useUnmergedTree = true).fetchSemanticsNode()
+        assertTrue(preview.positionInRoot.y < wheel.fetchSemanticsNode().positionInRoot.y)
         compose.onNodeWithText("Claro").performScrollTo().performClick()
         compose.onNodeWithText("#RRGGBB").performTextReplacement("123456")
         compose.onNodeWithText("Guardar y aplicar").performScrollTo().performClick()
         compose.runOnIdle {
             val theme = settings.personalThemes.single()
-            assertEquals(0xff408040.toInt(), theme.color(ThemeRole.CHAT, true))
+            assertEquals(chosen, theme.color(ThemeRole.CHAT, true))
             assertEquals(0xff123456.toInt(), theme.color(ThemeRole.CHAT, false))
         }
         compose.onNodeWithText("Crear tema").performClick()
@@ -164,5 +173,24 @@ class PersonalPhase3UiTest {
         compose.runOnIdle { assertEquals("IGNORED", action) }
         compose.onNodeWithText("Aceptar").performClick()
         compose.runOnIdle { assertEquals("ACCEPTED", action) }
+    }
+
+    @Test fun dreamsMembershipArrowsAndGreyBodyRenderInTheRealChat() {
+        val key = "network-demo::#demo"
+        val messages = MembershipEvent.entries.mapIndexed { i, event ->
+            UiMessage(i + 1L, System.currentTimeMillis(), null,
+                membershipEventLine(event, "DemoNick01", "demo@192.0.2.1", "#demo"))
+        }
+        val state = UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo", log = BufferLog(messages = persistentListOf(*messages.toTypedArray())))),
+            showBufferList = false, showNickList = false)
+        compose.setContent { HexDroidIRCTheme { RealChat(state) } }
+        for (event in MembershipEvent.entries) {
+            val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+            compose.onNodeWithText("${event.arrow} ${event.name} DemoNick01 (demo@192.0.2.1) #demo", substring = true, useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            val styled = layouts.single().layoutInput.text
+            assertTrue(styled.spanStyles.any { it.item.color == mircColor(event.color) })
+            assertTrue(styled.spanStyles.any { it.item.color == mircColor(14) })
+        }
     }
 }

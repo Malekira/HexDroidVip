@@ -139,30 +139,21 @@ internal fun IrcViewModel.handleChannelEvent(netId: String, ev: IrcEvent) {
             val holdJoin = !joinShown && !isSelfJoin && showsEvent(chanKey, ChannelEventKind.JOIN) && smartFilterOn(chanKey) &&
                 !isIgnoredSender(netId, ev.nick, IgnoreType.EVENTS, ev.userHost)
             if ((joinShown || holdJoin) && !(ev.isHistory && isSelfJoin)) {
-                val myNick = myNickJ
-                val msg = if (ev.nick.equals(myNick, ignoreCase = true)) {
-                    "* " + appContext.getString(R.string.vm_ev_now_talking, ev.channel)
-                } else {
-                    val host = ev.userHost ?: "*!*@*"
-                    // extended-join: include account name if logged in
-                    val accountSuffix = ev.account?.let { " [" + appContext.getString(R.string.vm_ev_logged_in_as, it) + "]" } ?: ""
-                    val line = if (st0.settings.hideHostnames) {
-                        appContext.getString(R.string.vm_ev_has_joined_nohost, ev.nick, ev.channel)
-                    } else {
-                        appContext.getString(R.string.vm_ev_has_joined, ev.nick, host, ev.channel)
-                    }
-                    "* " + line + accountSuffix
-                }
+                val msg = membershipEventLine(
+                    MembershipEvent.JOIN, ev.nick, ev.userHost, ev.channel,
+                    hideHostnames = st0.settings.hideHostnames,
+                    colors = st0.settings.colorChannelEvents,
+                )
                 if (holdJoin) {
                     smartFilter.holdJoin(
                         casefoldText(netId, ev.nick),
-                        SmartFilter.HeldEvent(chanKey, colorEvent(msg, 3), ev.timeMs ?: System.currentTimeMillis(), ev.isHistory),
+                        SmartFilter.HeldEvent(chanKey, msg, ev.timeMs ?: System.currentTimeMillis(), ev.isHistory),
                     )
                 } else {
                     append(
                         chanKey,
                         from = null,
-                        text = colorEvent(msg, 3),  // green
+                        text = msg,
                         isLocal = suppressUnread,
                         timeMs = ev.timeMs,
                         isHistory = ev.isHistory,
@@ -325,21 +316,15 @@ internal fun IrcViewModel.handleChannelEvent(netId: String, ev: IrcEvent) {
                 else showsOthersEvent(netId, chanKey, ChannelEventKind.PART, ev.nick, ev.timeMs)
             if (!isMe) smartFilter.left(chanKey, casefoldText(netId, ev.nick))
             if (partShown) {
-                val msg = if (isMe) {
-                    "* " + appContext.getString(R.string.vm_ev_you_left, ev.channel)
-                } else {
-                    val host = ev.userHost ?: "*!*@*"
-                    val line = if (st0.settings.hideHostnames) {
-                        appContext.getString(R.string.vm_ev_has_left_nohost, ev.nick, ev.channel)
-                    } else {
-                        appContext.getString(R.string.vm_ev_has_left, ev.nick, host, ev.channel)
-                    }
-                    "* " + line + (ev.reason?.takeIf { it.isNotBlank() }?.let { " [$it]" } ?: "")
-                }
+                val msg = membershipEventLine(
+                    MembershipEvent.PART, ev.nick, ev.userHost, ev.channel, ev.reason,
+                    hideHostnames = st0.settings.hideHostnames,
+                    colors = st0.settings.colorChannelEvents,
+                )
                 append(
                     chanKey,
                     from = null,
-                    text = colorEvent(msg, 7),  // orange
+                    text = msg,
                     isLocal = suppressUnread,
                     timeMs = ev.timeMs,
                     isHistory = ev.isHistory,
@@ -460,8 +445,6 @@ internal fun IrcViewModel.handleChannelEvent(netId: String, ev: IrcEvent) {
             if (!ev.isHistory) scriptEvent("QUIT", netId, "", ev.nick, ev.reason.orEmpty(), isMyNick(netId, ev.nick))
             val st0 = _state.value
             val suppressUnread = ev.isHistory && !st0.settings.ircHistoryCountsAsUnread
-            val reason = ev.reason?.takeIf { it.isNotBlank() }
-
             val affectLive = shouldAffectLiveState(ev.isHistory, ev.timeMs)
 
             // Compute which channels the quitting nick is currently in, REGARDLESS of
@@ -499,14 +482,11 @@ internal fun IrcViewModel.handleChannelEvent(netId: String, ev: IrcEvent) {
             }
             if (!isMeQuit) for (k in targets) smartFilter.left(k, foldedNick)
             if (shownTargets.isNotEmpty() && !ownReplay) {
-                val host = ev.userHost ?: "*!*@*"
-                val line = if (st0.settings.hideHostnames) {
-                    appContext.getString(R.string.vm_ev_has_quit_nohost, ev.nick)
-                } else {
-                    appContext.getString(R.string.vm_ev_has_quit, ev.nick, host)
-                }
-                val msg = "* " + line + (reason?.let { " [$it]" } ?: "")
-                val coloured = colorEvent(msg, 5)  // brown — distinguishes server-side QUIT from client-side PART
+                val coloured = membershipEventLine(
+                    MembershipEvent.QUIT, ev.nick, ev.userHost, reason = ev.reason,
+                    hideHostnames = st0.settings.hideHostnames,
+                    colors = st0.settings.colorChannelEvents,
+                )
                 for (k in shownTargets) {
                     append(
                         k,

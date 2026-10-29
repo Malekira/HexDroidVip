@@ -365,6 +365,7 @@ fun AppRoot(
                     onSelect = vm::setActiveNetwork,
                     onAdd = vm::startAddNetwork,
                     onEdit = vm::startEditNetwork,
+                    onDuplicate = vm::startDuplicateNetwork,
                     onDelete = vm::deleteNetwork,
                     onSetAutoConnect = vm::setNetworkAutoConnect,
                     onSetShowInSidebar = vm::setNetworkShowInSidebar,

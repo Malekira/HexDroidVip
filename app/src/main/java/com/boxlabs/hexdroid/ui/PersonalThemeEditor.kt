@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
@@ -75,6 +76,19 @@ internal fun ThemeEditor(initial: PersonalTheme, dismiss: () -> Unit, save: (Per
                 OutlinedTextField(hex, { hex = it.removePrefix("#").take(6); parseThemeHex(hex)?.let(::setColor) },
                     label = { Text("#RRGGBB") }, isError = parseThemeHex(hex) == null, modifier = Modifier.fillMaxWidth())
                 val argb = draft.color(role, dark)
+                Text("Vista previa — contraste mínimo 4,5:1 para texto sin formato IRC")
+                HexDroidIRCTheme(themeMode = if (dark) com.boxlabs.hexdroid.data.ThemeMode.DARK else com.boxlabs.hexdroid.data.ThemeMode.LIGHT, personalTheme = draft) {
+                    val bg = Color(draft.color(ThemeRole.CHAT, dark))
+                    Surface(color = bg, contentColor = Color(readableThemeText(draft.color(ThemeRole.TEXT, dark), bg.toArgb()))) {
+                        Column(Modifier.fillMaxWidth().testTag("theme-preview").padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Surface(color = Color(draft.color(ThemeRole.TOP, dark)), contentColor = Color(readableThemeText(draft.color(ThemeRole.UI_TEXT, dark), draft.color(ThemeRole.TOP, dark)))) { Text("#sala-demo — " + androidx.compose.ui.res.stringResource(R.string.personal_app_name), Modifier.padding(8.dp)) }
+                            Text("<DemoNick01> Mensaje de prueba 🙂")
+                            Text("Aviso del servidor", color = Color(readableThemeText(draft.color(ThemeRole.NOTICE, dark), draft.color(ThemeRole.CHAT, dark))))
+                            OutlinedTextField("Escribir…", {}, readOnly = true, modifier = Modifier.fillMaxWidth())
+                            Button(onClick = {}) { Text("Botón de vista previa") }
+                        }
+                    }
+                }
                 key(role, dark) { ThemeColorPicker(argb, ::setColor) }
                 // RGB and hexadecimal remain available alongside the touch palette.
                 listOf("Rojo" to 16, "Verde" to 8, "Azul" to 0).forEach { (label, shift) ->
@@ -84,19 +98,6 @@ internal fun ThemeEditor(initial: PersonalTheme, dismiss: () -> Unit, save: (Per
                     }, valueRange = 0f..255f)
                 }
                 Box(Modifier.fillMaxWidth().height(32.dp).background(Color(argb)))
-                Text("Vista previa — contraste mínimo 4,5:1 para texto sin formato IRC")
-                HexDroidIRCTheme(themeMode = if (dark) com.boxlabs.hexdroid.data.ThemeMode.DARK else com.boxlabs.hexdroid.data.ThemeMode.LIGHT, personalTheme = draft) {
-                    val bg = Color(draft.color(ThemeRole.CHAT, dark))
-                    Surface(color = bg, contentColor = Color(readableThemeText(draft.color(ThemeRole.TEXT, dark), bg.toArgb()))) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Surface(color = Color(draft.color(ThemeRole.TOP, dark)), contentColor = Color(readableThemeText(draft.color(ThemeRole.UI_TEXT, dark), draft.color(ThemeRole.TOP, dark)))) { Text("#sala-demo — " + androidx.compose.ui.res.stringResource(R.string.personal_app_name), Modifier.padding(8.dp)) }
-                            Text("<DemoNick01> Mensaje de prueba 🙂")
-                            Text("Aviso del servidor", color = Color(readableThemeText(draft.color(ThemeRole.NOTICE, dark), draft.color(ThemeRole.CHAT, dark))))
-                            OutlinedTextField("Escribir…", {}, readOnly = true, modifier = Modifier.fillMaxWidth())
-                            Button(onClick = {}) { Text("Botón de vista previa") }
-                        }
-                    }
-                }
                 TextButton(onClick = { draft = draft.copy(darkColors = emptyMap(), lightColors = emptyMap()) }) { Text("Restaurar colores del editor") }
                 Row { TextButton(onClick = dismiss) { Text("Cancelar") }; Button(onClick = { save(draft.copy(name = draft.name.trim())) }, enabled = draft.name.isNotBlank() && parseThemeHex(hex) != null) { Text("Guardar y aplicar") } }
             }
