@@ -38,6 +38,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -146,7 +147,9 @@ fun WelcomeScreen(
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(Modifier.height(32.dp))
+                    Spacer(Modifier.height(16.dp))
+                    WelcomeCredits()
+                    Spacer(Modifier.height(24.dp))
 
                     Text(
                         text = stringResource(R.string.welcome_language_label),
@@ -267,6 +270,19 @@ fun WelcomeScreen(
                 }
             }
         }
+    }
+}
+
+/** Uses the same original contributors as About; the credits cannot drift apart. */
+@Composable
+internal fun WelcomeCredits() {
+    val developers = CREDITS.filter { it.title == "Development" }.flatMap { it.members }.joinToString { it.name }
+    val translations = CREDITS.filter { it.title == "Translations" }.flatMap { it.members }.joinToString { it.name }
+    Column(Modifier.fillMaxWidth().testTag("welcome-credits"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(R.string.dreams_welcome_original, developers), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.dreams_welcome_translations, translations), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.dreams_welcome_thanks), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.dreams_welcome_license), style = MaterialTheme.typography.bodySmall)
     }
 }
 

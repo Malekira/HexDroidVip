@@ -2128,12 +2128,7 @@ fun startAddNetwork() {
         _scriptLaunchers.value = emptyList()
         runCatching {
             scriptManager.seedBundled()
-            val prefs = appContext.getSharedPreferences("hexdroid_scripts", Context.MODE_PRIVATE)
-            if (!prefs.getBoolean(PRIVATE_REQUEST_SCRIPT_MIGRATED, false)) {
-                if (_state.value.settings.privateRequestsEnabled) scriptManager.setEnabled(PRIVATE_REQUEST_SCRIPT, true)
-                else scriptManager.reloadAll()
-                prefs.edit().putBoolean(PRIVATE_REQUEST_SCRIPT_MIGRATED, true).apply()
-            } else scriptManager.reloadAll()
+            scriptManager.reloadAll()
         }
         refreshScripts()
     }

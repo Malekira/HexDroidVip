@@ -106,10 +106,22 @@ fun IrcViewModel.revokePrivateAuthorizations() {
     viewModelScope.launch { withContext(privateRequestLane) { privateRequests.revokeAll() }; _state.update { it.copy(privateRequestMessage = "Autorizaciones locales eliminadas; la lista ACCEPT del servidor se administra por separado en Status") } }
 }
 internal fun IrcViewModel.handleCallerIdNumeric(netId: String, ev: IrcEvent.ServerText): Boolean {
-    if (ev.code != "718" || !hasPrivateRequestPolicy()) return false
+    if (ev.code != "718") return false
     // charybdis/solanum: 718 <me> <source> <user@host> :is messaging you ...
     val nick = ev.serverParams.getOrNull(1)?.takeIf(::isReplyNick) ?: return false
     if (isIgnoredSender(netId, nick, IgnoreType.PRIVATE)) return false
+    if (!hasPrivateRequestPolicy()) {
+        // Keep the real +g notice visible after withdrawing the optional request addon.
+        // It must not enqueue a request, send an auto-reply or create a private buffer.
+        val status = bufKey(netId, "*server*")
+        val active = _state.value.selectedBuffer.takeIf { splitKey(it).first == netId && it in _state.value.buffers }
+        val notice = "* <$nick> Intento de PV bloqueado por +g. El servidor no entregó el contenido del mensaje."
+        for (key in setOfNotNull(status, active)) {
+            append(key, from = null, text = if (key == status) "$notice ${ev.text}" else notice,
+                isHighlightedNotice = key == active, doNotify = false)
+        }
+        return true
+    }
     if (!scriptHoldsPrivateRequest(netId, nick, blocked = true)) return false
     val id = privateRequestId(netId, casefoldText(netId, nick))
     // Capture the visible conversation at receipt; a later screen switch must not reroute it.

@@ -132,10 +132,10 @@ private const val WEBSITE_LABEL = "hexdroid.org"
 /*
  *  CONTRIBUTORS
  */
-private data class Credit(val name: String, val detail: String? = null, val url: String? = null)
-private data class CreditGroup(val title: String, val members: List<Credit>)
+internal data class Credit(val name: String, val detail: String? = null, val url: String? = null)
+internal data class CreditGroup(val title: String, val members: List<Credit>)
 
-private val CREDITS: List<CreditGroup> = listOf(
+internal val CREDITS: List<CreditGroup> = listOf(
     CreditGroup(
         "Development",
         listOf(

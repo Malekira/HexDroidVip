@@ -201,6 +201,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.SolidColor
@@ -301,7 +302,6 @@ fun ChatScreen(
     onOpenList: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenScripts: () -> Unit = {},
-    onOpenPrivateRequests: () -> Unit = {},
     scriptLaunchers: List<Pair<String, String>> = emptyList(),
     onRunLauncher: (command: String) -> Unit = {},
     onOpenNetworks: () -> Unit,
@@ -2212,32 +2212,17 @@ fun ChatScreen(
                     }
 
                     if (isChannel && (canKick || canBan || canTopic)) {
-                        val opsInteraction = remember { MutableInteractionSource() }
-                        val opsPressed by opsInteraction.collectIsPressedAsState()
-                        val accents = LocalAccentColors.current
-
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .scale(if (opsPressed) 0.92f else 1f)
-                                .background(
-                                    brush = Brush.linearGradient(colors = accents.channelTools),
-                                    shape = RoundedCornerShape(4.dp)
-                                )
-                                .testTag("channel-tools-button").focusHighlight(RoundedCornerShape(4.dp))
-                                .clickable(
-                                    interactionSource = opsInteraction,
-                                    indication = ripple(bounded = false),
-                                    onClick = { showChanOps = true }
-                                )
-                                .padding(6.dp),
-                            contentAlignment = Alignment.Center
+                        BarIconButton(
+                            size = iconBtnSize,
+                            modifier = Modifier.testTag("channel-tools-button"),
+                            onClick = { showChanOps = true },
+                            initialFocus = false,
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Build,
                                 contentDescription = stringResource(R.string.chat_channel_tools),
-                                tint = accents.onAccent.copy(alpha = if (opsPressed) 0.7f else 1f),
-                                modifier = Modifier.size(20.dp)
+                                tint = personalColors.text(ThemeRole.UI_TEXT, topBg, Color(com.boxlabs.hexdroid.readableThemeText(0xff000000.toInt(), topBg.toArgb()))),
+                                modifier = Modifier.size(accentGlyphSize),
                             )
                         }
                     }
@@ -2296,7 +2281,6 @@ fun ChatScreen(
                                     })
                                 }
                                 add(MenuEntry(stringResource(R.string.menu_settings)) { overflowExpanded = false; onOpenSettings() })
-                                add(MenuEntry("Privados pendientes (${state.privateRequests.size})") { overflowExpanded = false; onOpenPrivateRequests() })
                                 add(MenuEntry("Scripts") { overflowExpanded = false; onOpenScripts() })
                                 add(MenuEntry(stringResource(R.string.menu_networks)) { overflowExpanded = false; onOpenNetworks() })
                                 if (isIrcOper) {

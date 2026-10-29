@@ -2,7 +2,7 @@
     <string name="app_name">HexDroid Dreams</string>
 
     <!-- Welcome / Setup Screen -->
-    <string name="welcome_title">Bienvenido a HexDroid</string>
+    <string name="welcome_title">Bienvenido a HexDroid Dreams</string>
     <string name="welcome_subtitle">Vamos a configurarte antes de empezar.</string>
     <string name="welcome_language_label">Idioma</string>
     <string name="welcome_nick_label">Apodo</string>
@@ -1945,4 +1945,8 @@
     <string name="chat_complete_nick">Completar nick (Tab)</string>
     <string name="mention_color_preview">Vista previa del resaltado de menciones</string>
     <string name="setting_highlight_my_nick">Resaltar mi propio nick</string>
+    <string name="dreams_welcome_original">Basada en HexDroid de boxlabs. Desarrollo original: %1$s.</string>
+    <string name="dreams_welcome_translations">Colaboraciones de traducción: %1$s.</string>
+    <string name="dreams_welcome_thanks">Gracias a los autores originales, colaboradores y bibliotecas de software libre.</string>
+    <string name="dreams_welcome_license">Software libre bajo GPLv3 o posterior. Se conservan los créditos originales.</string>
 </resources>

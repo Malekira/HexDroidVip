@@ -2,7 +2,7 @@
     <string name="app_name">HexDroid Dreams</string>
 
     <!-- Welcome / Setup Screen -->
-    <string name="welcome_title">Добро пожаловать в HexDroid</string>
+    <string name="welcome_title">Добро пожаловать в HexDroid Dreams</string>
     <string name="welcome_subtitle">Давайте настроим всё перед началом работы.</string>
     <string name="welcome_language_label">Язык</string>
     <string name="welcome_nick_label">Псевдоним</string>

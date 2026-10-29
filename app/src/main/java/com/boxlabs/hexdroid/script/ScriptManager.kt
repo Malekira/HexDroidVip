@@ -48,6 +48,7 @@ data class ScriptsUiState(
 class ScriptStore(context: Context, private val ext: String = "js") {
 
     private val dir: File = File(context.filesDir, "scripts").apply { mkdirs() }
+    private val archiveDir = File(context.filesDir, "retired-scripts")
     private val dotExt: String = ".$ext"
 
     /** All scripts, name -> source, sorted by filename for deterministic load order. */
@@ -66,6 +67,15 @@ class ScriptStore(context: Context, private val ext: String = "js") {
     }
 
     fun delete(name: String): Boolean = File(dir, sanitise(name)).delete()
+
+    /** Preserve an obsolete included script outside the executable scripts directory. */
+    fun archive(name: String) {
+        val source = File(dir, sanitise(name))
+        if (!source.isFile) return
+        check(archiveDir.isDirectory || archiveDir.mkdirs()) { "Cannot create script archive" }
+        java.nio.file.Files.move(source.toPath(), File(archiveDir,
+            sanitise(name) + "." + java.util.UUID.randomUUID() + ".bak").toPath())
+    }
 
     fun list(): List<String> =
         (dir.listFiles { f -> f.isFile && f.name.endsWith(dotExt) } ?: emptyArray())
@@ -111,6 +121,7 @@ class ScriptManager(
      * edits are kept.
      */
     fun seedBundled(subdir: String = engine.scriptExtension) {
+        retireObsoleteBundled()
         val dot = ".${engine.scriptExtension}"
         val have = store.list().toSet()
         val gone = suppressedSet()
@@ -207,6 +218,7 @@ class ScriptManager(
 
     /** Drop everything and re-load all enabled scripts; refresh per-script status; fire LOAD. */
     fun reloadAll() {
+        retireObsoleteBundled()
         engine.resetHandlers()
         errors.clear()
         val disabled = disabledSet()
@@ -217,6 +229,25 @@ class ScriptManager(
         // `on LOAD {}` runs once after (re)load — this is where scripts register sidebar
         // launchers, set up channels, etc. Without it none of that startup code ever runs.
         engine.dispatch("LOAD", EventData(network = "", buffer = ""))
+    }
+
+    /** One-time withdrawal. User scripts with other names are never touched. */
+    private fun retireObsoleteBundled() {
+        val name = "solicitudes-pv.hex"
+        val marker = "retired_bundled_v1:$name"
+        if (prefs.getBoolean(marker, false)) return
+        val source = store.read(name)
+        val owned = source != null && (prefs.contains(shippedKey(name)) || sha256(source) in setOf(
+            "12910748d39bf85792cb4e8b1df0bbce83d81c4dc611bd4b2b1382bfc3faf93b",
+            "fe5cee033641916f3d994a2fe57eef63537bfcb9f086db3c6f8573af9e770f7e",
+        ))
+        if (owned) {
+            // Disable before moving: a storage failure cannot leave it executing.
+            prefs.edit().putStringSet(KEY_DISABLED, disabledSet().apply { add(name) })
+                .putStringSet(KEY_SUPPRESSED, suppressedSet().apply { add(name) }).commit()
+            if (runCatching { store.archive(name) }.isFailure) return
+        }
+        prefs.edit().putBoolean(marker, true).apply()
     }
 
     /**

@@ -2,6 +2,7 @@
 package com.boxlabs.hexdroid
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.geometry.Offset
@@ -217,7 +218,7 @@ class PersonalPhase3UiTest {
         val state = UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo")),
             myNick = "OwnDemoNick", nicklists = mapOf(key to listOf("@OwnDemoNick", "+DemoNick01")),
             showBufferList = false, showNickList = false)
-        compose.setContent { HexDroidIRCTheme { RealChat(state) } }
+        compose.setContent { HexDroidIRCTheme(themeMode = com.boxlabs.hexdroid.data.ThemeMode.LIGHT) { RealChat(state) } }
         val tab = compose.onNodeWithTag("nick-tab-button").fetchSemanticsNode()
         val input = compose.onNodeWithTag("chat-input").fetchSemanticsNode()
         assertTrue(tab.positionInRoot.x < input.positionInRoot.x)
@@ -225,6 +226,14 @@ class PersonalPhase3UiTest {
         val menu = compose.onNodeWithTag("general-menu-button").fetchSemanticsNode()
         assertTrue(tools.positionInRoot.x < menu.positionInRoot.x)
         assertTrue(kotlin.math.abs(tools.positionInRoot.y - menu.positionInRoot.y) < 30f)
+        val pixels = compose.onNodeWithTag("channel-tools-button").captureToImage().toPixelMap()
+        var black = 0; var orange = 0
+        for (x in 0 until pixels.width) for (y in 0 until pixels.height) {
+            val color = pixels[x, y]
+            if (color.red < .08f && color.green < .08f && color.blue < .08f) black++
+            if (color.red > .8f && color.green in .2f.. .75f && color.blue < .2f) orange++
+        }
+        assertTrue(black > 0); assertEquals(0, orange)
         compose.onNodeWithTag("chat-input").performTextInput("Hola dem después")
         compose.onNodeWithTag("chat-input").performSemanticsAction(SemanticsActions.SetSelection) { it(8, 8, false) }
         compose.onNodeWithTag("nick-tab-button").performClick()
@@ -232,5 +241,56 @@ class PersonalPhase3UiTest {
         compose.onNodeWithTag("channel-tools-button").performClick()
         val title = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.getString(com.boxlabs.hexdroid.R.string.chat_channel_tools)
         compose.onNodeWithText(title).assertExists()
+    }
+
+    @Test fun dreamsBackupButtonsFitNarrowPhonesWithoutBreakingRestoreWords() {
+        var exports = 0; var restores = 0
+        val baseContext = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val configuration = android.content.res.Configuration(baseContext.resources.configuration).apply { setLocale(java.util.Locale.forLanguageTag("es")) }
+        val spanishContext = baseContext.createConfigurationContext(configuration)
+        compose.setContent {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalContext provides spanishContext,
+                androidx.compose.ui.platform.LocalConfiguration provides configuration,
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, 1.5f),
+            ) {
+                MaterialTheme {
+                    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.width(280.dp)) {
+                        BackupActionButtons({ exports++ }, { restores++ })
+                    }
+                }
+            }
+        }
+        val export = compose.onNodeWithTag("backup-export").fetchSemanticsNode().boundsInRoot
+        val restore = compose.onNodeWithTag("backup-restore").fetchSemanticsNode().boundsInRoot
+        assertTrue(export.bottom <= restore.top)
+        assertEquals(export.width, restore.width, 1f)
+        val label = spanishContext.getString(com.boxlabs.hexdroid.R.string.settings_restore_backup)
+        val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        compose.onNodeWithText(label, useUnmergedTree = true).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertTrue(layouts.single().lineCount <= 2)
+        compose.onNodeWithTag("backup-export").performClick()
+        compose.onNodeWithTag("backup-restore").performClick()
+        compose.runOnIdle { assertEquals(1, exports); assertEquals(1, restores) }
+    }
+
+    @Test fun dreamsWelcomeShowsBrandOriginalCreditsAndLicense() {
+        compose.setContent { MaterialTheme { WelcomeScreen { _, _ -> } } }
+        compose.onNodeWithText("HexDroid Dreams", substring = true).assertExists()
+        compose.onNodeWithText("boxlabs", substring = true).assertExists()
+        compose.onNodeWithText("eck", substring = true).assertExists()
+        compose.onNodeWithText("cyberdyne-sys", substring = true).assertExists()
+        compose.onNodeWithText("GPLv3", substring = true).assertExists()
+    }
+
+    @Test fun dreamsRoomMenuDoesNotExposeWithdrawnPrivateRequests() {
+        val key = "network-demo::#demo"
+        val request = PrivateRequest("pending-demo", "network-demo", "DemoNick01", 1, false)
+        val state = UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo")), privateRequests = listOf(request),
+            showBufferList = false, showNickList = false)
+        compose.setContent { HexDroidIRCTheme { RealChat(state) } }
+        compose.onNodeWithTag("general-menu-button").performClick()
+        compose.onAllNodesWithText("Privados pendientes", substring = true).assertCountEquals(0)
     }
 }

@@ -306,7 +306,6 @@ fun AppRoot(
 
             when (state.screen) {
                 AppScreen.CHAT -> ChatScreen(
-                    onOpenPrivateRequests = { vm.goTo(AppScreen.PRIVATE_REQUESTS) },
                     onWritingStyle = { style -> vm.updateSettings { withPersonal { copy(writingStyle = style) } } },
                     state = state,
                     onSelectBuffer = vm::openBuffer,
@@ -419,8 +418,6 @@ fun AppRoot(
                     vm::updateSettings, { vm.goTo(AppScreen.PRIVATE_REQUESTS) }, vm::revokePrivateAuthorizations)
                 AppScreen.SETTINGS -> SettingsScreen(
                     onOpenPersonalHistory = { vm.goTo(AppScreen.PERSONAL_HISTORY) },
-                    onOpenPrivateRequests = { vm.goTo(AppScreen.PRIVATE_REQUESTS) },
-                    onRevokePrivateAuthorizations = vm::revokePrivateAuthorizations,
                     state = state,
                     onBack = vm::backToChat,
                     onUpdate = vm::updateSettings,

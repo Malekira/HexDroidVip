@@ -137,7 +137,7 @@ class PersonalPhase3Test {
         assertTrue(original.autoConnect); assertEquals("source-cert", original.tlsClientCertId)
     }
 
-    @Test fun dreamsBundledPrivateScriptReallyRegistersPolicyAndMobileCommands() {
+    @Test fun dreamsExplicitlyImportedPrivateScriptsKeepTheirOwnPolicyAndCommands() {
         val commands = mutableMapOf<String, Any>()
         val events = mutableMapOf<String, MutableList<Any>>()
         val capabilities = mutableListOf<String>()
@@ -159,7 +159,7 @@ class PersonalPhase3Test {
         } as com.boxlabs.hexdroid.script.EngineCallbacks
         val backend = com.boxlabs.hexdroid.script.HexScriptBackend()
         backend.start(callbacks, com.boxlabs.hexdroid.script.Budget(100_000, 1000))
-        val source = listOf(File("src/main/assets/hex/solicitudes-pv.hex"), File("app/src/main/assets/hex/solicitudes-pv.hex")).first { it.exists() }.readText()
+        val source = listOf(File("src/androidTest/assets/retired-private-requests.hex"), File("app/src/androidTest/assets/retired-private-requests.hex")).first { it.exists() }.readText()
         assertNull(backend.loadScript("imported.hex", "alias privados {\n echo -a IMPORTADO_CONSERVADO\n}"))
         assertNull(backend.loadScript("solicitudes-pv.hex", source))
         backend.dispatchNotify(events.getValue("LOAD"), com.boxlabs.hexdroid.script.EventData(network = "demo-network", buffer = "#demo"))

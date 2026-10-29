@@ -195,7 +195,7 @@ fun IrcViewModel.handleIntent(intent: Intent?) {
     val netId = intent.getStringExtra(NotificationHelper.EXTRA_NETWORK_ID)
     val buf = intent.getStringExtra(NotificationHelper.EXTRA_BUFFER)
     if (buf == PRIVATE_REQUESTS_BUFFER) {
-        _state.value = _state.value.copy(screen = AppScreen.PRIVATE_REQUESTS)
+        _state.value = _state.value.copy(screen = if (hasPrivateRequestPolicy()) AppScreen.PRIVATE_REQUESTS else AppScreen.CHAT)
         return
     }
     val action = intent.getStringExtra(NotificationHelper.EXTRA_ACTION)

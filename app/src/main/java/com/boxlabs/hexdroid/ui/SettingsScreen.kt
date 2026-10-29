@@ -456,8 +456,6 @@ fun SettingsScreen(
     onOpenIgnoreList: () -> Unit,
     onOpenScripts: () -> Unit = {},
     onOpenPersonalHistory: () -> Unit = {},
-    onOpenPrivateRequests: () -> Unit = {},
-    onRevokePrivateAuthorizations: () -> Unit = {},
     tourActive: Boolean = false,
     tourTarget: TourTarget? = null,
     /** Export a backup to the picked file, with passwords encrypted by the passphrase when one is given. */
@@ -1294,10 +1292,6 @@ fun SettingsScreen(
             item { SettingToggle(stringResource(R.string.p2_notify_visible), s.notifyMentionsWhileVisible) { onUpdate { copy(notifyMentionsWhileVisible = !notifyMentionsWhileVisible) } } }
             item { SettingToggle(stringResource(R.string.p2_highlight), s.mentionHighlightEnabled) { onUpdate { copy(mentionHighlightEnabled = !mentionHighlightEnabled) } } }
             item { MentionColorSettings(s, onUpdate) }
-            item {
-                Text("Los saludos y sus exclusiones se configuran en el script .hex que utilices.")
-                TextButton(onClick = onOpenScripts) { Text("Configurar saludos en Scripts") }
-            }
             item { SettingToggle(stringResource(R.string.setting_highlight_my_nick), s.highlightOnNick) { onUpdate { copy(highlightOnNick = !highlightOnNick) } } }
 
             item {
@@ -1592,11 +1586,7 @@ fun SettingsScreen(
 
             item { SettingToggle(stringResource(R.string.setting_enable_notifications), s.notificationsEnabled) { onUpdate { copy(notificationsEnabled = !notificationsEnabled) } } }
             item { SettingToggle(stringResource(R.string.setting_notify_highlights), s.notifyOnHighlights) { onUpdate { copy(notifyOnHighlights = !notifyOnHighlights) } } }
-            item {
-                Text("Las solicitudes de privados se gestionan mediante un script .hex.")
-                TextButton(onClick = onOpenScripts) { Text("Gestionar script de privados") }
-                TextButton(onClick = onOpenPrivateRequests) { Text("Ver privados pendientes (${state.privateRequests.size})") }
-            }
+
             item { SettingToggle(stringResource(R.string.setting_notify_pm), s.notifyOnPrivateMessages) { onUpdate { copy(notifyOnPrivateMessages = !notifyOnPrivateMessages) } } }
             item { SettingToggle(stringResource(R.string.setting_sound_highlight), s.playSoundOnHighlight) { onUpdate { copy(playSoundOnHighlight = !playSoundOnHighlight) } } }
             item { SettingToggle(stringResource(R.string.setting_vibrate_highlight), s.vibrateOnHighlight) { onUpdate { copy(vibrateOnHighlight = !vibrateOnHighlight) } } }
@@ -1847,16 +1837,10 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { showExportDialog = true }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
-                            Text(stringResource(R.string.settings_export_backup))
-                        }
-                        OutlinedButton(onClick = {
-                            importBackupLauncher.launchPicker(ctx, arrayOf("application/json", "text/plain", "*/*"))
-                        }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) {
-                            Text(stringResource(R.string.settings_restore_backup))
-                        }
-                    }
+                    BackupActionButtons(
+                        export = { showExportDialog = true },
+                        restore = { importBackupLauncher.launchPicker(ctx, arrayOf("application/json", "text/plain", "*/*")) },
+                    )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         stringResource(R.string.setting_restore_desc),

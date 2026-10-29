@@ -142,4 +142,50 @@ class PersonalPhase3StorageTest {
             assertTrue(lines.last().endsWith("Mensaje 5004 á 🙂"))
         } finally { archive.close(); ctx.root.deleteRecursively() }
     }
+
+    @Test fun dreamsRetiresIncludedPrivateAddonWithoutLosingPendingOrPersonalScripts() {
+        val originalSource = InstrumentationRegistry.getInstrumentation().context.assets
+            .open("retired-private-requests.hex").bufferedReader().use { it.readText() }
+        for (edited in listOf(false, true)) {
+            val ctx = Phase3TestContext(context)
+            val prefs = ctx.getSharedPreferences("retirement-test-${java.util.UUID.randomUUID()}", Context.MODE_PRIVATE)
+            val store = com.boxlabs.hexdroid.script.ScriptStore(ctx, "hex")
+            val source = originalSource + if (edited) "\n; Ajuste personal de prueba\n" else ""
+            val greeting = "alias buenosdias {\n echo -a SALUDO_PERSONAL_CONSERVADO\n}"
+            store.write(PRIVATE_REQUEST_SCRIPT, source)
+            store.write("saludo-personal.hex", greeting)
+            if (edited) prefs.edit().putString("shipped_hash:$PRIVATE_REQUEST_SCRIPT", historyDigest(originalSource)).commit()
+            val echoes = mutableListOf<String>()
+            val host = java.lang.reflect.Proxy.newProxyInstance(com.boxlabs.hexdroid.script.ScriptHost::class.java.classLoader,
+                arrayOf(com.boxlabs.hexdroid.script.ScriptHost::class.java)) { _, method, args ->
+                when (method.name) {
+                    "echo" -> { echoes += args[3] as String; Unit }
+                    "activeNetwork" -> "network-demo"
+                    "activeBuffer" -> "#demo"
+                    "logDebug" -> Unit
+                    else -> null
+                }
+            } as com.boxlabs.hexdroid.script.ScriptHost
+            val engine = com.boxlabs.hexdroid.script.ScriptEngine(host, com.boxlabs.hexdroid.script.HexScriptBackend())
+            val manager = com.boxlabs.hexdroid.script.ScriptManager(ctx, engine, prefs)
+            val pending = PrivateRequestStore(ctx)
+            val id = privateRequestId("network-demo", "demonick01")
+            try {
+                pending.enqueue(id, "network-demo", "DemoNick01", PendingPrivateMessage("Mensaje conservado 🙂", 1234, false, "demo-retired-1", null), false)
+                manager.seedBundled(); manager.reloadAll()
+                assertNull(manager.read(PRIVATE_REQUEST_SCRIPT))
+                assertFalse(manager.list().any { it.name == PRIVATE_REQUEST_SCRIPT })
+                assertFalse(engine.hasPrivateRequestHandler())
+                assertEquals(source, File(ctx.filesDir, "retired-scripts").listFiles()!!.single().readText())
+                assertEquals(greeting, manager.read("saludo-personal.hex"))
+                assertTrue(engine.runCommand("buenosdias", "", "network-demo", "#demo"))
+                assertEquals(listOf("SALUDO_PERSONAL_CONSERVADO"), echoes)
+                assertEquals("Mensaje conservado 🙂", pending.messages(id).single().text)
+                assertTrue(pending.pending().any { it.id == id })
+                manager.seedBundled(); manager.restoreBundled(); manager.reloadAll()
+                assertFalse(manager.list().any { it.name == PRIVATE_REQUEST_SCRIPT })
+                assertFalse(engine.hasPrivateRequestHandler())
+            } finally { engine.shutdown(); pending.close(); prefs.edit().clear().commit(); ctx.root.deleteRecursively() }
+        }
+    }
 }

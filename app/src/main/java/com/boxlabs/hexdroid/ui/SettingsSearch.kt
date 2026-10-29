@@ -71,7 +71,6 @@ val SETTINGS_SEARCH_INDEX: List<SettingsSearchEntry> = listOf(
         descRes = R.string.personal_reply_destinations_desc, keywords = "notice notices status privado destinos presentación"),
     SettingsSearchEntry(R.string.p2_notify_visible, SettingsCategory.HIGHLIGHTS, keywords = "mention notify visible sala menciones"),
     SettingsSearchEntry(R.string.p2_highlight, SettingsCategory.HIGHLIGHTS, keywords = "mention color resaltado"),
-    SettingsSearchEntry(R.string.p2_bots, SettingsCategory.HIGHLIGHTS, keywords = "buenosdias bots saludo"),
     // Appearance
     SettingsSearchEntry(R.string.welcome_language_label, SettingsCategory.APPEARANCE,
         keywords = "language locale translation"),

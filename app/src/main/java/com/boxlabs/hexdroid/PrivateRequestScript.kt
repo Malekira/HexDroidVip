@@ -4,7 +4,6 @@ package com.boxlabs.hexdroid
 import com.boxlabs.hexdroid.script.EventData
 
 internal const val PRIVATE_REQUEST_SCRIPT = "solicitudes-pv.hex"
-internal const val PRIVATE_REQUEST_SCRIPT_MIGRATED = "private-request-script-migrated-v1"
 
 internal fun IrcViewModel.hasPrivateRequestPolicy(): Boolean {
     initScripts()
