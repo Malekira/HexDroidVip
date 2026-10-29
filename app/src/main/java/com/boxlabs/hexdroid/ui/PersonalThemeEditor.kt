@@ -82,7 +82,7 @@ internal fun ThemeEditor(initial: PersonalTheme, dismiss: () -> Unit, save: (Per
                     Surface(color = bg, contentColor = Color(readableThemeText(draft.color(ThemeRole.TEXT, dark), bg.toArgb()))) {
                         Column(Modifier.fillMaxWidth().testTag("theme-preview").padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Surface(color = Color(draft.color(ThemeRole.TOP, dark)), contentColor = Color(readableThemeText(draft.color(ThemeRole.UI_TEXT, dark), draft.color(ThemeRole.TOP, dark)))) { Text("#sala-demo — " + androidx.compose.ui.res.stringResource(R.string.personal_app_name), Modifier.padding(8.dp)) }
-                            Text("<DemoNick01> Mensaje de prueba 🙂")
+                            Text("<usuario> Mensaje de ejemplo 🙂")
                             Text("Aviso del servidor", color = Color(readableThemeText(draft.color(ThemeRole.NOTICE, dark), draft.color(ThemeRole.CHAT, dark))))
                             OutlinedTextField("Escribir…", {}, readOnly = true, modifier = Modifier.fillMaxWidth())
                             Button(onClick = {}) { Text("Botón de vista previa") }

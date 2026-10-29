@@ -129,6 +129,18 @@ class ScriptEngine(
         }
     }
 
+    fun hasPrivateRequestHandler(): Boolean = started && !eventHandlers["PRIVATE_REQUEST"].isNullOrEmpty()
+
+    /** In this event only, halt asks the client to retain the message as pending. */
+    fun onPrivateRequest(event: EventData): Boolean {
+        if (!started) return false
+        val handlers = eventHandlers["PRIVATE_REQUEST"] ?: return false
+        if (handlers.isEmpty()) return false
+        return guarded("private request handler", false) {
+            withCtx(event.network, event.buffer) { backend.dispatchTransform(handlers, event).halted }
+        }
+    }
+
     fun onNumeric(ev: NumericEvent): TextResult {
         if (!started) return TextResult(ev.text, false)
         val handlers = eventHandlers["NUMERIC"] ?: return TextResult(ev.text, false)

@@ -19,6 +19,11 @@ class PersonalPhase3PrivateFlowTest {
         val originalNetworks = repo.networksFlow.first()
         val netId = "phase3-demo-${java.util.UUID.randomUUID()}"
         val scriptName = "phase3-greeting-test-${java.util.UUID.randomUUID()}.hex"
+        val scriptPrefs = ctx.getSharedPreferences("hexdroid_scripts", android.content.Context.MODE_PRIVATE)
+        val previousMigration = scriptPrefs.getBoolean(PRIVATE_REQUEST_SCRIPT_MIGRATED, false)
+        val previouslyEnabled = java.io.File(ctx.filesDir, "scripts/$PRIVATE_REQUEST_SCRIPT").exists() &&
+            PRIVATE_REQUEST_SCRIPT !in scriptPrefs.getStringSet("disabled", emptySet()).orEmpty()
+        var originalPolicy: String? = null
         val profile = repo.defaultNetworks().first().copy(id = netId, name = "Red de prueba", host = "irc.example.invalid", autoConnect = false,
             ignoredNicks = listOf("IgnoredDemoNick"))
         val store = ViewModelStore()
@@ -30,9 +35,18 @@ class PersonalPhase3PrivateFlowTest {
         try {
             repo.updateSettings { it.copy(loggingEnabled = false, notificationsEnabled = false).withPersonal { copy(privateRequestsEnabled = true, privateAutoMessages = false, encryptedLogEnabled = false) } }
             repo.upsertNetwork(profile)
+            scriptPrefs.edit().remove(PRIVATE_REQUEST_SCRIPT_MIGRATED).commit()
             main { vm = IrcViewModel(repo, ctx); store.put("phase3", vm); created = true }
             until { vm.state.value.settingsLoaded && vm.state.value.networks.any { it.id == netId } && vm.state.value.settings.privateRequestsEnabled }
+            until { vm.scriptsState.value.scripts.any { it.name == PRIVATE_REQUEST_SCRIPT && it.enabled && it.ok } }
+            originalPolicy = vm.readScript(PRIVATE_REQUEST_SCRIPT)
+            assertNotNull(originalPolicy)
             main {
+                assertTrue(vm.hasPrivateRequestPolicy())
+                vm.runScriptLauncher(vm.scriptLaunchers.value.first { it.id == "dreams-pv-config" }.command)
+                assertEquals(AppScreen.PRIVATE_SCRIPT_SETTINGS, vm.state.value.screen)
+                vm.runScriptLauncher(vm.scriptLaunchers.value.first { it.id == "dreams-pv" }.command)
+                assertEquals(AppScreen.PRIVATE_REQUESTS, vm.state.value.screen)
                 vm.handleMessageEvent(netId, message("IgnoredDemoNick", "ignored-demo-1"))
                 vm.handleMessageEvent(netId, message("DemoNick01", "pending-demo-1"))
                 vm.handleMessageEvent(netId, message("DemoNick01", "pending-demo-2"))
@@ -127,19 +141,34 @@ class PersonalPhase3PrivateFlowTest {
             until { vm.historyArchive.list().any { it.path.startsWith(vm.personalLogNetwork(netId) + "/") } }
             val encryptedLog = vm.historyArchive.list().first { it.path.startsWith(vm.personalLogNetwork(netId) + "/") }
             assertTrue(HistoryFiles.resolve(vm.historyArchive.root, encryptedLog.path).readText(Charsets.UTF_8).contains("Texto cifrado de prueba 2"))
-            repo.updateSettings { it.copy(loggingEnabled = false).withPersonal { copy(privateRequestsEnabled = false) } }
-
-            until { !vm.state.value.settings.privateRequestsEnabled }
-            main { vm.handleMessageEvent(netId, message("DemoNick04", "normal-demo-1")) }
+            repo.updateSettings { it.copy(loggingEnabled = false) }
+            val dollarPolicy = '$'
+            main {
+                vm.installScript(PRIVATE_REQUEST_SCRIPT, "on PRIVATE_REQUEST {\n if (${dollarPolicy}nick == AllowedDemoNick) { return }\n halt\n}")
+                vm.handleMessageEvent(netId, message("AllowedDemoNick", "script-allowed-1"))
+                vm.handleMessageEvent(netId, message("PendingDemoNick", "script-pending-1"))
+            }
+            until { vm.state.value.privateRequests.any { it.network == netId && it.nick == "PendingDemoNick" } }
+            assertTrue(vm.state.value.buffers.values.any { it.messages.any { m -> m.msgId == "script-allowed-1" } })
+            assertFalse(vm.state.value.privateRequests.any { it.nick == "AllowedDemoNick" })
+            main { vm.setScriptEnabled(PRIVATE_REQUEST_SCRIPT, false); vm.reloadScripts() }
+            assertTrue(vm.state.value.settings.privateRequestsEnabled) // legacy flag no longer drives the policy
+            main { assertFalse(vm.hasPrivateRequestPolicy()); vm.handleMessageEvent(netId, message("DemoNick04", "normal-demo-1")) }
             until { vm.state.value.buffers.values.any { it.messages.any { m -> m.msgId == "normal-demo-1" } } }
             assertFalse(vm.state.value.privateRequests.any { it.network == netId && it.nick == "DemoNick04" })
+            assertTrue(vm.privateRequests.pending().any { it.network == netId && it.nick == "PendingDemoNick" })
         } finally {
             if (created) {
-                main { vm.removeScript(scriptName); store.clear() }
+                main {
+                    originalPolicy?.let { vm.installScript(PRIVATE_REQUEST_SCRIPT, it) }
+                    vm.setScriptEnabled(PRIVATE_REQUEST_SCRIPT, previouslyEnabled)
+                    vm.removeScript(scriptName); store.clear()
+                }
                 vm.privateRequests.pending().filter { it.network == netId }.forEach { vm.privateRequests.finish(it.id, "IGNORED", false) }
                 vm.historyArchive.delete(vm.historyArchive.list().filter { it.path.startsWith(vm.personalLogNetwork(netId) + "/") }.map { it.path }.toSet())
                 vm.privateRequests.close(); vm.historyArchive.close()
             }
+            scriptPrefs.edit().putBoolean(PRIVATE_REQUEST_SCRIPT_MIGRATED, previousMigration).commit()
             repo.saveNetworks(originalNetworks)
             repo.updateSettings { original }
         }

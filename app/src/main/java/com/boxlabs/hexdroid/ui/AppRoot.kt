@@ -287,6 +287,7 @@ fun AppRoot(
                     AppScreen.TRANSFERS,
                     AppScreen.SCRIPTS,
                     AppScreen.ABOUT -> vm.backToChat()
+                    AppScreen.PRIVATE_SCRIPT_SETTINGS -> vm.goTo(AppScreen.SCRIPTS)
                     AppScreen.IGNORE -> vm.goTo(AppScreen.SETTINGS)
                     // Mirror the top-bar arrow: Trusted Senders was opened from Transfers,
                     // so system Back returns there rather than jumping to chat.
@@ -414,6 +415,8 @@ fun AppRoot(
 
                 AppScreen.PERSONAL_HISTORY -> PersonalHistoryScreen(vm.historyArchive, vm::backToChat, state.networks.associate { vm.personalLogNetwork(it.id) to it.name })
                 AppScreen.PRIVATE_REQUESTS -> PrivateRequestsScreen(state, vm::backToChat, vm::resolvePrivateRequest, vm::callerIdAction)
+                AppScreen.PRIVATE_SCRIPT_SETTINGS -> PrivateRequestScriptSettingsScreen(state, { vm.goTo(AppScreen.SCRIPTS) },
+                    vm::updateSettings, { vm.goTo(AppScreen.PRIVATE_REQUESTS) }, vm::revokePrivateAuthorizations)
                 AppScreen.SETTINGS -> SettingsScreen(
                     onOpenPersonalHistory = { vm.goTo(AppScreen.PERSONAL_HISTORY) },
                     onOpenPrivateRequests = { vm.goTo(AppScreen.PRIVATE_REQUESTS) },
@@ -468,6 +471,8 @@ fun AppRoot(
                         onRead = { name -> vm.readScript(name) },
                         onRevert = { name -> vm.revertScript(name) },
                         onRestoreDefaults = { vm.restoreBundledScripts() },
+                        launchers = scriptLaunchers.map { it.label to it.command },
+                        onRunLauncher = vm::runScriptLauncher,
                     )
                 }
 

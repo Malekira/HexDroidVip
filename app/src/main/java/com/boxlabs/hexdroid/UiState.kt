@@ -24,7 +24,7 @@ import com.boxlabs.hexdroid.data.NetworkProfile
 import com.boxlabs.hexdroid.data.ThemeMode
 import kotlinx.collections.immutable.PersistentList
 
-enum class AppScreen { CHAT, LIST, SETTINGS, NETWORKS, NETWORK_EDIT, TRANSFERS, ABOUT, IGNORE, SCRIPTS, DCC_TRUSTED, PERSONAL_HISTORY, PRIVATE_REQUESTS }
+enum class AppScreen { CHAT, LIST, SETTINGS, NETWORKS, NETWORK_EDIT, TRANSFERS, ABOUT, IGNORE, SCRIPTS, DCC_TRUSTED, PERSONAL_HISTORY, PRIVATE_REQUESTS, PRIVATE_SCRIPT_SETTINGS }
 
 /**
  * UI-level message model. [id] must be unique within a buffer: it is the LazyColumn key, and

@@ -1293,23 +1293,12 @@ fun SettingsScreen(
 
             item { SettingToggle(stringResource(R.string.p2_notify_visible), s.notifyMentionsWhileVisible) { onUpdate { copy(notifyMentionsWhileVisible = !notifyMentionsWhileVisible) } } }
             item { SettingToggle(stringResource(R.string.p2_highlight), s.mentionHighlightEnabled) { onUpdate { copy(mentionHighlightEnabled = !mentionHighlightEnabled) } } }
-            item {
-                var colorText by remember(s.mentionHighlightColor) { mutableStateOf("#%06X".format(s.mentionHighlightColor and 0xFFFFFF)) }
-                OutlinedTextField(
-                    value = colorText, singleLine = true,
-                    label = { Text(stringResource(R.string.p2_color)) },
-                    isError = !colorText.matches(Regex("#[0-9a-fA-F]{6}")),
-                    onValueChange = { text ->
-                        colorText = text
-                        if (text.matches(Regex("#[0-9a-fA-F]{6}"))) onUpdate { copy(mentionHighlightColor = (0xFF000000L or text.drop(1).toLong(16)).toInt()) }
-                    }, modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            item { MentionColorSettings(s, onUpdate) }
             item {
                 Text("Los saludos y sus exclusiones se configuran en el script .hex que utilices.")
                 TextButton(onClick = onOpenScripts) { Text("Configurar saludos en Scripts") }
             }
-            item { SettingToggle(stringResource(R.string.setting_highlight_on_nick), s.highlightOnNick) { onUpdate { copy(highlightOnNick = !highlightOnNick) } } }
+            item { SettingToggle(stringResource(R.string.setting_highlight_my_nick), s.highlightOnNick) { onUpdate { copy(highlightOnNick = !highlightOnNick) } } }
 
             item {
                 var wordsText by remember(s.extraHighlightWords) { mutableStateOf(s.extraHighlightWords.joinToString("\n")) }
@@ -1603,7 +1592,11 @@ fun SettingsScreen(
 
             item { SettingToggle(stringResource(R.string.setting_enable_notifications), s.notificationsEnabled) { onUpdate { copy(notificationsEnabled = !notificationsEnabled) } } }
             item { SettingToggle(stringResource(R.string.setting_notify_highlights), s.notifyOnHighlights) { onUpdate { copy(notifyOnHighlights = !notifyOnHighlights) } } }
-            item { PrivateRequestSettings(s, onUpdate, state.privateRequests.size, onOpenPrivateRequests, onRevokePrivateAuthorizations) }
+            item {
+                Text("Las solicitudes de privados se gestionan mediante un script .hex.")
+                TextButton(onClick = onOpenScripts) { Text("Gestionar script de privados") }
+                TextButton(onClick = onOpenPrivateRequests) { Text("Ver privados pendientes (${state.privateRequests.size})") }
+            }
             item { SettingToggle(stringResource(R.string.setting_notify_pm), s.notifyOnPrivateMessages) { onUpdate { copy(notifyOnPrivateMessages = !notifyOnPrivateMessages) } } }
             item { SettingToggle(stringResource(R.string.setting_sound_highlight), s.playSoundOnHighlight) { onUpdate { copy(playSoundOnHighlight = !playSoundOnHighlight) } } }
             item { SettingToggle(stringResource(R.string.setting_vibrate_highlight), s.vibrateOnHighlight) { onUpdate { copy(vibrateOnHighlight = !vibrateOnHighlight) } } }

@@ -1944,4 +1944,7 @@
     <string name="networks_duplicate">Duplicate network</string>
     <string name="setting_scrollback_loaded_lines">Messages loaded on screen</string>
     <string name="setting_scrollback_loaded_lines_desc">This only limits messages loaded in memory. Saved TXT history has no line limit or expiry; it is limited only by available storage.</string>
+    <string name="chat_complete_nick">Complete nickname (Tab)</string>
+    <string name="mention_color_preview">Mention highlight preview</string>
+    <string name="setting_highlight_my_nick">Highlight my own nickname</string>
 </resources>

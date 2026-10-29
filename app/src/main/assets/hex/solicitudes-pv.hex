@@ -1,0 +1,23 @@
+; HexDroid Dreams — GPL-3.0-or-later.
+; Editable private-request policy. Enable/disable this file from Scripts.
+; No hardcoded nicks: use $nick and $network for your own optional rules.
+; PRIVATE_REQUEST also covers replayed messages ($history) and +g attempts
+; ($serverblocked). halt retains a request; return lets the message pass.
+; Do not send automatic replies here: the client deduplicates configured NOTICEs.
+
+on LOAD {
+  sidebar add dreams-pv privados Solicitudes de privados
+  sidebar add dreams-pv-config configurarprivados Configurar solicitudes de privados
+}
+
+on PRIVATE_REQUEST {
+  halt
+}
+
+alias privados {
+  private.open
+}
+
+alias configurarprivados {
+  private.settings
+}

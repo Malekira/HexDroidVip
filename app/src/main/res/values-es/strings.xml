@@ -1942,4 +1942,7 @@
     <string name="networks_duplicate">Duplicar red</string>
     <string name="setting_scrollback_loaded_lines">Mensajes cargados en pantalla</string>
     <string name="setting_scrollback_loaded_lines_desc">Solo limita los mensajes cargados en memoria. El historial TXT guardado no tiene límite de líneas ni vencimiento; depende únicamente del espacio disponible.</string>
+    <string name="chat_complete_nick">Completar nick (Tab)</string>
+    <string name="mention_color_preview">Vista previa del resaltado de menciones</string>
+    <string name="setting_highlight_my_nick">Resaltar mi propio nick</string>
 </resources>

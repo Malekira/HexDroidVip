@@ -97,6 +97,8 @@ fun ScriptsScreen(
     onRead: (name: String) -> String? = { null },
     onRevert: (name: String) -> String? = { null },
     onRestoreDefaults: () -> Unit = {},
+    launchers: List<Pair<String, String>> = emptyList(),
+    onRunLauncher: (String) -> Unit = {},
 ) {
     var pasting by remember { mutableStateOf(false) }
     var editingName by remember { mutableStateOf<String?>(null) }
@@ -143,6 +145,13 @@ fun ScriptsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 item(key = "header") { ScriptsHeader(state, onRestoreDefaults) }
+                if (launchers.isNotEmpty()) item(key = "script-actions") {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        launchers.forEach { (label, command) ->
+                            OutlinedButton(onClick = { onRunLauncher(command) }, modifier = Modifier.fillMaxWidth()) { Text(label) }
+                        }
+                    }
+                }
                 if (state.scripts.isEmpty()) {
                     item(key = "empty") { ScriptsEmpty() }
                 } else {

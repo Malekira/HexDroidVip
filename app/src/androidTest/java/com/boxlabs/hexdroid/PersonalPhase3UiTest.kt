@@ -49,7 +49,7 @@ class PersonalPhase3UiTest {
         input.assertTextEquals("DemoNick01: ")
         input.performTextReplacement("Hola dem después")
         input.performSemanticsAction(SemanticsActions.SetSelection) { it(8, 8, false) }
-        compose.onNodeWithText("Tab", useUnmergedTree = true).performClick()
+        compose.onNodeWithTag("nick-tab-button").performClick()
         input.assertTextEquals("Hola DemoNick01 después")
     }
 
@@ -192,5 +192,45 @@ class PersonalPhase3UiTest {
             assertTrue(styled.spanStyles.any { it.item.color == mircColor(event.color) })
             assertTrue(styled.spanStyles.any { it.item.color == mircColor(14) })
         }
+    }
+
+    @Test fun dreamsMentionColorWheelAndHexStayInSyncWithoutNamedExamples() {
+        var settings by mutableStateOf(UiSettings())
+        compose.setContent { MaterialTheme { androidx.compose.foundation.layout.Column {
+            MentionColorSettings(settings) { update -> settings = settings.update() }
+        } } }
+        compose.onNodeWithTag("mention-color-hex").performTextReplacement("#FF0000")
+        compose.onNodeWithTag("theme-color-wheel").performTouchInput {
+            click(Offset(width * .375f, height * .71650635f))
+        }
+        compose.onNodeWithTag("theme-brightness").performSemanticsAction(SemanticsActions.SetProgress) { it(.5f) }
+        compose.runOnIdle { assertTrue(((settings.mentionHighlightColor ushr 8) and 255) in 126..130) }
+        val text = compose.onNodeWithTag("mention-color-hex").fetchSemanticsNode().config[SemanticsProperties.EditableText].text
+        assertEquals(settings.mentionHighlightColor, parseThemeHex(text))
+        compose.onNodeWithTag("mention-color-preview").assertExists()
+        compose.onNodeWithTag("mention-color-hex").performTextReplacement("#123456")
+        compose.runOnIdle { assertEquals(0xff123456.toInt(), settings.mentionHighlightColor) }
+    }
+
+    @Test fun dreamsTabIsLeftOfComposerAndRoomToolsAreBeforeTheGeneralMenu() {
+        val key = "network-demo::#demo"
+        val state = UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo")),
+            myNick = "OwnDemoNick", nicklists = mapOf(key to listOf("@OwnDemoNick", "+DemoNick01")),
+            showBufferList = false, showNickList = false)
+        compose.setContent { HexDroidIRCTheme { RealChat(state) } }
+        val tab = compose.onNodeWithTag("nick-tab-button").fetchSemanticsNode()
+        val input = compose.onNodeWithTag("chat-input").fetchSemanticsNode()
+        assertTrue(tab.positionInRoot.x < input.positionInRoot.x)
+        val tools = compose.onNodeWithTag("channel-tools-button").fetchSemanticsNode()
+        val menu = compose.onNodeWithTag("general-menu-button").fetchSemanticsNode()
+        assertTrue(tools.positionInRoot.x < menu.positionInRoot.x)
+        assertTrue(kotlin.math.abs(tools.positionInRoot.y - menu.positionInRoot.y) < 30f)
+        compose.onNodeWithTag("chat-input").performTextInput("Hola dem después")
+        compose.onNodeWithTag("chat-input").performSemanticsAction(SemanticsActions.SetSelection) { it(8, 8, false) }
+        compose.onNodeWithTag("nick-tab-button").performClick()
+        compose.onNodeWithTag("chat-input").assertTextEquals("Hola DemoNick01 después")
+        compose.onNodeWithTag("channel-tools-button").performClick()
+        val title = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.getString(com.boxlabs.hexdroid.R.string.chat_channel_tools)
+        compose.onNodeWithText(title).assertExists()
     }
 }

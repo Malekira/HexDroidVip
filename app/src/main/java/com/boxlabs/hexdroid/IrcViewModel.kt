@@ -2123,16 +2123,24 @@ fun startAddNetwork() {
      * open; the UI's call is then a no-op.
      */
     fun initScripts() {
-        if (scriptsStarted) return
+        if (scriptsStarted || !_state.value.settingsLoaded) return
         scriptsStarted = true
         _scriptLaunchers.value = emptyList()
-        runCatching { scriptManager.seedBundled(); scriptManager.reloadAll() }
+        runCatching {
+            scriptManager.seedBundled()
+            val prefs = appContext.getSharedPreferences("hexdroid_scripts", Context.MODE_PRIVATE)
+            if (!prefs.getBoolean(PRIVATE_REQUEST_SCRIPT_MIGRATED, false)) {
+                if (_state.value.settings.privateRequestsEnabled) scriptManager.setEnabled(PRIVATE_REQUEST_SCRIPT, true)
+                else scriptManager.reloadAll()
+                prefs.edit().putBoolean(PRIVATE_REQUEST_SCRIPT_MIGRATED, true).apply()
+            } else scriptManager.reloadAll()
+        }
         refreshScripts()
     }
     private var scriptsStarted = false
 
     // Posted rather than run inline, so it starts once construction has finished.
-    init { viewModelScope.launch(Dispatchers.Main) { initScripts() } }
+    init { viewModelScope.launch(Dispatchers.Main) { state.first { it.settingsLoaded }; initScripts() } }
 
     fun setScriptEnabled(name: String, enabled: Boolean) { beforeScriptReload(); scriptManager.setEnabled(name, enabled); refreshScripts() }
     fun installScript(name: String, source: String) { beforeScriptReload(); scriptManager.install(name, source); refreshScripts() }

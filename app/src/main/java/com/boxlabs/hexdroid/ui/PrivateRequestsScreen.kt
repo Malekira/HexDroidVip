@@ -15,7 +15,7 @@ internal fun PrivateRequestSettings(s: UiSettings, update: (UiSettings.() -> UiS
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Solicitudes de privados", style = MaterialTheme.typography.titleMedium)
         Text("Los mensajes quedan pendientes sin abrir una conversación. Las solicitudes se conservan al cerrar la app. Los mensajes pendientes se cifran en el teléfono mediante Android Keystore; no forman parte de la copia TXT del historial.")
-        Row { Text("Activar solicitudes", Modifier.weight(1f)); Switch(s.privateRequestsEnabled, { v -> update { withPersonal { copy(privateRequestsEnabled = v) } } }) }
+        Text("La política se activa o desactiva habilitando el script .hex en Scripts. Estos controles configuran sus avisos y autorizaciones.")
         Text("Los avisos automáticos se envían sin cifrar y no incluyen el contenido del privado. Evitá añadir información sensible a sus textos o al motivo de rechazo.")
         Row { Text("Mensajes automáticos (NOTICE)", Modifier.weight(1f)); Switch(s.privateAutoMessages, { v -> update { withPersonal { copy(privateAutoMessages = v) } } }) }
         Row { Text("Recordar aceptados entre sesiones", Modifier.weight(1f)); Switch(s.privateRememberAccepted, { v -> update { withPersonal { copy(privateRememberAccepted = v) } } }) }
@@ -25,6 +25,18 @@ internal fun PrivateRequestSettings(s: UiSettings, update: (UiSettings.() -> UiS
         Button(onClick = open) { Text("Ver privados pendientes ($pending)") }
         TextButton(onClick = revoke) { Text("Revocar autorizaciones locales") }
         Text("+g depende de la red. Un aviso 718 solo informa de un intento bloqueado; su texto no llegó a la app. ACCEPT se envía únicamente si la red anuncia CALLERID=g. Rechazar o ignorar no bloquea al usuario en el servidor.")
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun PrivateRequestScriptSettingsScreen(state: UiState, back: () -> Unit,
+    update: (UiSettings.() -> UiSettings) -> Unit, open: () -> Unit, revoke: () -> Unit) {
+    Scaffold(topBar = { PersonalTopAppBar(title = { Text("Configurar script de privados") },
+        navigationIcon = { TextButton(onClick = back) { Text("Scripts") } }) }) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
+            item { PrivateRequestSettings(state.settings, update, state.privateRequests.size, open, revoke) }
+        }
     }
 }
 

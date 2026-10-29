@@ -15,11 +15,12 @@ internal fun IrcViewModel.refreshPrivateRequests() {
 }
 internal fun IrcViewModel.gatePrivateMessage(netId: String, ev: IrcEvent.ChatMessage, shown: String, targetKey: String): Boolean {
     val s = _state.value.settings
-    if (!s.privateRequestsEnabled || !ev.isPrivate || isMyNick(netId, ev.from) || !isReplyNick(ev.from)) return false
+    if (!ev.isPrivate || isMyNick(netId, ev.from) || !isReplyNick(ev.from)) return false
     val id = privateRequestId(netId, casefoldText(netId, ev.from))
     privateRequestNetworkKeys.getOrPut(netId) { mutableSetOf() }.add(id)
     if (id in sessionPrivateAccepted) return false
     if (!ev.msgId.isNullOrBlank() && _state.value.buffers[targetKey]?.log?.seenIds?.contains(ev.msgId) == true) return false
+    if (!scriptHoldsPrivateRequest(netId, ev.from, shown, ev.isHistory, action = ev.isAction)) return false
     viewModelScope.launch {
         try {
             val added = withContext(privateRequestLane) {
@@ -105,10 +106,11 @@ fun IrcViewModel.revokePrivateAuthorizations() {
     viewModelScope.launch { withContext(privateRequestLane) { privateRequests.revokeAll() }; _state.update { it.copy(privateRequestMessage = "Autorizaciones locales eliminadas; la lista ACCEPT del servidor se administra por separado en Status") } }
 }
 internal fun IrcViewModel.handleCallerIdNumeric(netId: String, ev: IrcEvent.ServerText): Boolean {
-    if (ev.code != "718" || !_state.value.settings.privateRequestsEnabled) return false
+    if (ev.code != "718" || !hasPrivateRequestPolicy()) return false
     // charybdis/solanum: 718 <me> <source> <user@host> :is messaging you ...
     val nick = ev.serverParams.getOrNull(1)?.takeIf(::isReplyNick) ?: return false
     if (isIgnoredSender(netId, nick, IgnoreType.PRIVATE)) return false
+    if (!scriptHoldsPrivateRequest(netId, nick, blocked = true)) return false
     val id = privateRequestId(netId, casefoldText(netId, nick))
     // Capture the visible conversation at receipt; a later screen switch must not reroute it.
     val status = bufKey(netId, "*server*")
@@ -159,6 +161,6 @@ fun IrcViewModel.callerIdAction(netId: String, operation: String) {
 internal fun IrcViewModel.privateProtocolStatusKey(netId: String, peer: String): String {
     val key = resolveBufferKey(netId, peer)
     val id = privateRequestId(netId, casefoldText(netId, peer))
-    return if (_state.value.settings.privateRequestsEnabled && id !in sessionPrivateAccepted && key !in _state.value.buffers)
+    return if (hasPrivateRequestPolicy() && id !in sessionPrivateAccepted && key !in _state.value.buffers)
         bufKey(netId, "*server*") else key
 }

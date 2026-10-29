@@ -120,7 +120,7 @@ class HexScriptBackend : ScriptBackend {
 
     /** Events the app raises (besides SIGNAL:*), for the load-time warning. */
     private val KNOWN_EVENTS = setOf(
-        "LOAD", "TEXT", "ACTION", "INPUT", "NUMERIC", "JOIN", "PART", "QUIT", "KICK", "MODE", "NICK",
+        "LOAD", "TEXT", "ACTION", "INPUT", "NUMERIC", "PRIVATE_REQUEST", "JOIN", "PART", "QUIT", "KICK", "MODE", "NICK",
         "NOTICE", "CONNECT", "DISCONNECT", "OP", "DEOP", "VOICE", "DEVOICE", "HELP", "DEHELP",
         "BAN", "UNBAN", "RAWMODE", "TOPIC", "INVITE", "CTCP", "CTCPREPLY", "SNOTICE", "NOTIFY",
         "UNOTIFY", "APPACTIVE", "FILERCVD", "FILESENT",
@@ -271,7 +271,7 @@ class HexScriptBackend : ScriptBackend {
             "media.pick" -> doMediaPick(raw, env)
             "media.upload" -> doMediaUpload(raw, env)
             else -> when {
-                verb.startsWith("age.") || verb.startsWith("media.") ->
+                verb.startsWith("age.") || verb.startsWith("media.") || verb.startsWith("private.") ->
                     cb.capability(verb, expand(raw, env).trim().split(' ').filter { it.isNotEmpty() })
                 aliases.containsKey(verb) -> return runAliasCommand(verb, raw, env)
                 verb in PASSTHROUGH_COMMANDS -> cb.appCommand("${c.verb} ${expand(raw, env)}".trim())
@@ -593,7 +593,7 @@ class HexScriptBackend : ScriptBackend {
             val argExprs = if (inner.isBlank()) emptyList() else splitTop(inner, ",").map { it.trim() }
             return callIdVal(name, argExprs, env).asStr() to close + 1
         }
-        if (name.startsWith("age.") || name.startsWith("media.") || name.startsWith("screen.")) return cb.capability(name, emptyList()) to after
+        if (name.startsWith("age.") || name.startsWith("media.") || name.startsWith("screen.") || name.startsWith("private.")) return cb.capability(name, emptyList()) to after
         if (aliases.containsKey(name.lowercase())) return (callUser(name, emptyList(), env)?.asStr() ?: "") to after
         if (name == "0") return env.args.size.toString() to after
         clockValue(name)?.let { return it to after }
@@ -985,7 +985,7 @@ class HexScriptBackend : ScriptBackend {
     private fun callIdVal(name: String, argExprs: List<String>, env: Env): HexVal {
         fun v(i: Int) = if (i < argExprs.size) evalVal(argExprs[i], env) else HexVal.EMPTY
         fun str(i: Int, def: String = "") = if (i < argExprs.size) expandArg(argExprs[i], env) else def
-        if (name.startsWith("age.") || name.startsWith("media.") || name.startsWith("screen."))
+        if (name.startsWith("age.") || name.startsWith("media.") || name.startsWith("screen.") || name.startsWith("private."))
             return HexVal.Str(cb.capability(name, argExprs.map { expandArg(it, env) }))
         if (aliases.containsKey(name.lowercase()))
             return callUser(name, argExprs, env) ?: HexVal.EMPTY

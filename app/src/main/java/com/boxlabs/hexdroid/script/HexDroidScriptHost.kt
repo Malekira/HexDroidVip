@@ -24,6 +24,7 @@ import android.util.Log
 import com.boxlabs.hexdroid.IrcViewModel
 import com.boxlabs.hexdroid.scriptActiveBuffer
 import com.boxlabs.hexdroid.scriptActiveNetwork
+import com.boxlabs.hexdroid.scriptPrivateCapability
 import com.boxlabs.hexdroid.scriptAgeCapability
 import com.boxlabs.hexdroid.scriptAppCommand
 import com.boxlabs.hexdroid.scriptEcho
@@ -228,6 +229,7 @@ class HexDroidScriptHost(
     // age.* is handled by the VM: local loopback always (so solo/practice works), plus the real
     // encrypted +AGE transport when the channel is keyed. Everything else is unhandled (-> "").
     override fun capability(name: String, args: List<String>): String = when {
+        name.startsWith("private.") -> vm.scriptPrivateCapability(name, args)
         name.startsWith("age.") -> vm.scriptAgeCapability(name, args)
         // Read-only display metrics so scripts can pick a layout: $screen.landscape,
         // $screen.width / $screen.height (dp), $screen.tv. Values are read at call time,

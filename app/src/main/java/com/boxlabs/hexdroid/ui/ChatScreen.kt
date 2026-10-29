@@ -111,6 +111,7 @@ import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.automirrored.filled.KeyboardTab
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -157,6 +158,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.OutlinedIconButton
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SecondaryScrollableTabRow
@@ -2209,11 +2211,42 @@ fun ChatScreen(
                         }
                     }
 
+                    if (isChannel && (canKick || canBan || canTopic)) {
+                        val opsInteraction = remember { MutableInteractionSource() }
+                        val opsPressed by opsInteraction.collectIsPressedAsState()
+                        val accents = LocalAccentColors.current
+
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .scale(if (opsPressed) 0.92f else 1f)
+                                .background(
+                                    brush = Brush.linearGradient(colors = accents.channelTools),
+                                    shape = RoundedCornerShape(4.dp)
+                                )
+                                .testTag("channel-tools-button").focusHighlight(RoundedCornerShape(4.dp))
+                                .clickable(
+                                    interactionSource = opsInteraction,
+                                    indication = ripple(bounded = false),
+                                    onClick = { showChanOps = true }
+                                )
+                                .padding(6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Build,
+                                contentDescription = stringResource(R.string.chat_channel_tools),
+                                tint = accents.onAccent.copy(alpha = if (opsPressed) 0.7f else 1f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
                     Box {
                         BarIconButton(
                             size = iconBtnSize,
                             onClick = { openMenu { overflowExpanded = true } },
-                            modifier = Modifier.tourTarget(TourTarget.CHAT_OVERFLOW_BUTTON),
+                            modifier = Modifier.testTag("general-menu-button").tourTarget(TourTarget.CHAT_OVERFLOW_BUTTON),
                             initialFocus = false,
                         ) { Text("⋮") }
                         PersonalDropdownMenu(
@@ -3296,6 +3329,17 @@ fun ChatScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (isChannel || isPrivateMessage) {
+                    OutlinedIconButton(
+                        onClick = { completeNick(backwards = false); onTypingChanged(input.text) },
+                        enabled = completionNicks.isNotEmpty(),
+                        modifier = Modifier.size(36.dp).testTag("nick-tab-button").focusHighlight(RoundedCornerShape(4.dp)),
+                        shape = RoundedCornerShape(4.dp),
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardTab, contentDescription = stringResource(R.string.chat_complete_nick), modifier = Modifier.size(20.dp))
+                    }
+                }
+
                 // E2E lock badge at the start of the input row when the buffer has a key; tapping
                 // it opens the EncryptionDialog. Re-derived from state.e2eKeyVersion.
                 if (viewModel != null && selNetId.isNotBlank() &&
@@ -3517,41 +3561,6 @@ fun ChatScreen(
 						)
 					}
 				)
-
-                if (completionNicks.isNotEmpty()) {
-                    TextButton(onClick = { completeNick(backwards = false); onTypingChanged(input.text) }) { Text("Tab") }
-                }
-
-                if (isChannel && (canKick || canBan || canTopic)) {
-                    val opsInteraction = remember { MutableInteractionSource() }
-                    val opsPressed by opsInteraction.collectIsPressedAsState()
-                    val accents = LocalAccentColors.current
-
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .scale(if (opsPressed) 0.92f else 1f)
-                            .background(
-                                brush = Brush.linearGradient(colors = accents.channelTools),
-                                shape = RoundedCornerShape(4.dp)
-                            )
-                            .focusHighlight(RoundedCornerShape(4.dp))
-                            .clickable(
-                                interactionSource = opsInteraction,
-                                indication = ripple(bounded = false),
-                                onClick = { showChanOps = true }
-                            )
-                            .padding(6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Build,
-                            contentDescription = stringResource(R.string.chat_channel_tools),
-                            tint = accents.onAccent.copy(alpha = if (opsPressed) 0.7f else 1f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
 
                 run {
                     val sendInteraction = remember { MutableInteractionSource() }

@@ -248,7 +248,7 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
                 return
             }
 
-            val prepareBeforeScript = !st.settings.privateRequestsEnabled || !ev.isPrivate || fromMe
+            val prepareBeforeScript = !hasPrivateRequestPolicy() || !ev.isPrivate || fromMe
             if (prepareBeforeScript) prepareIncomingMessageBuffer(targetKey, ev.from, fromMe)
             // Script TEXT hook: lets scripts react to incoming lines (e.g. translate.hex echoes
             // a translation underneath) and optionally transform or suppress them. Runs only for
