@@ -1978,4 +1978,12 @@
     <string name="dreams_retry">Reintentar</string>
     <string name="dreams_previous_input">Recuperar mensaje anterior</string>
     <string name="dreams_next_input">Mensaje siguiente o recuperar borrador</string>
+    <string name="backup_include_history">¿Incluir también el historial de conversaciones?</string>
+    <string name="backup_history_preserved">El historial original permanece en este dispositivo. Respaldar no borra ni recorta las conversaciones.</string>
+    <string name="backup_history_privacy">El historial se copia como texto UTF-8 legible, incluidos mensajes descifrados si activaste su registro. La frase de paso protege solo las contraseñas de las redes; no cifra el historial. Guardá la copia en un lugar privado.</string>
+    <string name="backup_export_with_history_desc">Respaldá tus redes y ajustes. Te preguntaremos si querés incluir el historial de conversaciones (ZIP) o guardar solo la configuración (JSON). Las contraseñas se pueden incluir cifradas con una frase de paso. Los certificados TLS no se incluyen.</string>
+    <string name="backup_restore_preserves_history_desc">Restaurar reemplaza las redes y los ajustes. El historial del dispositivo se conserva; las conversaciones incluidas se combinan sin duplicar líneas ya restauradas.</string>
+    <string name="backup_restore_preserves_history_confirm">¿Reemplazar las redes y ajustes actuales con esta copia? El historial del dispositivo se conservará. El historial incluido se combinará con el existente. Las contraseñas cifradas requieren su frase de paso; los certificados TLS no se incluyen.</string>
+    <string name="backup_history_saved">Historial de conversaciones incluido. Los archivos originales permanecen en el dispositivo.</string>
+    <string name="backup_history_restored">Historial combinado: %1$d líneas nuevas. Las conversaciones existentes se conservaron.</string>
 </resources>

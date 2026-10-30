@@ -461,7 +461,7 @@ fun SettingsScreen(
     tourActive: Boolean = false,
     tourTarget: TourTarget? = null,
     /** Export a backup to the picked file, with passwords encrypted by the passphrase when one is given. */
-    onExportBackup: (Uri, String?) -> Unit = { _, _ -> },
+    onExportBackup: (Uri, String?, Boolean) -> Unit = { _, _, _ -> },
     /** Bytes used by logs in app storage. */
     onMeasureLogs: suspend () -> Long = { 0L },
     onExportLogs: (Uri) -> Unit = {},
@@ -487,6 +487,7 @@ fun SettingsScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     // Held only between the export dialog and the file picker's answer.
     var pendingExportPassphrase by remember { mutableStateOf<String?>(null) }
+    var pendingExportHistory by rememberSaveable { mutableStateOf(false) }
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var showBackupResultDialog by remember { mutableStateOf(false) }
@@ -499,7 +500,7 @@ fun SettingsScreen(
     // Filename for the backup uses a timestamp so files don't collide
     val backupFileName = remember {
         val ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
-        "hexdroid_backup_$ts.json"
+        "hexdroid_backup_$ts"
     }
 
     // Logs in app storage can't be reached from outside the app, so Logging offers their size,
@@ -519,8 +520,16 @@ fun SettingsScreen(
     val exportBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
-        if (uri != null) onExportBackup(uri, pendingExportPassphrase)
+        if (uri != null) onExportBackup(uri, pendingExportPassphrase, false)
         pendingExportPassphrase = null
+    }
+
+    val exportCombinedBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri: Uri? ->
+        if (uri != null) onExportBackup(uri, pendingExportPassphrase, pendingExportHistory)
+        pendingExportPassphrase = null
+        pendingExportHistory = false
     }
 
     val importBackupLauncher = rememberLauncherForActivityResult(
@@ -1837,17 +1846,17 @@ fun SettingsScreen(
             item {
                 Column(Modifier.fillMaxWidth()) {
                     Text(
-                        stringResource(R.string.setting_backup_export_desc),
+                        stringResource(R.string.backup_export_with_history_desc),
                         style = MaterialTheme.typography.bodySmall
                     )
                     Spacer(Modifier.height(12.dp))
                     BackupActionButtons(
                         export = { showExportDialog = true },
-                        restore = { importBackupLauncher.launchPicker(ctx, arrayOf("application/json", "text/plain", "*/*")) },
+                        restore = { importBackupLauncher.launchPicker(ctx, arrayOf("application/json", "application/zip", "text/plain", "*/*")) },
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        stringResource(R.string.setting_restore_desc),
+                        stringResource(R.string.backup_restore_preserves_history_desc),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1865,10 +1874,12 @@ fun SettingsScreen(
     }
     if (showExportDialog) {
         ExportBackupDialog(
-            onExport = { passphrase ->
+            onExport = { passphrase, includeHistory ->
                 showExportDialog = false
                 pendingExportPassphrase = passphrase
-                exportBackupLauncher.launchPicker(ctx, backupFileName)
+                pendingExportHistory = includeHistory
+                if (includeHistory) exportCombinedBackupLauncher.launchPicker(ctx, "$backupFileName.zip")
+                else exportBackupLauncher.launchPicker(ctx, "$backupFileName.json")
             },
             onDismiss = { showExportDialog = false },
         )
@@ -1893,7 +1904,7 @@ fun SettingsScreen(
             title = { Text(stringResource(R.string.settings_restore_confirm_title)) },
             text = {
                 Text(
-                    stringResource(R.string.setting_restore_confirm)
+                    stringResource(R.string.backup_restore_preserves_history_confirm)
                 )
             },
             confirmButton = {

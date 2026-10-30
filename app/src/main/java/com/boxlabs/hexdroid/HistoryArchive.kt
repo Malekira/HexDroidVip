@@ -76,9 +76,14 @@ internal object HistoryFiles {
         }
     }
     /** Validate the entire archive before touching stored conversations. Disk space is the real limit. */
-    fun stage(root: File, input: InputStream, staging: File): List<String> {
+    fun stage(root: File, input: InputStream, staging: File, allowEmpty: Boolean = false): List<String> {
         val paths = mutableListOf<String>()
-        ZipInputStream(input.buffered()).use { z ->
+        val buffered = input.buffered()
+        buffered.mark(4)
+        val signature = List(4) { buffered.read() }
+        buffered.reset()
+        require(signature == listOf(0x50, 0x4b, 3, 4) || signature == listOf(0x50, 0x4b, 5, 6)) { "La copia no es un ZIP de historial" }
+        ZipInputStream(buffered).use { z ->
             while (true) {
                 val entry = z.nextEntry ?: break
                 if (entry.isDirectory) { z.closeEntry(); continue }
@@ -92,7 +97,7 @@ internal object HistoryFiles {
                 paths += entry.name
             }
         }
-        require(paths.isNotEmpty()) { "La copia no contiene conversaciones compatibles" }
+        require(allowEmpty || paths.isNotEmpty()) { "La copia no contiene conversaciones compatibles" }
         return paths
     }
 }
@@ -147,6 +152,7 @@ internal class HistoryArchive(ctx: Context) {
     @Synchronized fun list(): List<HistoryConversation> = HistoryFiles.list(root)
     @Synchronized fun page(path: String, query: String, offset: Long): HistoryPage = HistoryFiles.page(root, path, query, offset)
     @Synchronized fun export(paths: Set<String>, out: OutputStream) = HistoryFiles.export(root, paths, out)
+    @Synchronized fun exportAll(out: OutputStream) = HistoryFiles.export(root, list().map { it.path }.toSet(), out)
     @Synchronized fun exportText(path: String, out: OutputStream) { out.use { target -> HistoryFiles.resolve(root, path).inputStream().use { it.copyTo(target) } } }
     @Synchronized fun delete(paths: Set<String>) { paths.forEach { p -> require(HistoryFiles.resolve(root, p).delete() || !HistoryFiles.resolve(root, p).exists()); clear(p) } }
     @Synchronized fun restore(input: InputStream): Int {

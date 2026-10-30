@@ -1980,4 +1980,12 @@
     <string name="dreams_retry">Retry</string>
     <string name="dreams_previous_input">Recall previous message</string>
     <string name="dreams_next_input">Next message or restore draft</string>
+    <string name="backup_include_history">Include conversation history too?</string>
+    <string name="backup_history_preserved">The original history stays on this device. Backing up does not delete or truncate conversations.</string>
+    <string name="backup_history_privacy">History is copied as readable UTF-8 text, including decrypted messages if you enabled logging them. The password passphrase protects network passwords only; it does not encrypt history. Keep the backup private.</string>
+    <string name="backup_export_with_history_desc">Back up networks and settings. You will be asked whether to include conversation history (ZIP) or save settings only (JSON). Passwords can be included encrypted with a passphrase. TLS certificates are not included.</string>
+    <string name="backup_restore_preserves_history_desc">Restore replaces networks and settings. Existing history stays on this device; any included conversations are merged without duplicating previously restored lines.</string>
+    <string name="backup_restore_preserves_history_confirm">Replace current networks and settings with this backup? Existing conversation history will be kept. Included history will be merged. Encrypted passwords require their passphrase; TLS certificates are not included.</string>
+    <string name="backup_history_saved">Conversation history included. The original files remain on this device.</string>
+    <string name="backup_history_restored">History merged: %1$d new lines. Existing conversations were kept.</string>
 </resources>

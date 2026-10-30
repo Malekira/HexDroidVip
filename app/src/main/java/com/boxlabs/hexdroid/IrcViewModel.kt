@@ -1779,7 +1779,7 @@ fun startAddNetwork() {
     fun exportBackup(uri: android.net.Uri) = exportBackup(uri, null)
 
     /** Write a backup to [uri]; with a [passphrase], the network passwords go in encrypted with it. */
-    fun exportBackup(uri: android.net.Uri, passphrase: String?) {
+    fun exportBackup(uri: android.net.Uri, passphrase: String?, includeHistory: Boolean = false) {
         val st = _state.value
         viewModelScope.launch(Dispatchers.IO) {
             val result = runCatching {
@@ -1791,9 +1791,11 @@ fun startAddNetwork() {
                     pass?.fill('\u0000')
                 }
                 appContext.contentResolver.openOutputStream(uri)?.use { out ->
-                    out.write(json.toByteArray(Charsets.UTF_8))
+                    if (includeHistory) ConversationBackup.write(out, json, historyArchive::exportAll)
+                    else out.write(json.toByteArray(Charsets.UTF_8))
                 } ?: throw java.io.IOException(appContext.getString(R.string.vm_backup_no_output))
-                appContext.getString(if (secrets.isNotEmpty()) R.string.vm_backup_saved_with_passwords else R.string.vm_backup_saved)
+                appContext.getString(if (secrets.isNotEmpty()) R.string.vm_backup_saved_with_passwords else R.string.vm_backup_saved) +
+                    if (includeHistory) "\n" + appContext.getString(R.string.backup_history_saved) else ""
             }
             val msg = result.getOrElse { e -> appContext.getString(R.string.vm_backup_failed, e.message) }
             _state.update { it.copy(backupMessage = msg, backupIsError = result.isFailure) }
@@ -1825,73 +1827,77 @@ fun startAddNetwork() {
         }
         viewModelScope.launch(Dispatchers.IO) {
             val result = runCatching {
-                val json = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    ?.toString(Charsets.UTF_8)
+                val input = appContext.contentResolver.openInputStream(uri)
                     ?: throw java.io.IOException(appContext.getString(R.string.vm_restore_no_input))
-                if (passphrase == null && !withoutPasswords && repo.backupHasEncryptedSecrets(json)) {
-                    _state.update { it.copy(restorePassphraseUri = uri.toString(), restorePassphraseWrong = false) }
-                    return@launch
-                }
-                val pass = if (withoutPasswords) null else passphrase?.toCharArray()
-                val orphanedIds = try {
-                    repo.importBackup(json, pass)
-                } catch (_: com.boxlabs.hexdroid.data.BackupCrypto.WrongPassphrase) {
-                    _state.update { it.copy(restorePassphraseUri = uri.toString(), restorePassphraseWrong = true) }
-                    return@launch
-                } finally {
-                    pass?.fill('\u0000')
-                }
-                _state.update { it.copy(restorePassphraseUri = null, restorePassphraseWrong = false) }
-                // Clear stored secrets for profiles that existed before the restore but aren't in
-                // the backup.
-                for (id in orphanedIds) {
-                    runCatching { repo.secretStore.clearSaslPassword(id) }
-                    runCatching { repo.secretStore.clearServerPassword(id) }
-                    runCatching { repo.secretStore.clearProxyPassword(id) }
-                    // Client cert lookup requires the certId stored on the (now-deleted) profile;
-                    // we no longer have that reference after the import overwrites NETWORKS_JSON,
-                    // so cert files under /client_certs/*.bin for deleted profiles may still
-                    // remain. They'll never be used (loadTlsClientCert requires both netId and
-                    // certId), but a follow-up housekeeping pass could walk the directory.
-                }
-                // Disconnect live runtimes for profiles the import deleted, on Main since
-                // disconnectNetwork mutates state.
-                if (orphanedIds.isNotEmpty()) {
-                    withContext(Dispatchers.Main) {
-                        for (id in orphanedIds) {
-                            // disconnectNetwork is idempotent and safe to call on a netId that
-                            // isn't currently connected, so we don't need a connection check.
-                            disconnectNetwork(id)
-                            // Drop in-memory state for the orphan: buffers, connection record,
-                            // chathistory marker tracker. Same purge pattern as deleteNetwork()
-                            // — the profile is gone from disk; its UI state should follow.
-                            authBlockedReconnect.remove(id)
-                            everRegisteredThisSession.remove(id)
-                            cleanupNetworkMaps(id, resetReconnectState = true)
-                            val prefix = "$id::"
-                            chatHistory.forgetNetwork(id)
-                            _state.update { st ->
-                                val orphanKeys = st.buffers.keys.filter { it.startsWith(prefix) }
-                                val newBuffers = if (orphanKeys.isEmpty()) st.buffers
-                                                 else st.buffers - orphanKeys.toSet()
-                                val newConns = if (st.connections.containsKey(id)) st.connections - id
-                                               else st.connections
-                                val newSelected = if (st.selectedBuffer.startsWith(prefix)) ""
-                                                  else st.selectedBuffer
-                                val newActive = if (st.activeNetworkId == id) {
-                                    st.networks.firstOrNull { it.id != id }?.id
-                                } else st.activeNetworkId
-                                syncActiveNetworkSummary(st.copy(
-                                    buffers = newBuffers,
-                                    connections = newConns,
-                                    selectedBuffer = newSelected,
-                                    activeNetworkId = newActive,
-                                ))
+                ConversationBackup.read(input, appContext.cacheDir).use { contents ->
+                    val json = contents.json
+                    if (passphrase == null && !withoutPasswords && repo.backupHasEncryptedSecrets(json)) {
+                        _state.update { it.copy(restorePassphraseUri = uri.toString(), restorePassphraseWrong = false) }
+                        return@launch
+                    }
+                    val pass = if (withoutPasswords) null else passphrase?.toCharArray()
+                    val orphanedIds = try {
+                        repo.importBackup(json, pass)
+                    } catch (_: com.boxlabs.hexdroid.data.BackupCrypto.WrongPassphrase) {
+                        _state.update { it.copy(restorePassphraseUri = uri.toString(), restorePassphraseWrong = true) }
+                        return@launch
+                    } finally {
+                        pass?.fill('\u0000')
+                    }
+                    _state.update { it.copy(restorePassphraseUri = null, restorePassphraseWrong = false) }
+                    // Clear stored secrets for profiles that existed before the restore but aren't in
+                    // the backup.
+                    for (id in orphanedIds) {
+                        runCatching { repo.secretStore.clearSaslPassword(id) }
+                        runCatching { repo.secretStore.clearServerPassword(id) }
+                        runCatching { repo.secretStore.clearProxyPassword(id) }
+                        // Client cert lookup requires the certId stored on the (now-deleted) profile;
+                        // we no longer have that reference after the import overwrites NETWORKS_JSON,
+                        // so cert files under /client_certs/*.bin for deleted profiles may still
+                        // remain. They'll never be used (loadTlsClientCert requires both netId and
+                        // certId), but a follow-up housekeeping pass could walk the directory.
+                    }
+                    // Disconnect live runtimes for profiles the import deleted, on Main since
+                    // disconnectNetwork mutates state.
+                    if (orphanedIds.isNotEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            for (id in orphanedIds) {
+                                // disconnectNetwork is idempotent and safe to call on a netId that
+                                // isn't currently connected, so we don't need a connection check.
+                                disconnectNetwork(id)
+                                // Drop in-memory state for the orphan: buffers, connection record,
+                                // chathistory marker tracker. Same purge pattern as deleteNetwork()
+                                // — the profile is gone from disk; its UI state should follow.
+                                authBlockedReconnect.remove(id)
+                                everRegisteredThisSession.remove(id)
+                                cleanupNetworkMaps(id, resetReconnectState = true)
+                                val prefix = "$id::"
+                                chatHistory.forgetNetwork(id)
+                                _state.update { st ->
+                                    val orphanKeys = st.buffers.keys.filter { it.startsWith(prefix) }
+                                    val newBuffers = if (orphanKeys.isEmpty()) st.buffers
+                                                     else st.buffers - orphanKeys.toSet()
+                                    val newConns = if (st.connections.containsKey(id)) st.connections - id
+                                                   else st.connections
+                                    val newSelected = if (st.selectedBuffer.startsWith(prefix)) ""
+                                                      else st.selectedBuffer
+                                    val newActive = if (st.activeNetworkId == id) {
+                                        st.networks.firstOrNull { it.id != id }?.id
+                                    } else st.activeNetworkId
+                                    syncActiveNetworkSummary(st.copy(
+                                        buffers = newBuffers,
+                                        connections = newConns,
+                                        selectedBuffer = newSelected,
+                                        activeNetworkId = newActive,
+                                    ))
+                                }
                             }
                         }
                     }
+                    val added = contents.history?.inputStream()?.use { historyArchive.restore(it) }
+                    appContext.getString(R.string.vm_restore_done) + if (added != null)
+                        "\n" + appContext.getString(R.string.backup_history_restored, added) else ""
                 }
-                appContext.getString(R.string.vm_restore_done)
             }
             val msg = result.getOrElse { e -> appContext.getString(R.string.vm_restore_failed, e.message) }
             _state.update {

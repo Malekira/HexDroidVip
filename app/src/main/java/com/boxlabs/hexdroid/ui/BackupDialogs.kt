@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -38,27 +40,47 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.boxlabs.hexdroid.R
 import com.boxlabs.hexdroid.data.BackupCrypto
 
-/** Asks whether the backup should carry the passwords, and for the passphrase that guards them. */
+/** Ask about history separately from optional, passphrase-encrypted passwords. */
 @Composable
-fun ExportBackupDialog(onExport: (passphrase: String?) -> Unit, onDismiss: () -> Unit) {
+fun ExportBackupDialog(onExport: (passphrase: String?, includeHistory: Boolean) -> Unit, onDismiss: () -> Unit) {
     var include by remember { mutableStateOf(false) }
+    var includeHistory by remember { mutableStateOf(false) }
     var pass by remember { mutableStateOf("") }
     var repeat by remember { mutableStateOf("") }
     val tooShort = pass.length < BackupCrypto.MIN_PASSPHRASE_LENGTH
     val mismatch = repeat != pass
     val ok = !include || (!tooShort && !mismatch)
+    val historyLabel = stringResource(R.string.backup_include_history)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.backup_export_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(historyLabel, Modifier.weight(1f))
+                    Switch(
+                        checked = includeHistory,
+                        onCheckedChange = { includeHistory = it },
+                        modifier = Modifier.testTag("backup-include-history")
+                            .semantics { contentDescription = historyLabel }
+                            .focusHighlight(RoundedCornerShape(16.dp)),
+                    )
+                }
+                Text(stringResource(R.string.backup_history_preserved), style = MaterialTheme.typography.bodySmall)
+                if (includeHistory) Text(
+                    stringResource(R.string.backup_history_privacy),
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.backup_include_passwords))
@@ -104,7 +126,7 @@ fun ExportBackupDialog(onExport: (passphrase: String?) -> Unit, onDismiss: () ->
         },
         confirmButton = {
             TextButton(
-                onClick = { onExport(if (include) pass else null) },
+                onClick = { onExport(if (include) pass else null, includeHistory) },
                 enabled = ok,
                 modifier = Modifier.focusHighlight(RoundedCornerShape(50)),
             ) { Text(stringResource(R.string.backup_export_action)) }

@@ -433,7 +433,7 @@ fun AppRoot(
                     onOpenScripts = { vm.goTo(AppScreen.SCRIPTS) },
                     tourActive = tourActive,
                     tourTarget = currentTourStep?.target,
-                    onExportBackup = { uri, passphrase -> vm.exportBackup(uri, passphrase) },
+                    onExportBackup = { uri, passphrase, history -> vm.exportBackup(uri, passphrase, history) },
                     onMeasureLogs = vm::internalLogsSize,
                     onExportLogs = vm::exportInternalLogs,
                     onDeleteLogs = vm::deleteInternalLogs,

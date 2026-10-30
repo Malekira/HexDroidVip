@@ -440,68 +440,7 @@ class LogWriter(private val ctx: Context) {
         return dq.toList()
     }
 
-    // Purge logs according to the retention policy
-    fun purgeOlderThan(days: Int, logFolderUri: String?) {
-        // 0 means "keep logs forever"
-        if (days <= 0) return
-        val cutoff = System.currentTimeMillis() - days.coerceIn(1, 365) * 24L * 60L * 60L * 1000L
-        if (logFolderUri.isNullOrBlank()) {
-            // Internal storage: walk the file tree and delete old files.
-            internalRoot().walkTopDown().forEach { f ->
-                if (f.isFile && f.lastModified() < cutoff) {
-                    val absPath = f.absolutePath
-                    // Close the cached writer for this file before deleting it, under the
-                    // file's lock so a line being written finishes first.
-                    synchronized(writeLockFor(absPath)) {
-                        closeWriter(absPath)
-                        runCatching { f.delete() }
-                    }
-                }
-            }
-        } else {
-            // SAF storage: query children and delete documents older than the cutoff.
-            runCatching { purgeOlderThanSaf(Uri.parse(logFolderUri), cutoff) }
-        }
-    }
-
-    private fun purgeOlderThanSaf(treeUri: Uri, cutoffMs: Long) {
-        val resolver = ctx.contentResolver
-        val rootDocId = DocumentsContract.getTreeDocumentId(treeUri)
-        // Walk one level of network-name subdirectories.
-        val netDirs = queryChildren(resolver, treeUri, rootDocId)
-        for ((netDocId, _, netMime) in netDirs) {
-            if (netMime != Document.MIME_TYPE_DIR) continue
-            val files = queryChildren(resolver, treeUri, netDocId)
-            for ((fileDocId, _, _) in files) {
-                // Per file, so one document the provider objects to does not end the sweep.
-                runCatching {
-                    val fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, fileDocId)
-                    val modMs = runCatching {
-                        resolver.query(
-                            fileUri,
-                            arrayOf(Document.COLUMN_LAST_MODIFIED),
-                            null, null, null
-                        )?.use { c ->
-                            if (c.moveToFirst()) c.getLong(0) else null
-                        }
-                    }.getOrNull()
-                    if (modMs != null && modMs < cutoffMs) {
-                        // Resolve the writer key before dropping the URI from safFileCache,
-                        // which is what the lookup matches on. Most expired files have no
-                        // open handle, so no key is the normal case.
-                        val writerKey = safWriters.keys().firstOrNull { safFileCache[it] == fileUri }
-                        if (writerKey != null) {
-                            synchronized(writeLockFor(writerKey)) {
-                                safWriters.take(writerKey)?.runCatching { close() }
-                            }
-                        }
-                        safFileCache.entries.removeIf { it.value == fileUri }
-                        runCatching { DocumentsContract.deleteDocument(resolver, fileUri) }
-                    }
-                }
-            }
-        }
-    }
+    // Permanent history has no age-based purge. Deletion is an explicit user action.
 
     // SAF helpers
     private fun appendSaf(treeUri: Uri, networkName: String, buffer: String, line: String) {

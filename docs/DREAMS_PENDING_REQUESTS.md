@@ -3,6 +3,18 @@
 Estado: pedidos registrados implementados hasta HexDroid Dreams 1.0.4 (43).
 Rama de trabajo: `feat/dreams-1.0.4`, basada en `feat/hexdroid-dreams-release`.
 
+## Cambio autorizado: historial y respaldo opcional
+
+- Orden expresa «Implementa»: conservar el historial del dispositivo y preguntar
+  si se quiere incluir en cada respaldo.
+- Rama separada `fix/dreams-history-backup`, basada en la versión publicada 1.0.4.
+- Nueva opción en Ajustes → Copia de seguridad y restauración → Exportar.
+- La copia incluye redes, ajustes e historial si se elige; restaurar combina las
+  conversaciones sin borrar las existentes ni duplicar las líneas recuperadas.
+- Sin vencimiento ni borrado automático; el original no se mueve al exportar.
+- Detalles y comprobaciones: [DREAMS_HISTORY_BACKUP.md](DREAMS_HISTORY_BACKUP.md).
+- Los cambios pendientes de Retroceso, topics y avisos JOIN no se incluyen aquí.
+
 ## Registro de entrega — 30 de octubre de 2026
 
 - Versión entregada: **HexDroid Dreams 1.0.4 (43)**; código compilado `7302c37`.

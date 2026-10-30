@@ -9,8 +9,8 @@ android {
         applicationId = "com.malekira.hexdroid.personal"
         minSdk = 26
         targetSdk = 37
-        versionCode = 43
-        versionName = "1.0.4"
+        versionCode = 44
+        versionName = "1.0.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     // Release signing
