@@ -75,8 +75,14 @@ la vean. Se guarda también el borrado de la URL para reenviarlo al reconectar.
   respuestas MODE/221, publicación y borrado de metadatos, persistencia real de
   ajustes/URL, destinos e ignores, notificación Android con canal sonoro y
   deduplicación, recuperación táctil del borrador y ampliación/reintento de fotos.
-- Las pruebas Android se ejecutan en el emulador de GitHub Actions; la publicación
-  requiere que estas y las pruebas de regresión anteriores aprueben.
+- Las pruebas Android se ejecutaron y aprobaron en el emulador de GitHub Actions,
+  junto con las regresiones anteriores y la comprobación de que cada prueba
+  requerida fue encontrada y aprobada. El job debug final terminó correctamente.
+- APK debug publicada como **HexDroid-Dreams-debug** (34,4 MB), tras las
+  comprobaciones obligatorias de firma, paquete y nombre. También están publicados
+  los informes **Phase3-test-reports**.
+- [Ejecución verificada y descarga](https://github.com/Malekira/HexDroidVip/actions/runs/41102447808),
+  código compilado `7302c375fa1a1ceb58eb85ad520f66a8b3552cfa`.
 
 ## Instalación y revisión manual
 

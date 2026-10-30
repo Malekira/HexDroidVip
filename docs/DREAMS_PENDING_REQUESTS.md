@@ -1,7 +1,18 @@
 # Pedidos pendientes de HexDroid Dreams
 
-Estado: pedidos registrados implementados hasta HexDroid Dreams 1.0.3 (42).
-Rama de trabajo: `feat/hexdroid-dreams-release`, basada en la Fase 3 aprobada.
+Estado: pedidos registrados implementados hasta HexDroid Dreams 1.0.4 (43).
+Rama de trabajo: `feat/dreams-1.0.4`, basada en `feat/hexdroid-dreams-release`.
+
+## Registro de entrega — 30 de octubre de 2026
+
+- Versión entregada: **HexDroid Dreams 1.0.4 (43)**; código compilado `7302c37`.
+- 88 pruebas JVM ejecutadas localmente, sin fallos ni omisiones; pruebas Android
+  y comprobaciones obligatorias aprobadas en GitHub Actions.
+- [Ejecución correcta y APK publicada](https://github.com/Malekira/HexDroidVip/actions/runs/41102447808):
+  artifact **HexDroid-Dreams-debug** (34,4 MB).
+- Funciones, ubicación de ajustes, límites de la red y pruebas manuales en
+  [DREAMS_1_0_4.md](DREAMS_1_0_4.md). Sin fusionar ramas.
+- No se iniciarán nuevas modificaciones sin otra indicación expresa del usuario.
 
 ## Registro de entrega — 29 de octubre de 2026
 

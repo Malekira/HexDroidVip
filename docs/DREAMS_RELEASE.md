@@ -3,6 +3,11 @@
 Base validada por el usuario: HexDroid Personal `1.7.8-personal3.1` (38), commit
 `887d9ba`. Rama de preparación: `feat/hexdroid-dreams-release`.
 
+Entrega vigente: **1.0.4 debug (43)** desde `feat/dreams-1.0.4`, por elección
+expresa del usuario. No requiere configurar la firma permanente descrita más
+abajo. [APK publicada en GitHub Actions](https://github.com/Malekira/HexDroidVip/actions/runs/41102447808).
+Funciones y comprobaciones: [DREAMS_1_0_4.md](DREAMS_1_0_4.md).
+
 ## Identidad y alcance
 
 - Nombre visible: **HexDroid Dreams**, también en los recursos de otros idiomas.
@@ -21,15 +26,15 @@ GitHub Release automáticamente. El método simple de firma usa únicamente un b
 y un tag interno con la huella pública del certificado. Una compilación debug con el nuevo nombre sigue
 siendo una versión de prueba, no una APK final firmada con identidad estable.
 
-## Firma permanente: requisito pendiente de configuración
+## Firma permanente opcional: no utilizada para la entrega debug
 
 Las versiones finales deben firmarse siempre con la misma clave privada. Una
 versión nueva usará además un código interno mayor para poder actualizarse. La
 clave temporal de las compilaciones debug anteriores no se puede recuperar desde
 una APK; no debe confundirse con una identidad de publicación permanente.
 
-El propietario eligió una clave nueva y un proceso sin instalar aplicaciones.
-Seguir [DREAMS_SIGNING_SIMPLE.md](DREAMS_SIGNING_SIMPLE.md): solo se configura
+Si se decide preparar una firma permanente en el futuro, existe un proceso sin
+instalar aplicaciones en [DREAMS_SIGNING_SIMPLE.md](DREAMS_SIGNING_SIMPLE.md): se configura
 `DREAMS_SIGNING_PASSWORD` en GitHub Secrets. Actions crea la clave una vez, guarda
 su PKCS12 protegido en un borrador privado y comprueba su huella en cada ejecución.
 No requiere Termux ni tokens personales. Conservar la copia y contraseña fuera de Git.
@@ -69,6 +74,10 @@ su contenido después. Hay que conservar una copia privada recuperable por separ
 El workflow `personal-debug.yml`, ahora mostrado como **HexDroid Dreams - APK**,
 acepta los commits de esta rama. Primero exige las pruebas unitarias y Android de
 las fases anteriores y de las cuatro correcciones ya validadas.
+
+El release opcional de los puntos siguientes corresponde únicamente a
+`feat/hexdroid-dreams-release`. La entrega actual `feat/dreams-1.0.4` ejecuta el job
+debug y omite los jobs de firma y APK release; no necesita secretos adicionales.
 
 - **Sin firma configurada:** publica `HexDroid-Dreams-debug` y avisa que la APK
   final está pendiente. El job de release queda omitido, sin producir un APK sin
