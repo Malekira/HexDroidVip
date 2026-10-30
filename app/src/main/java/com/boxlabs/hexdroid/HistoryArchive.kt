@@ -78,23 +78,24 @@ internal object HistoryFiles {
     /** Validate the entire archive before touching stored conversations. Disk space is the real limit. */
     fun stage(root: File, input: InputStream, staging: File, allowEmpty: Boolean = false): List<String> {
         val paths = mutableListOf<String>()
-        val buffered = input.buffered()
-        buffered.mark(4)
-        val signature = List(4) { buffered.read() }
-        buffered.reset()
-        require(signature == listOf(0x50, 0x4b, 3, 4) || signature == listOf(0x50, 0x4b, 5, 6)) { "La copia no es un ZIP de historial" }
-        ZipInputStream(buffered).use { z ->
-            while (true) {
-                val entry = z.nextEntry ?: break
-                if (entry.isDirectory) { z.closeEntry(); continue }
-                resolve(root, entry.name) // rejects traversal and foreign backup types
-                require(entry.name !in paths) { "Archivo duplicado en la copia" }
-                val out = resolve(staging, entry.name); out.parentFile!!.mkdirs()
-                out.outputStream().use { z.copyTo(it) }; z.closeEntry()
-                // Reject binary/corrupt content, including malformed UTF-8, before merging anything.
-                val decoder = Charsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
-                InputStreamReader(out.inputStream(), decoder).buffered().useLines { lines -> lines.forEach { require('\u0000' !in it) { "El historial no es texto" } } }
-                paths += entry.name
+        input.buffered().use { buffered ->
+            buffered.mark(4)
+            val signature = List(4) { buffered.read() }
+            buffered.reset()
+            require(signature == listOf(0x50, 0x4b, 3, 4) || signature == listOf(0x50, 0x4b, 5, 6)) { "La copia no es un ZIP de historial" }
+            ZipInputStream(buffered).use { z ->
+                while (true) {
+                    val entry = z.nextEntry ?: break
+                    if (entry.isDirectory) { z.closeEntry(); continue }
+                    resolve(root, entry.name) // rejects traversal and foreign backup types
+                    require(entry.name !in paths) { "Archivo duplicado en la copia" }
+                    val out = resolve(staging, entry.name); out.parentFile!!.mkdirs()
+                    out.outputStream().use { z.copyTo(it) }; z.closeEntry()
+                    // Reject binary/corrupt content, including malformed UTF-8, before merging anything.
+                    val decoder = Charsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    InputStreamReader(out.inputStream(), decoder).buffered().useLines { lines -> lines.forEach { require('\u0000' !in it) { "El historial no es texto" } } }
+                    paths += entry.name
+                }
             }
         }
         require(allowEmpty || paths.isNotEmpty()) { "La copia no contiene conversaciones compatibles" }
