@@ -592,9 +592,15 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                     }
 
                     is IrcEvent.SupportedUserModes -> setNetConn(netId) { it.copy(supportedUserModes = ev.modes) }
-                    is IrcEvent.OwnUserModes -> setNetConn(netId) {
-                        it.copy(userModes = updatedUserModes(it.userModes, ev.modes, ev.snapshot),
-                            userModesKnown = it.userModesKnown || ev.snapshot)
+                    is IrcEvent.OwnUserModes -> {
+                        setNetConn(netId) {
+                            it.copy(userModes = updatedUserModes(it.userModes, ev.modes, ev.snapshot),
+                                userModesKnown = it.userModesKnown || ev.snapshot)
+                        }
+                        _state.update { st ->
+                            if (netId !in st.privateModeMessages) st else st.copy(privateModeMessages = st.privateModeMessages +
+                                (netId to "Modos informados por el servidor: +${st.connections[netId]?.userModes.orEmpty()}"))
+                        }
                     }
                     is IrcEvent.YoureOper -> {
                         append(bufKey(netId, "*server*"), from = null, text = "*** ${ev.message}", doNotify = false)

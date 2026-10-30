@@ -180,12 +180,12 @@ fun IrcViewModel.setNativePrivateMode(netId: String, mode: Char, enabled: Boolea
             val conn = st.connections[netId] ?: error("Red desconectada")
             val command = privateModeCommand(rt.client.isConnectedNow(), conn.myNick, mode, enabled,
                 conn.supportedUserModes, netId in st.callerIdNetworks, conn.userModes)
+            _state.update { it.copy(privateModeMessages = it.privateModeMessages + (netId to "Se solicitó ${if (enabled) '+' else '-'}$mode. El control mostrará el estado confirmado por el servidor; revisá Status.")) }
             rt.client.sendRaw(command)
             // The switch changes only after the server's actual MODE/221 reply.
             rt.client.sendRaw("MODE ${conn.myNick}")
-            _state.update { it.copy(privateRequestMessage = "Se solicitó ${if (enabled) '+' else '-'}$mode. Esperando confirmación del servidor; revisá Status.") }
         } catch (e: Exception) {
-            _state.update { it.copy(privateRequestMessage = "No se cambió el modo: ${e.message}") }
+            _state.update { it.copy(privateModeMessages = it.privateModeMessages + (netId to "No se cambió el modo: ${e.message}")) }
         }
     }
 }

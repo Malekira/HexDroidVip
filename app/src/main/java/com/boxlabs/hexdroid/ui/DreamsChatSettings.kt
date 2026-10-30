@@ -59,7 +59,7 @@ fun DreamsChatSettings(state: UiState, onUpdate: (UiSettings.() -> UiSettings) -
                 }
             }
             Text(stringResource(R.string.dreams_mode_hint), style = MaterialTheme.typography.bodySmall)
-            state.privateRequestMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            state.privateModeMessages[net.id]?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             HorizontalDivider()
             Text(stringResource(R.string.dreams_own_avatar), style = MaterialTheme.typography.titleMedium)
             val saved = state.profileAvatarUrls[net.id] ?: conn.ownMetadata["avatar"].orEmpty()

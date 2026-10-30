@@ -122,6 +122,7 @@ class Dreams104AndroidTest {
                 assertEquals(1, vm.state.value.buffers.getValue(key).messages.count { it.msgId == msgId })
                 manager.cancel(tag, notices().single().id)
                 main {
+                    AppVisibility.isForeground = true
                     vm.updateSettings { copy(soundMentionsWhileVisible = false) }
                     vm.append(key, "DemoNick01", "Segunda mención", isHighlight = true, msgId = "$msgId-disabled")
                 }
