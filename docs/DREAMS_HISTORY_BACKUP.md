@@ -76,6 +76,7 @@ descarga se registran por separado al terminar.
 - Código de la APK: `bb6268613c61635553a4265da20024d0ec568f68` (reintento sin
   cambios de código respecto de `79a610d`). Versión 1.0.5 (44).
 - [Ejecución y descarga de la APK](https://github.com/Malekira/HexDroidVip/actions/runs/41124129174).
+- Ejecución completa finalizada correctamente (**SUCCESS**, 7 min 49 s).
 - Las etapas de compilación/pruebas JVM, `connectedDebugAndroidTest`, comprobación
   obligatoria de todas las suites, verificación de firma/identidad y subida de la
   APK terminaron correctamente. Los informes están en `Phase3-test-reports`.
@@ -87,8 +88,10 @@ descarga se registran por separado al terminar.
   falló por **Timeout waiting for emulator to boot**: no se ejecutaron las pruebas
   Android de ese intento. Se reintentó sin omitir comprobaciones; las pruebas
   Android y su control obligatorio pasaron en la ejecución enlazada de entrega.
-- Firma debug elegida por el usuario; GitHub confirmó que no hay firma debug
-  estable configurada. Esta APK puede no actualizar la instalación anterior.
+- Firma debug elegida por el usuario. Actualizar conservando los datos requiere
+  la misma clave que la APK instalada. Si no se configura una firma estable con
+  los secretos opcionales del workflow, cada ejecutor puede generar otra clave.
+  Esta APK puede no actualizar la instalación anterior.
   **Si Android rechaza la firma, no desinstalar la app anterior ni borrar sus datos.**
   Primero exportar ajustes, scripts e historial con las herramientas de la versión
   instalada. El ZIP de historial es independiente de la copia JSON en esa versión.
