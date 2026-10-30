@@ -1986,4 +1986,7 @@
     <string name="backup_restore_preserves_history_confirm">¿Reemplazar las redes y ajustes actuales con esta copia? El historial del dispositivo se conservará. El historial incluido se combinará con el existente. Las contraseñas cifradas requieren su frase de paso; los certificados TLS no se incluyen.</string>
     <string name="backup_history_saved">Historial de conversaciones incluido. Los archivos originales permanecen en el dispositivo.</string>
     <string name="backup_history_restored">Historial combinado: %1$d líneas nuevas. Las conversaciones existentes se conservaron.</string>
+    <string name="dreams_recall_ten">Recuperar mensaje anterior (hasta 10)</string>
+    <string name="dreams_restore_input_draft">Recuperar el borrador (mantener pulsado)</string>
+    <string name="dreams_topic_edit_help">Una sola línea IRC. Límite del servidor: %1$s. No se envía ni recorta texto demasiado largo. Vaciar el campo elimina el topic.</string>
 </resources>

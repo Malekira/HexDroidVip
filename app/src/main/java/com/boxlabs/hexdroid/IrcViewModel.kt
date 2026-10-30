@@ -1741,6 +1741,9 @@ fun startAddNetwork() {
         _state.update { it.copy(backupMessage = null, backupIsError = false) }
     }
 
+    /** The live server's advertised topic limit; zero means it has not supplied one. */
+    fun topicLengthLimit(networkId: String): Int = runtimes[networkId]?.client?.isupportLengthLimit("TOPICLEN") ?: 0
+
     /** Bytes used by logs kept in app storage. */
     suspend fun internalLogsSize(): Long =
         withContext(Dispatchers.IO) { runCatching { logs.internalLogsSize() }.getOrDefault(0L) }

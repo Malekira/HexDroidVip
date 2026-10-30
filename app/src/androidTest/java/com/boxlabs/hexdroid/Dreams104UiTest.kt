@@ -24,7 +24,7 @@ import org.junit.Test
 class Dreams104UiTest {
     @get:Rule val compose = createComposeRule()
 
-    @Test fun dreams104TouchHistoryRecoversEditsAndRestoresDraftWithoutSending() {
+    @Test fun dreams106OneBackspaceButtonRecallsTenAndRestoresDraftWithoutSending() {
         val sent = mutableListOf<String>()
         val key = "demo-network::#demo"
         val state = UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo")), showBufferList = false, showNickList = false)
@@ -36,16 +36,25 @@ class Dreams104UiTest {
                 onOpenList = {}, onOpenSettings = {}, onOpenNetworks = {}, onOpenTransfers = {}, onSysInfo = {}, onAbout = {}, onUpdateSettings = {})
         } }
         val input = compose.onNodeWithTag("chat-input")
-        compose.onNodeWithTag("input-history-previous").assertIsNotEnabled()
-        input.performTextInput("Primer mensaje 🙂")
-        compose.onNodeWithContentDescription(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.chat_send_message)).performClick()
+        compose.onNodeWithTag("input-history-backspace").assertIsNotEnabled()
+        val sendLabel = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.getString(R.string.chat_send_message)
+        for (number in 1..12) {
+            input.performTextReplacement("Mensaje de prueba $number")
+            compose.onNodeWithContentDescription(sendLabel).performClick()
+        }
         input.performTextInput("borrador sin enviar")
-        compose.onNodeWithTag("input-history-previous").performClick()
-        input.assertTextEquals("Primer mensaje 🙂")
-        input.performTextReplacement("Primer mensaje editado")
-        compose.onNodeWithTag("input-history-next").performClick()
+        for (number in 12 downTo 3) {
+            compose.onNodeWithTag("input-history-backspace").performClick()
+            input.assertTextEquals("Mensaje de prueba $number")
+            compose.onNodeWithTag("input-history-previous").assertDoesNotExist()
+            compose.onNodeWithTag("input-history-next").assertDoesNotExist()
+        }
+        compose.onNodeWithTag("input-history-backspace").performClick()
+        input.assertTextEquals("Mensaje de prueba 3")
+        compose.onNodeWithTag("input-history-backspace").performTouchInput { longClick() }
         input.assertTextEquals("borrador sin enviar")
-        compose.runOnIdle { assertEquals(listOf("Primer mensaje 🙂"), sent) }
+        compose.runOnIdle { assertEquals(12, sent.size) }
+
     }
 
     @Test fun dreams104NativeSettingsKeepNetworkModesAndAvatarSeparate() {

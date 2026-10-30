@@ -1988,4 +1988,7 @@
     <string name="backup_restore_preserves_history_confirm">Replace current networks and settings with this backup? Existing conversation history will be kept. Included history will be merged. Encrypted passwords require their passphrase; TLS certificates are not included.</string>
     <string name="backup_history_saved">Conversation history included. The original files remain on this device.</string>
     <string name="backup_history_restored">History merged: %1$d new lines. Existing conversations were kept.</string>
+    <string name="dreams_recall_ten">Recall previous message (up to 10)</string>
+    <string name="dreams_restore_input_draft">Restore the draft (hold)</string>
+    <string name="dreams_topic_edit_help">One IRC line. Server limit: %1$s. Oversized text is not sent or silently truncated. An empty value clears the topic.</string>
 </resources>

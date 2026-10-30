@@ -187,7 +187,7 @@ class PersonalPhase3UiTest {
         compose.setContent { HexDroidIRCTheme { RealChat(state) } }
         for (event in MembershipEvent.entries) {
             val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
-            compose.onNodeWithText("${event.arrow} ${event.name} DemoNick01 (demo@192.0.2.1) #demo", substring = true, useUnmergedTree = true)
+            compose.onNodeWithText("${event.arrow} ${event.name} DemoNick01 (demo@192.0.2.1)" + if (event == MembershipEvent.JOIN) "" else " #demo", substring = true, useUnmergedTree = true)
                 .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
             val styled = layouts.single().layoutInput.text
             assertTrue(styled.spanStyles.any { it.item.color == mircColor(event.color) })

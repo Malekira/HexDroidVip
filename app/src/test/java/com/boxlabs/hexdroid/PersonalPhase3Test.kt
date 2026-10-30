@@ -104,10 +104,10 @@ class PersonalPhase3Test {
     }
 
     @Test fun dreamsMembershipEventsKeepFullMasksWithoutFabricatingUnknownHosts() {
-        assertEquals("→ JOIN DemoNick01 (demo@2001:db8::1234) #demo", stripIrcFormatting(membershipEventLine(MembershipEvent.JOIN, "DemoNick01", "demo@2001:db8::1234", "#demo")))
+        assertEquals("→ JOIN DemoNick01 (demo@2001:db8::1234)", stripIrcFormatting(membershipEventLine(MembershipEvent.JOIN, "DemoNick01", "demo@2001:db8::1234", "#demo")))
         assertEquals("← PART DemoNick01 (demo@host.example.invalid) #demo [Hasta luego 🙂]", stripIrcFormatting(membershipEventLine(MembershipEvent.PART, "DemoNick01", "demo@host.example.invalid", "#demo", "Hasta luego 🙂")))
         assertEquals("← QUIT DemoNick01", stripIrcFormatting(membershipEventLine(MembershipEvent.QUIT, "DemoNick01", null)))
-        assertEquals("→ JOIN DemoNick01 #demo", membershipEventLine(MembershipEvent.JOIN, "DemoNick01", "demo@host.invalid", "#demo", hideHostnames = true, colors = false))
+        assertEquals("→ JOIN DemoNick01", membershipEventLine(MembershipEvent.JOIN, "DemoNick01", "demo@host.invalid", "#demo", hideHostnames = true, colors = false))
     }
 
     @Test fun dreamsMembershipEventsColorOnlyTheArrowAndKeepReasonsGrey() {

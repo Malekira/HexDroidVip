@@ -245,9 +245,15 @@ internal suspend fun IrcClient.runSlashCommand(cmdLine: String, currentBuffer: S
             // target equals firstArg AND firstArg looked like a channel, drop the
             // first arg from the topic text. Otherwise the whole tail is the topic.
             val firstWasChannel = firstArg != null && isChannelName(firstArg) && target == firstArg
-            val newTopic = (if (firstWasChannel) parts.drop(2) else parts.drop(1))
-                .joinToString(" ")
-                .takeIf { it.isNotBlank() }
+            // Keep interior spacing and formatting. An explicit ':' means set/clear,
+            // while no trailing parameter is still a query (including /topic #channel).
+            val tail = cmdLine.trimStart().replaceFirst(Regex("^\\S+[ \\t]*"), "")
+            val rawTopic = (if (firstWasChannel) tail.removePrefix(firstArg!!).trimStart(' ', '\t') else tail)
+            val newTopic = when {
+                rawTopic.startsWith(':') -> rawTopic.substring(1)
+                rawTopic.isNotBlank() -> rawTopic
+                else -> null
+            }
             sendRaw(if (newTopic == null) "TOPIC $target" else "TOPIC $target :${clampLen(newTopic, "TOPICLEN")}")
         }
         "mode" -> {
