@@ -69,3 +69,27 @@ Dreams y versión 1.0.5 (44), comprobados con apksigner y aapt2. Las pruebas And
 se compilaron localmente; su ejecución se realizará en GitHub Actions porque este
 entorno no tiene emulador ni KVM. El resultado de esa ejecución y su enlace de
 descarga se registran por separado al terminar.
+
+
+## Entrega verificada — 30 de octubre de 2026
+
+- Código de la APK: `bb6268613c61635553a4265da20024d0ec568f68` (reintento sin
+  cambios de código respecto de `79a610d`). Versión 1.0.5 (44).
+- [Ejecución y descarga de la APK](https://github.com/Malekira/HexDroidVip/actions/runs/41124129174).
+- Las etapas de compilación/pruebas JVM, `connectedDebugAndroidTest`, comprobación
+  obligatoria de todas las suites, verificación de firma/identidad y subida de la
+  APK terminaron correctamente. Los informes están en `Phase3-test-reports`.
+- Artifact publicado: **HexDroid-Dreams-debug**, **34,5 MB**, con
+  `HexDroid-Dreams-debug.apk` y `SHA256SUMS.txt`.
+- Desde Samsung: iniciar sesión en GitHub, abrir la ejecución, descargar ese
+  artifact en **Artifacts**, extraer el ZIP en Mis archivos y abrir la APK.
+- Un intento anterior, [41121846370](https://github.com/Malekira/HexDroidVip/actions/runs/41121846370),
+  falló por **Timeout waiting for emulator to boot**: no se ejecutaron las pruebas
+  Android de ese intento. Se reintentó sin omitir comprobaciones; las pruebas
+  Android y su control obligatorio pasaron en la ejecución enlazada de entrega.
+- Firma debug elegida por el usuario; GitHub confirmó que no hay firma debug
+  estable configurada. Esta APK puede no actualizar la instalación anterior.
+  **Si Android rechaza la firma, no desinstalar la app anterior ni borrar sus datos.**
+  Primero exportar ajustes, scripts e historial con las herramientas de la versión
+  instalada. El ZIP de historial es independiente de la copia JSON en esa versión.
+- Rama separada, sin fusiones automáticas. No se incluyen otros cambios pendientes.

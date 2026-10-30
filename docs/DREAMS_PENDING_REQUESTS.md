@@ -13,6 +13,11 @@ Rama de trabajo: `feat/dreams-1.0.4`, basada en `feat/hexdroid-dreams-release`.
   conversaciones sin borrar las existentes ni duplicar las líneas recuperadas.
 - Sin vencimiento ni borrado automático; el original no se mueve al exportar.
 - Detalles y comprobaciones: [DREAMS_HISTORY_BACKUP.md](DREAMS_HISTORY_BACKUP.md).
+- Entrega: **HexDroid Dreams 1.0.5 (44)**; 93 pruebas JVM locales aprobadas,
+  pruebas Android y controles obligatorios aprobados en GitHub Actions.
+- [APK debug publicada](https://github.com/Malekira/HexDroidVip/actions/runs/41124129174),
+  artifact **HexDroid-Dreams-debug** (34,5 MB). Reintento tras un fallo de arranque
+  del emulador, sin omitir pruebas ni modificar funcionalidades.
 - Los cambios pendientes de Retroceso, topics y avisos JOIN no se incluyen aquí.
 
 ## Registro de entrega — 30 de octubre de 2026
