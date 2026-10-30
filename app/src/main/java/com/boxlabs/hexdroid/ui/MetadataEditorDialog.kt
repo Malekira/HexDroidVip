@@ -168,7 +168,7 @@ fun MetadataEditorDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = colorValid,
+                enabled = colorValid && com.boxlabs.hexdroid.validAvatarUrl(edited["avatar"].orEmpty().trim()),
                 modifier = Modifier.focusHighlight(RoundedCornerShape(50)),
                 onClick = {
                     for (f in fields) {

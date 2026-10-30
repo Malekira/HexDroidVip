@@ -33,4 +33,6 @@ object RemoteImage {
 
     /** Fetch and decode [url]; null on any failure. */
     suspend fun fetch(url: String): ImageBitmap? = RemoteBitmaps.fetch(url)?.asImageBitmap()
+
+    suspend fun fetchFull(url: String, retry: Boolean): ImageBitmap? = RemoteBitmaps.fetch(url, fullSize = true, retry = retry)?.asImageBitmap()
 }

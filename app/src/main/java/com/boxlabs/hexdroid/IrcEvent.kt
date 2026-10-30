@@ -103,6 +103,9 @@ sealed class IrcEvent {
     ) : IrcEvent()
 
 
+    data class SupportedUserModes(val modes: String) : IrcEvent()
+    data class OwnUserModes(val modes: String, val snapshot: Boolean = false) : IrcEvent()
+
     // ISUPPORT (005) tokens
     data class ISupport(
         val chantypes: String,

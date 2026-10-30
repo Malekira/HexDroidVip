@@ -242,6 +242,8 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
             val suppressUnread = ev.isHistory && !st.settings.ircHistoryCountsAsUnread
             val allowNotify = if (ev.isHistory) st.settings.ircHistoryTriggersNotifications else true
             val targetKey = resolveIncomingBufferKey(netId, ev.target)
+            val newPrivate = ev.isPrivate && !fromMe && targetKey !in st.buffers && !ev.isHistory &&
+                (ev.timeMs == null || ev.timeMs >= System.currentTimeMillis() - BufferLog.REPLAY_SUSPICION_MS)
 
             if (ownAnswer != null) {
                 attachEchoMsgId(targetKey, ev.text, ev.isAction, ev.msgId, my)
@@ -269,6 +271,9 @@ internal fun IrcViewModel.handleMessageEvent(netId: String, ev: IrcEvent) {
                 r?.text ?: ev.text
             } else ev.text
             if (gatePrivateMessage(netId, ev, shownText, targetKey)) return
+            if (newPrivate && !dupByMsgId && isReplyNick(ev.from)) {
+                showNativePrivateAttempt(netId, ev.from, "* <${ev.from}> Inició una conversación privada. El mensaje se recibió en su privado.")
+            }
             if (!prepareBeforeScript) prepareIncomingMessageBuffer(targetKey, ev.from, fromMe)
             val highlight = if (fromMe) false else isHighlight(netId, shownText, ev.isPrivate, targetKey)
             if (!ev.isPrivate && isChannelOnNet(netId, splitKey(targetKey).second)) {

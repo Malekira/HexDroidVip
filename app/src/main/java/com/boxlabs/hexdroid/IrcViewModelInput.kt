@@ -227,7 +227,8 @@ internal fun IrcViewModel.sendInputInternal(raw: String, aliasDepth: Int, target
         if (strippedForCommandCheck.startsWith("/")) {
             // Use the stripped string to parse the command name/args, but content
             // after the command verb is taken from strippedForCommandCheck directly.
-            val cmdLine = strippedForCommandCheck.drop(1).substringBefore('\n').trim()
+            val cmdLine = normalizeJoinAlias(strippedForCommandCheck.drop(1).substringBefore('\n').trim(),
+                rt?.support?.chantypes ?: "#&!+")
             val cmd = cmdLine.substringBefore(' ').lowercase()
 
             // A typed /join is forwarded to the client below (the else branch) and is

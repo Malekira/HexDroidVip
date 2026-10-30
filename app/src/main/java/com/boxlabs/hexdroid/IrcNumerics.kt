@@ -150,6 +150,15 @@ internal fun IrcClient.buildNumericHandlers(
             }
         },
 
+        "004" to handler@{ msg, _, _, _ ->
+            send(IrcEvent.SupportedUserModes(msg.params.getOrNull(3).orEmpty()))
+            writeLine("MODE $currentNick")
+        },
+        "221" to handler@{ msg, _, _, _ ->
+            if (nickEquals(msg.params.firstOrNull().orEmpty(), currentNick)) {
+                send(IrcEvent.OwnUserModes(msg.params.getOrNull(1) ?: msg.trailing.orEmpty(), snapshot = true))
+            }
+        },
         "005" to handler@{ msg, _, _, _ ->
             // ISUPPORT: drive channel detection, prefix rank mapping, and casemapping.
             // Example: PREFIX=(qaohv)~&@%+ CHANTYPES=#& CASEMAPPING=rfc1459 STATUSMSG=@+

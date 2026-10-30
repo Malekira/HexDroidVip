@@ -585,7 +585,8 @@ fun ChatScreen(
         onShareTextConsumed()
     }
 
-    val inputHistory = remember(selected) { mutableListOf<String>() }
+    val histories = remember { mutableMapOf<String, androidx.compose.runtime.snapshots.SnapshotStateList<String>>() }
+    val inputHistory = histories.getOrPut(selected) { mutableStateListOf() }
     var historyIndex by remember(selected) { mutableStateOf(-1) }
     var inputSnapshot by remember(selected) { mutableStateOf("") }
 
@@ -720,7 +721,11 @@ fun ChatScreen(
         if (state.settings.imagePreviewsEnabled &&
             state.networks.firstOrNull { it.id == selNetId }?.proxyType ==
                 com.boxlabs.hexdroid.connection.ProxyType.NONE
-        ) state.connections[selNetId]?.avatarUrls ?: emptyMap()
+        ) (state.connections[selNetId]?.avatarUrls ?: emptyMap()).let { urls ->
+            val own = state.profileAvatarUrls[selNetId]
+            if (own == null) urls else if (own.isBlank()) urls - myNick.lowercase()
+            else urls + (myNick.lowercase() to own)
+        }
         else emptyMap()
     // draft/metadata-2 nick colours (6 hex digits, no #), keyed by lowercased nick.
     // Applied below a manual own-nick override, above the hash colour.
@@ -847,6 +852,8 @@ fun ChatScreen(
     // Metadata editor and guided account-registration dialogs. Keyed to the selected
     // network so switching networks dismisses a stale dialog.
     var showMetadataEditor by remember(selNetId) { mutableStateOf(false) }
+    var expandedAvatar by remember(selNetId) { mutableStateOf<Pair<String, String>?>(null) }
+    var avatarRefresh by remember(selNetId) { mutableIntStateOf(0) }
     var showRegistration by remember(selNetId) { mutableStateOf(false) }
     var topicExpanded by remember(selected, topic) { mutableStateOf(false) }
     var topicHasOverflow by remember(selected, topic) { mutableStateOf(false) }
@@ -866,6 +873,25 @@ fun ChatScreen(
         if (isWide || !isChannel) showNickSheet = false
     }
 
+    fun recallPrevious(): Boolean {
+        if (inputHistory.isEmpty()) return false
+        if (historyIndex == -1) inputSnapshot = input.text
+        historyIndex = if (historyIndex == -1) inputHistory.lastIndex else (historyIndex - 1).coerceAtLeast(0)
+        val recalled = inputHistory[historyIndex]
+        input = TextFieldValue(recalled, TextRange(recalled.length))
+        onTypingChanged(recalled)
+        return true
+    }
+
+    fun recallNext(): Boolean {
+        if (historyIndex == -1) return false
+        historyIndex = if (historyIndex + 1 > inputHistory.lastIndex) -1 else historyIndex + 1
+        val recalled = if (historyIndex == -1) inputSnapshot else inputHistory[historyIndex]
+        input = TextFieldValue(recalled, TextRange(recalled.length))
+        onTypingChanged(recalled)
+        return true
+    }
+
     fun sendNow() {
         val t = input.text.trim()
         if (t.isEmpty()) return
@@ -881,7 +907,7 @@ fun ChatScreen(
             selectedFgColor, selectedBgColor, boldActive, italicActive, underlineActive, reverseActive,
         ).apply(t)
 
-        if (inputHistory.lastOrNull() != t) inputHistory.add(t)
+        if (com.boxlabs.hexdroid.mayRecallInput(t) && inputHistory.lastOrNull() != t) inputHistory.add(t)
         if (inputHistory.size > 50) inputHistory.removeAt(0)
         historyIndex = -1
         inputSnapshot = ""
@@ -1527,21 +1553,10 @@ fun ChatScreen(
                         val avatarSize = (nickFontSp + 4f).dp
                         val avatarGap = (nickFontSp * 0.3f).dp
                         if (nickAvatar != null) {
-                            var avatarBmp by remember(nickAvatar) { mutableStateOf(RemoteImage.cached(nickAvatar)) }
-                            LaunchedEffect(nickAvatar) { if (avatarBmp == null) avatarBmp = RemoteImage.fetch(nickAvatar) }
-                            avatarBmp?.let { bmp ->
-                                Image(
-                                    bitmap = bmp,
-                                    contentDescription = null,
-                                    filterQuality = FilterQuality.High,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .padding(end = avatarGap)
-                                        .size(avatarSize)
-                                        .clip(CircleShape)
-                                        .alpha(if (isAway) 0.6f else 1f),
-                                )
-                            } ?: Spacer(Modifier.width(avatarSize + avatarGap))
+                            AvatarThumbnail(nickAvatar, cleaned,
+                                Modifier.padding(end = avatarGap).size(avatarSize).alpha(if (isAway) 0.6f else 1f), avatarRefresh) {
+                                expandedAvatar = nickAvatar to cleaned
+                            }
                         } else if (state.settings.showNickIcons) {
                             // No avatar, so the slot carries presence instead of standing
                             // empty: red for away, green for here.
@@ -3477,13 +3492,7 @@ fun ChatScreen(
                                         input.selection.start > input.text.indexOf('\n')) {
                                         return@onPreviewKeyEvent false
                                     }
-                                    if (historyIndex == -1) inputSnapshot = input.text
-                                    val next = (if (historyIndex == -1) inputHistory.lastIndex
-                                                else (historyIndex - 1).coerceAtLeast(0))
-                                    historyIndex = next
-                                    val recalled = inputHistory[next]
-                                    input = TextFieldValue(recalled, androidx.compose.ui.text.TextRange(recalled.length))
-                                    true
+                                    recallPrevious()
                                 }
                                 Key.DirectionDown -> {
                                     // Down-arrow walks forward through history; same first-line
@@ -3493,17 +3502,7 @@ fun ChatScreen(
                                         input.selection.start <= input.text.lastIndexOf('\n')) {
                                         return@onPreviewKeyEvent false
                                     }
-                                    val next = historyIndex + 1
-                                    if (next > inputHistory.lastIndex) {
-                                        historyIndex = -1
-                                        val snap = inputSnapshot
-                                        input = TextFieldValue(snap, androidx.compose.ui.text.TextRange(snap.length))
-                                    } else {
-                                        historyIndex = next
-                                        val recalled = inputHistory[next]
-                                        input = TextFieldValue(recalled, androidx.compose.ui.text.TextRange(recalled.length))
-                                    }
-                                    true
+                                    recallNext()
                                 }
                                 else -> false
                             }
@@ -3547,6 +3546,15 @@ fun ChatScreen(
 				)
 
                 run {
+                    IconButton(onClick = { recallPrevious() }, enabled = inputHistory.isNotEmpty(),
+                        modifier = Modifier.size(36.dp).testTag("input-history-previous")) {
+                        Icon(Icons.Default.KeyboardArrowUp, stringResource(R.string.dreams_previous_input))
+                    }
+                    if (historyIndex != -1) {
+                        IconButton(onClick = { recallNext() }, modifier = Modifier.size(36.dp).testTag("input-history-next")) {
+                            Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.dreams_next_input))
+                        }
+                    }
                     val sendInteraction = remember { MutableInteractionSource() }
                     val sendPressed by sendInteraction.collectIsPressedAsState()
                     val accents = LocalAccentColors.current
@@ -4878,6 +4886,10 @@ fun ChatScreen(
         )
     }
 
+    expandedAvatar?.let { (url, nick) ->
+        // Closing the viewer leaves the room and any nick sheet open behind it.
+        if (metadataAvatars.values.contains(url)) AvatarViewer(url, nick, onDismiss = { expandedAvatar = null; avatarRefresh++ })
+    }
     if (showMetadataEditor && viewModel != null && selNetId.isNotBlank()) {
         MetadataEditorDialog(
             networkId = selNetId,
@@ -5261,16 +5273,8 @@ fun ChatScreen(
                         // Avatar (draft/metadata-2), gated identically to the message rows:
                         // only when image previews are on and this profile is unproxied.
                         if (sheetAvatar != null) {
-                            var bmp by remember(sheetAvatar) { mutableStateOf(RemoteImage.cached(sheetAvatar)) }
-                            LaunchedEffect(sheetAvatar) { if (bmp == null) bmp = RemoteImage.fetch(sheetAvatar) }
-                            bmp?.let {
-                                Image(
-                                    bitmap = it,
-                                    contentDescription = null,
-                                    filterQuality = FilterQuality.High,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.size(44.dp).clip(CircleShape),
-                                )
+                            AvatarThumbnail(sheetAvatar, selectedNick, Modifier.size(44.dp), avatarRefresh) {
+                                expandedAvatar = sheetAvatar to selectedNick
                             }
                         }
                         Column {

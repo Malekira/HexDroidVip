@@ -739,6 +739,7 @@ internal suspend fun IrcClient.handleMessageCommand(
                         // the target nick then lives in msg.trailing, not msg.params. Fold trailing
                         // back in as the last positional parameter so mode arguments stay aligned.
                         val modeStr = msg.params.getOrNull(1) ?: msg.trailing ?: ""
+                        send(IrcEvent.OwnUserModes(modeStr))
                         var adding = true
                         for (ch in modeStr) {
                             when (ch) {

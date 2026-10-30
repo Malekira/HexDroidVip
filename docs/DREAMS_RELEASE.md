@@ -6,7 +6,7 @@ Base validada por el usuario: HexDroid Personal `1.7.8-personal3.1` (38), commit
 ## Identidad y alcance
 
 - Nombre visible: **HexDroid Dreams**, también en los recursos de otros idiomas.
-- Versión preparada: **1.0.3**, código interno **42**.
+- Versión preparada: **1.0.4**, código interno **43**.
 - Paquete final existente: `com.malekira.hexdroid.personal`.
 - Paquete de prueba existente: `com.malekira.hexdroid.personal.debug`.
 - Se conservan el código probado, la GPLv3 y los créditos originales.

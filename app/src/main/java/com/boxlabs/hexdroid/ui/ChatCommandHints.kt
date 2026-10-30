@@ -77,6 +77,7 @@ internal val IRC_COMMANDS = listOf(
 
     // Channels
     IrcCommand("join", "/join <channel> [key]", R.string.cmd_join),
+    IrcCommand("j", "/j sala [key]", R.string.cmd_join),
     IrcCommand("part", "/part [channel] [reason]", R.string.cmd_part),
     IrcCommand("cycle", "/cycle [channel]", R.string.cmd_cycle),
     IrcCommand("topic", "/topic [new topic]", R.string.cmd_topic),

@@ -1949,4 +1949,33 @@
     <string name="dreams_welcome_translations">Colaboraciones de traducción: %1$s.</string>
     <string name="dreams_welcome_thanks">Gracias a los autores originales, colaboradores y bibliotecas de software libre.</string>
     <string name="dreams_welcome_license">Software libre bajo GPLv3 o posterior. Se conservan los créditos originales.</string>
+
+    <!-- HexDroid Dreams 1.0.4 -->
+    <string name="dreams_visible_sound">Sonar al mencionarme en la sala visible</string>
+    <string name="dreams_visible_sound_hint">Usa la misma notificación Android que las demás menciones, una sola vez por mensaje. Activá las notificaciones y los avisos de menciones. Respeta volumen, canales de Android y No molestar.</string>
+    <string name="dreams_private_controls">Privados y perfil por red</string>
+    <string name="dreams_mode_g">Restringir privados (+g)</string>
+    <string name="dreams_mode_r">Privados solo de usuarios registrados (+R)</string>
+    <string name="dreams_mode_offline">Conectá esta red para cambiar sus modos.</string>
+    <string name="dreams_mode_unsupported">Esta red no anunció este modo.</string>
+    <string name="dreams_mode_unknown">Esperando que el servidor informe tus modos.</string>
+    <string name="dreams_mode_confirmed">Estado actual informado por el servidor.</string>
+    <string name="dreams_mode_hint">Estos modos restringen mensajes; no son un sistema local de aceptar o rechazar. Su significado y excepciones dependen de la red. El control cambia solo tras la confirmación del servidor. No se fuerzan al reconectar.</string>
+    <string name="dreams_own_avatar">Mi foto de perfil</string>
+    <string name="dreams_avatar_url">Dirección directa de la foto (HTTPS)</string>
+    <string name="dreams_avatar_invalid">Introducí una dirección HTTPS directa de imagen, sin credenciales, espacios ni fragmento.</string>
+    <string name="dreams_avatar_shared">La URL guardada se envía mediante los metadatos de usuario de esta red. Los otros clientes deben admitir avatares para verla.</string>
+    <string name="dreams_avatar_local">Guardá la URL en este teléfono. Se compartirá al conectar solo si la red admite metadatos de usuario; de lo contrario, los demás no la recibirán.</string>
+    <string name="dreams_avatar_privacy">Usá una imagen ya alojada en Internet; esto no sube fotos. La URL es pública en las redes compatibles. Para cargar fotos deben estar activadas las vistas previas; los perfiles con proxy no descargan avatares externos.</string>
+    <string name="dreams_select_network">Agregá una red para configurar su perfil y sus modos.</string>
+    <string name="dreams_private_alerts">Avisos de intentos de privado</string>
+    <string name="dreams_private_notice">NOTICE resaltado en la ventana activa</string>
+    <string name="dreams_private_floating">Aviso flotante dentro de la app</string>
+    <string name="dreams_private_alert_hint">Elegí un destino o ambos. Las respuestas del servidor permanecen en Status. Con +g/+R solo se puede avisar si el servidor informa del intento; el contenido bloqueado no está disponible. También se avisa al recibir una conversación privada nueva. No se agregan scripts ni respuestas automáticas.</string>
+    <string name="dreams_expand_avatar">Ampliar foto de %1$s</string>
+    <string name="dreams_full_avatar">Foto de perfil completa</string>
+    <string name="dreams_avatar_load_error">No se pudo cargar la foto. El enlace puede no estar disponible o la imagen puede superar el tamaño admitido.</string>
+    <string name="dreams_retry">Reintentar</string>
+    <string name="dreams_previous_input">Recuperar mensaje anterior</string>
+    <string name="dreams_next_input">Mensaje siguiente o recuperar borrador</string>
 </resources>

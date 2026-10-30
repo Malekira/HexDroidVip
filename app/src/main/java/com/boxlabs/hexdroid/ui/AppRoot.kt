@@ -20,6 +20,8 @@ package com.boxlabs.hexdroid.ui
 import com.boxlabs.hexdroid.moveWhois
 import com.boxlabs.hexdroid.minimizeWhois
 import com.boxlabs.hexdroid.closeWhois
+import com.boxlabs.hexdroid.setNativePrivateMode
+import com.boxlabs.hexdroid.dismissPrivateAttempt
 
 import android.app.Activity
 import android.os.Build
@@ -417,6 +419,8 @@ fun AppRoot(
                 AppScreen.PRIVATE_SCRIPT_SETTINGS -> PrivateRequestScriptSettingsScreen(state, { vm.goTo(AppScreen.SCRIPTS) },
                     vm::updateSettings, { vm.goTo(AppScreen.PRIVATE_REQUESTS) }, vm::revokePrivateAuthorizations)
                 AppScreen.SETTINGS -> SettingsScreen(
+                    onNativePrivateMode = vm::setNativePrivateMode,
+                    onProfileAvatar = { network, url -> vm.setOwnMetadata(network, "avatar", url) },
                     onOpenPersonalHistory = { vm.goTo(AppScreen.PERSONAL_HISTORY) },
                     state = state,
                     onBack = vm::backToChat,
@@ -606,6 +610,8 @@ fun AppRoot(
     if (state.screen == AppScreen.CHAT) {
         WhoisOverlay(state.whoisWindows, state.networks.associate { it.id to it.name },
             onMinimize = vm::minimizeWhois, onClose = vm::closeWhois, onMove = vm::moveWhois)
+        val privateAlert = state.privateAttemptAlerts.firstOrNull { it.network == state.selectedBuffer.substringBefore("::") }
+        PrivateAttemptOverlay(privateAlert, state.networks.firstOrNull { it.id == privateAlert?.network }?.name.orEmpty(), vm::dismissPrivateAttempt)
     }
 
     mountedScriptView?.let { mv ->

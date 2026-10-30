@@ -456,6 +456,8 @@ fun SettingsScreen(
     onOpenIgnoreList: () -> Unit,
     onOpenScripts: () -> Unit = {},
     onOpenPersonalHistory: () -> Unit = {},
+    onNativePrivateMode: (String, Char, Boolean) -> Unit = { _, _, _ -> },
+    onProfileAvatar: (String, String?) -> Unit = { _, _ -> },
     tourActive: Boolean = false,
     tourTarget: TourTarget? = null,
     /** Export a backup to the picked file, with passwords encrypted by the passphrase when one is given. */
@@ -1030,6 +1032,7 @@ fun SettingsScreen(
 
             if (onePage || current == SettingsCategory.CHAT) {
             if (onePage) item(key = "hdr_CHAT") { OnePageHeader(SettingsCategory.CHAT) }
+            item { DreamsChatSettings(state, onUpdate, onNativePrivateMode, onProfileAvatar) }
             item {
                 SettingToggle(stringResource(R.string.setting_colorise_nicks), s.colorizeNicks) { onUpdate { copy(colorizeNicks = !colorizeNicks) } }
                 SettingToggle(stringResource(R.string.setting_show_nick_icons), s.showNickIcons) { onUpdate { copy(showNickIcons = !showNickIcons) } }
@@ -1290,6 +1293,7 @@ fun SettingsScreen(
             if (onePage) item(key = "hdr_HIGHLIGHTS") { OnePageHeader(SettingsCategory.HIGHLIGHTS) }
 
             item { SettingToggle(stringResource(R.string.p2_notify_visible), s.notifyMentionsWhileVisible) { onUpdate { copy(notifyMentionsWhileVisible = !notifyMentionsWhileVisible) } } }
+            item { Column { VisibleMentionSoundSetting(s, onUpdate) } }
             item { SettingToggle(stringResource(R.string.p2_highlight), s.mentionHighlightEnabled) { onUpdate { copy(mentionHighlightEnabled = !mentionHighlightEnabled) } } }
             item { MentionColorSettings(s, onUpdate) }
             item { SettingToggle(stringResource(R.string.setting_highlight_my_nick), s.highlightOnNick) { onUpdate { copy(highlightOnNick = !highlightOnNick) } } }

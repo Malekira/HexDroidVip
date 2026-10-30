@@ -7,6 +7,7 @@ on:
       - feat/personal-phase2
       - feat/personal-phase3
       - feat/hexdroid-dreams-release
+      - feat/dreams-1.0.4
   workflow_dispatch:
 
 permissions:
@@ -124,7 +125,7 @@ jobs:
                   for case in cases:
                       identity = case.get('classname', '') + '.' + case.get('name', '')
                       discovered.append(identity)
-                      if 'PersonalPhase3' in case.get('classname', '') and case.find('skipped') is None and case.find('failure') is None and case.find('error') is None:
+                      if any(suite in case.get('classname', '') for suite in ('PersonalPhase3', 'Dreams104')) and case.find('skipped') is None and case.find('failure') is None and case.find('error') is None:
                           phase3_passed.add(identity)
                       if expected in case.get('name', '') and case.find('skipped') is None and case.find('failure') is None and case.find('error') is None:
                           overlay_executed = True
@@ -132,9 +133,12 @@ jobs:
                           out.write(f"\n```text\n{identity}: {(failure.text or failure.get('message', ''))[:6000]}\n```\n")
                           diagnostic = identity + ': ' + (failure.text or failure.get('message', ''))[:4000]
                           print('::error::' + diagnostic.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
-          if os.environ.get('GITHUB_REF_NAME') in ('feat/personal-phase3', 'feat/hexdroid-dreams-release'):
+          if os.environ.get('GITHUB_REF_NAME') in ('feat/personal-phase3', 'feat/hexdroid-dreams-release', 'feat/dreams-1.0.4'):
               sources = [pathlib.Path('app/src/test/java/com/boxlabs/hexdroid/PersonalPhase3Test.kt')]
               sources += [pathlib.Path('app/src/androidTest/java/com/boxlabs/hexdroid', name) for name in ['PersonalPhase3StorageTest.kt', 'PersonalPhase3UiTest.kt', 'PersonalPhase3PrivateFlowTest.kt']]
+              if os.environ.get('GITHUB_REF_NAME') == 'feat/dreams-1.0.4':
+                  sources += [pathlib.Path('app/src/test/java/com/boxlabs/hexdroid/Dreams104Test.kt')]
+                  sources += [pathlib.Path('app/src/androidTest/java/com/boxlabs/hexdroid', name) for name in ['Dreams104AndroidTest.kt', 'Dreams104UiTest.kt']]
               for source in sources:
                   methods = re.findall(r'@Test\s+fun\s+(\w+)\s*\(', source.read_text())
                   if not methods:

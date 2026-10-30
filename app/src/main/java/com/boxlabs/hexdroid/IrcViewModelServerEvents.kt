@@ -56,7 +56,8 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                             // and "Trust this server too" buttons hide on the next render. Stashed
                             // actual-fp is dropped because it's now either in the trust set or has
                             // been superseded by a full reset.
-                            it.copy(connecting = false, connected = true, status = appContext.getString(R.string.vm_status_connected_to, ev.server), lagMs = null, tlsPinMismatch = false, tlsPinMismatchActualFp = null, tlsHostnameMismatchIdentities = null)
+                            it.copy(connecting = false, connected = true, status = appContext.getString(R.string.vm_status_connected_to, ev.server), lagMs = null, tlsPinMismatch = false, tlsPinMismatchActualFp = null, tlsHostnameMismatchIdentities = null,
+                                supportedUserModes = "", userModes = "", userModesKnown = false, hasUserMetadata = false)
                         }
                         // Arm the history divider for this network's existing query buffers: bouncer
                         // playback delivers PMs without a JOIN, so the JOIN handler's arming doesn't cover
@@ -590,6 +591,11 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                         }
                     }
 
+                    is IrcEvent.SupportedUserModes -> setNetConn(netId) { it.copy(supportedUserModes = ev.modes) }
+                    is IrcEvent.OwnUserModes -> setNetConn(netId) {
+                        it.copy(userModes = updatedUserModes(it.userModes, ev.modes, ev.snapshot),
+                            userModesKnown = it.userModesKnown || ev.snapshot)
+                    }
                     is IrcEvent.YoureOper -> {
                         append(bufKey(netId, "*server*"), from = null, text = "*** ${ev.message}", doNotify = false)
                         setNetConn(netId) { it.copy(isIrcOper = true) }
@@ -807,7 +813,8 @@ internal fun IrcViewModel.handleServerEvent(netId: String, ev: IrcEvent) {
                             (rt0.client.hasCap("message-tags") || rt0.client.hasCap("draft/message-reactions"))
                         val hasRedact = rt0 != null &&
                             (rt0.client.hasCap("draft/message-redaction") || rt0.client.hasCap("message-redaction"))
-                        setNetConn(netId) { it.copy(myNick = ev.nick, hasReactionSupport = hasReact, hasRedactionSupport = hasRedact) }
+                        setNetConn(netId) { it.copy(myNick = ev.nick, hasReactionSupport = hasReact, hasRedactionSupport = hasRedact,
+                            hasUserMetadata = serverSupportsMetadata(netId)) }
                         _state.value.buffers.keys.filter { it.startsWith("$netId::") }
                             .forEach { requestQueryReadMarker(netId, splitKey(it).second) }
                         // Re-send our own metadata so display name / avatar / colour etc. survive a

@@ -90,6 +90,7 @@ internal suspend fun IrcViewModel.ensureOwnMetadataLoaded() {
             val target = ownMetadataStore.getOrPut(netId) { java.util.concurrent.ConcurrentHashMap() }
             keys.forEach { (k, v) -> target.putIfAbsent(k, v) }
         }
+        _state.update { it.copy(profileAvatarUrls = ownMetadataStore.mapNotNull { (id, keys) -> keys["avatar"]?.let { url -> id to url } }.toMap()) }
         ownMetadataLoaded = true
     }
 }

@@ -30,7 +30,7 @@ import java.time.Instant
 import java.util.Locale
 
 internal suspend fun IrcClient.runSlashCommand(cmdLine: String, currentBuffer: String) {
-    val parts = cmdLine.trim().split(Regex("\\s+"))
+    val parts = normalizeJoinAlias(cmdLine, chantypes).trim().split(Regex("\\s+"))
     if (parts.isEmpty()) return
     val cmd = parts[0].lowercase()
 

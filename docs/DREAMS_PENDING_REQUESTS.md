@@ -1,10 +1,19 @@
 # Pedidos pendientes de HexDroid Dreams
 
-Estado: los cuatro primeros pedidos se entregaron en 1.0.1; los nuevos pedidos se implementan en 1.0.2 por autorización «Implementa todo».
+Estado: pedidos registrados implementados hasta HexDroid Dreams 1.0.3 (42).
 Rama de trabajo: `feat/hexdroid-dreams-release`, basada en la Fase 3 aprobada.
 
-Plan: aplicar los cuatro pedidos, ejecutar pruebas JVM y Android, compilar y
-publicar la APK en GitHub Actions sin fusionar ramas.
+## Registro de entrega — 29 de octubre de 2026
+
+- Versión entregada: **HexDroid Dreams 1.0.3 (42)**, commit `6243360`.
+- Cambios documentados en [DREAMS_1_0_3.md](DREAMS_1_0_3.md).
+- Pruebas ejecutadas: 82 pruebas JVM y las pruebas Android requeridas, aprobadas.
+- APK debug firmada y publicada como artifact **HexDroid-Dreams-debug** en
+  [GitHub Actions](https://github.com/Malekira/HexDroidVip/actions/runs/40925673513).
+- Firma elegida por el usuario: debug. Si Android rechaza la actualización por
+  firma, conservar la instalación anterior para proteger sus datos.
+- Sin fusionar ramas. A petición «Anotalo», se registra la entrega sin nuevos
+  cambios en la aplicación.
 
 ## Duplicar red
 
@@ -112,3 +121,24 @@ existente, con otro nombre y sin modificar la red original.
 - Conservar los créditos originales y la licencia GPLv3; usar la información real
   del repositorio, sin inventar autores o atribuciones.
 - Implementado en 1.0.3 por autorización «Bien, actualiza la app».
+
+
+## Actualización 1.0.4 autorizada el 30 de octubre de 2026
+
+Indicación expresa: «realiza los pendientes y compila una nueva version».
+Rama de revisión: `feat/dreams-1.0.4`; no se modifica la rama anterior.
+
+- Foto propia mediante URL HTTPS por red, guardada localmente y compartida solo
+  cuando el servidor admite metadatos. Tocar una foto abre la imagen completa,
+  con carga, error y reintento. Mejora de descarga con límites y redirecciones HTTPS.
+- `/j sala` equivale a `/join #sala`, conservando claves y prefijos de la red.
+- Opción nativa de sonido al recibir menciones en la sala visible.
+- Controles nativos `+g`/`+R`, con soporte anunciado y confirmación del servidor.
+- Avisos de PV como NOTICE resaltado en la ventana activa de la misma red,
+  aviso flotante interno o ambos. No se reinstala el script retirado ni se
+  inventa contenido bloqueado por el servidor.
+- Flechas táctiles para recuperar mensajes anteriores, editarlos antes de enviar
+  y volver al borrador. Se eligen botones propios; no se cambia Borrar sin una
+  elección explícita. Historial de escritura solo en memoria, sin comandos con claves.
+
+Detalle, límites y verificación: [DREAMS_1_0_4.md](DREAMS_1_0_4.md).

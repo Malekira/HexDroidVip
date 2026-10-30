@@ -65,6 +65,10 @@ data class SettingsSearchEntry(
  * Every setting the search can reach, in the order the categories are listed.
  */
 val SETTINGS_SEARCH_INDEX: List<SettingsSearchEntry> = listOf(
+    SettingsSearchEntry(R.string.dreams_visible_sound, SettingsCategory.HIGHLIGHTS, keywords = "sonido sonido menciones visible sound sala"),
+    SettingsSearchEntry(R.string.dreams_private_controls, SettingsCategory.CHAT, keywords = "pv privados +g +R modos cerrar"),
+    SettingsSearchEntry(R.string.dreams_own_avatar, SettingsCategory.CHAT, keywords = "avatar foto perfil url dirección"),
+    SettingsSearchEntry(R.string.dreams_private_alerts, SettingsCategory.CHAT, keywords = "pv solicitud notice flotante activa"),
     SettingsSearchEntry(R.string.personal_whois_destinations, SettingsCategory.IRC,
         descRes = R.string.personal_reply_destinations_desc, keywords = "whois idle status privado destinos presentación"),
     SettingsSearchEntry(R.string.personal_notice_destinations, SettingsCategory.IRC,

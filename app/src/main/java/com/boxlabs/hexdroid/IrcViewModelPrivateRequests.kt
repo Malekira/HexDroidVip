@@ -113,13 +113,8 @@ internal fun IrcViewModel.handleCallerIdNumeric(netId: String, ev: IrcEvent.Serv
     if (!hasPrivateRequestPolicy()) {
         // Keep the real +g notice visible after withdrawing the optional request addon.
         // It must not enqueue a request, send an auto-reply or create a private buffer.
-        val status = bufKey(netId, "*server*")
-        val active = _state.value.selectedBuffer.takeIf { splitKey(it).first == netId && it in _state.value.buffers }
         val notice = "* <$nick> Intento de PV bloqueado por +g. El servidor no entregó el contenido del mensaje."
-        for (key in setOfNotNull(status, active)) {
-            append(key, from = null, text = if (key == status) "$notice ${ev.text}" else notice,
-                isHighlightedNotice = key == active, doNotify = false)
-        }
+        showNativePrivateAttempt(netId, nick, notice, ev.text)
         return true
     }
     if (!scriptHoldsPrivateRequest(netId, nick, blocked = true)) return false
@@ -155,6 +150,44 @@ internal fun IrcViewModel.handleCallerIdNumeric(netId: String, ev: IrcEvent.Serv
         }
     }
     return true
+}
+
+/** Native presentation only: no addon, pending conversation, automatic response or fake content. */
+internal fun IrcViewModel.showNativePrivateAttempt(netId: String, nick: String, text: String, serverText: String? = null) {
+    val st = _state.value
+    val status = bufKey(netId, "*server*")
+    val muted = isNotifyIgnoredSender(netId, nick)
+    val active = st.selectedBuffer.takeIf { splitKey(it).first == netId && it in st.buffers }
+    val targets = linkedSetOf(status)
+    if (st.settings.privateAttemptActiveNotice && !muted && active != null) targets.add(active)
+    for (key in targets) append(key, from = null, text = if (key == status && serverText != null) "$text $serverText" else text,
+        isHighlightedNotice = key == active && st.settings.privateAttemptActiveNotice && !muted, doNotify = false)
+    if (st.settings.privateAttemptFloating && !muted) {
+        val alert = PrivateAttemptAlert(nextUiMsgId.getAndIncrement(), netId, nick, text)
+        _state.update { it.copy(privateAttemptAlerts = (it.privateAttemptAlerts + alert).takeLast(8)) }
+    }
+}
+
+fun IrcViewModel.dismissPrivateAttempt(id: Long) {
+    _state.update { it.copy(privateAttemptAlerts = it.privateAttemptAlerts.filterNot { alert -> alert.id == id }) }
+}
+
+fun IrcViewModel.setNativePrivateMode(netId: String, mode: Char, enabled: Boolean) {
+    viewModelScope.launch {
+        try {
+            val rt = runtimes[netId] ?: error("Red desconectada")
+            val st = _state.value
+            val conn = st.connections[netId] ?: error("Red desconectada")
+            val command = privateModeCommand(rt.client.isConnectedNow(), conn.myNick, mode, enabled,
+                conn.supportedUserModes, netId in st.callerIdNetworks, conn.userModes)
+            rt.client.sendRaw(command)
+            // The switch changes only after the server's actual MODE/221 reply.
+            rt.client.sendRaw("MODE ${conn.myNick}")
+            _state.update { it.copy(privateRequestMessage = "Se solicitó ${if (enabled) '+' else '-'}$mode. Esperando confirmación del servidor; revisá Status.") }
+        } catch (e: Exception) {
+            _state.update { it.copy(privateRequestMessage = "No se cambió el modo: ${e.message}") }
+        }
+    }
 }
 
 fun IrcViewModel.callerIdAction(netId: String, operation: String) {

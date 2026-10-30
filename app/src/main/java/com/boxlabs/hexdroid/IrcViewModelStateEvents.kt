@@ -442,7 +442,7 @@ internal fun IrcViewModel.handleStateEvent(netId: String, ev: IrcEvent) {
                         // Only https URLs are retained; the renderer additionally
                         // gates on the image-previews opt-in and an unproxied profile.
                         val url = sanitizeMetadataValue(ev.value, maxLen = 512)
-                            ?.takeIf { it.startsWith("https://") }
+                            ?.takeIf { it.isNotBlank() && validAvatarUrl(it) }
                         st.copy(avatarUrls =
                             if (url == null) st.avatarUrls - mdKey
                             else st.avatarUrls + (mdKey to url))

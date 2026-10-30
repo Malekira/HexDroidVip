@@ -1306,7 +1306,7 @@ internal fun IrcViewModel.append(
         && st.screen == AppScreen.CHAT
         && AppVisibility.isForeground) || bufferKey in bubblesShowing
     if (isActivelyVisible && !isHistory && from != null && !isFromMe) sendReadReceipt(bufferKey)
-    if (mayNotify && mayNotifyVisibleMention(isActivelyVisible, st.settings.notifyMentionsWhileVisible, msg.isMention, isFromMe, isHistory || suspectReplay) && !quiet && st.settings.notificationsEnabled) {
+    if (mayNotify && mayNotifyVisibleMention(isActivelyVisible, st.settings.notifyMentionsWhileVisible || st.settings.soundMentionsWhileVisible, msg.isMention, isFromMe, isHistory || suspectReplay) && !quiet && st.settings.notificationsEnabled) {
         val (netId, bufferName) = splitKey(bufferKey)
         val cleanText = stripIrcFormatting(text)
         val preview = when {
@@ -1356,7 +1356,8 @@ internal fun IrcViewModel.append(
                 }
             }
             effectiveHighlight && st.settings.notifyOnHighlights -> {
-                val posted = runCatching { notifier.notifyHighlight(netId, bufferForNotif, preview, st.settings.playSoundOnHighlight, msg.id, notifTitle, from = senderNick, originalText = originalSnippet, msgAnchor = msgAnchor, networkName = netDisplayName, body = notifBody, timeMs = ts, selfName = selfNick) }
+                val playSound = if (isActivelyVisible && msg.isMention) st.settings.soundMentionsWhileVisible || st.settings.playSoundOnHighlight else st.settings.playSoundOnHighlight
+                val posted = runCatching { notifier.notifyHighlight(netId, bufferForNotif, preview, playSound, msg.id, notifTitle, from = senderNick, originalText = originalSnippet, msgAnchor = msgAnchor, networkName = netDisplayName, body = notifBody, timeMs = ts, selfName = selfNick) }
                     .getOrDefault(false)
                 if (posted && st.settings.vibrateOnHighlight) {
                     runCatching { vibrateForHighlight(st.settings.vibrateIntensity) }

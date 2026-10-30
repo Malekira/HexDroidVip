@@ -865,6 +865,7 @@ class IrcViewModel(
         KeepAliveService.gracefulQuitOnSwipe = gracefulQuitHook
         launchExpandedNetworkIdsSync()
         launchNotificationAvatarSync()
+        viewModelScope.launch { ensureOwnMetadataLoaded() }
         startAwayPolling()
         // Hydrate flap-paused state from DataStore before any connections start.
         // This must be a suspend call, so we run it in viewModelScope. It completes almost
@@ -2817,6 +2818,7 @@ fun startAddNetwork() {
             is IrcEvent.TlsFingerprintLearned, is IrcEvent.TlsHostnameMismatch,
             is IrcEvent.TlsFingerprintChanged, is IrcEvent.ServerLine, is IrcEvent.ServerText,
             is IrcEvent.JoinError, is IrcEvent.ChannelModeIs, is IrcEvent.YoureOper,
+            is IrcEvent.SupportedUserModes, is IrcEvent.OwnUserModes,
             is IrcEvent.YoureDeOpered, is IrcEvent.BanListItem, is IrcEvent.BanListEnd,
             is IrcEvent.QuietListItem, is IrcEvent.QuietListEnd, is IrcEvent.ExceptListItem,
             is IrcEvent.ExceptListEnd, is IrcEvent.InvexListItem, is IrcEvent.InvexListEnd,
@@ -3450,7 +3452,8 @@ fun startAddNetwork() {
     /** Set one of our own draft/metadata-2 keys (null or blank removes it). */
     fun setOwnMetadata(netId: String, key: String, value: String?) {
         viewModelScope.launch {
-            runCatching { runtimes[netId]?.client?.setOwnMetadata(key, value) }
+            val cleaned = value?.trim().orEmpty()
+            if (key == "avatar" && !validAvatarUrl(cleaned)) return@launch
             // Persist so the value can be re-applied on reconnect. Under the lock: the whole
             // store is written as one blob, so two saves racing would each persist a snapshot
             // taken before the other's change.
@@ -3458,11 +3461,17 @@ fun startAddNetwork() {
                 ensureOwnMetadataLoaded()
                 ownMetadataLock.withLock {
                     val map = ownMetadataStore.getOrPut(netId) { java.util.concurrent.ConcurrentHashMap() }
-                    val v = value?.trim()
-                    if (v.isNullOrEmpty()) map.remove(key) else map[key] = v
+                    // Keep an avatar tombstone so clearing it offline is also applied on reconnect.
+                    if (key == "avatar") map[key] = cleaned
+                    else if (cleaned.isEmpty()) map.remove(key) else map[key] = cleaned
                     repo.writeOwnMetadata(ownMetadataStore.mapValues { it.value.toMap() })
+                    if (key == "avatar") _state.update { it.copy(profileAvatarUrls = it.profileAvatarUrls + (netId to cleaned)) }
                 }
+            }.onFailure {
+                append(bufKey(netId, "*server*"), from = null, text = "No se pudo guardar la foto de perfil", doNotify = false)
+                return@launch
             }
+            if (serverSupportsMetadata(netId)) runCatching { runtimes[netId]?.client?.setOwnMetadata(key, cleaned.ifEmpty { null }) }
         }
     }
 

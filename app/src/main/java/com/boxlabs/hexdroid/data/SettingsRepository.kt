@@ -366,6 +366,9 @@ class SettingsRepository(private val ctx: Context) {
 
                 highlightOnNick = o.optBoolean("highlightOnNick", true),
                 notifyMentionsWhileVisible = o.optBoolean("notifyMentionsWhileVisible", false),
+                soundMentionsWhileVisible = o.optBoolean("soundMentionsWhileVisible", false),
+                privateAttemptActiveNotice = o.optBoolean("privateAttemptActiveNotice", true),
+                privateAttemptFloating = o.optBoolean("privateAttemptFloating", false),
                 mentionHighlightEnabled = o.optBoolean("mentionHighlightEnabled", true),
                 mentionHighlightColor = o.optInt("mentionHighlightColor", 0xFFFFD54F.toInt()),
                 greetingBots = o.optString("greetingBots", ""),
@@ -498,6 +501,9 @@ class SettingsRepository(private val ctx: Context) {
         o.put("highlightOnNick", s.highlightOnNick)
         o.put("whoisPresentationVersion", 2)
         o.put("notifyMentionsWhileVisible", s.notifyMentionsWhileVisible)
+        o.put("soundMentionsWhileVisible", s.soundMentionsWhileVisible)
+        o.put("privateAttemptActiveNotice", s.privateAttemptActiveNotice)
+        o.put("privateAttemptFloating", s.privateAttemptFloating)
         o.put("mentionHighlightEnabled", s.mentionHighlightEnabled)
         o.put("mentionHighlightColor", s.mentionHighlightColor)
         o.put("greetingBots", s.greetingBots)
@@ -1304,7 +1310,7 @@ class SettingsRepository(private val ctx: Context) {
                 for (netId in obj.keys()) {
                     val inner = obj.optJSONObject(netId) ?: continue
                     val keys = buildMap<String, String> {
-                        for (k in inner.keys()) inner.optString(k, "").takeIf { it.isNotEmpty() }?.let { put(k, it) }
+                        for (k in inner.keys()) inner.optString(k, "").takeIf { it.isNotEmpty() || k == "avatar" }?.let { put(k, it) }
                     }
                     if (keys.isNotEmpty()) put(netId, keys)
                 }

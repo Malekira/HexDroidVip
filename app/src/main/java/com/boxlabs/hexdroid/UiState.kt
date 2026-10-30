@@ -280,6 +280,9 @@ data class UiSettings(
 
     val highlightOnNick: Boolean = true,
     val notifyMentionsWhileVisible: Boolean = false,
+    val soundMentionsWhileVisible: Boolean = false,
+    val privateAttemptActiveNotice: Boolean = true,
+    val privateAttemptFloating: Boolean = false,
     val mentionHighlightEnabled: Boolean = true,
     val mentionHighlightColor: Int = 0xFFFFD54F.toInt(),
     val greetingBots: String = "",
@@ -408,6 +411,11 @@ data class UiSettings(
 fun UiSettings.withPersonal(update: PersonalSettings.() -> PersonalSettings): UiSettings = copy(personal = personal.update())
 
 data class NetConnState(
+    val supportedUserModes: String = "",
+    /** Only modes reported by 221 or an incoming MODE; never optimistically toggled. */
+    val userModes: String = "",
+    val userModesKnown: Boolean = false,
+    val hasUserMetadata: Boolean = false,
     val connected: Boolean = false,
     val connecting: Boolean = false,
     val status: String = "Disconnected",
@@ -589,6 +597,8 @@ data class LogSearchState(
 )
 
 data class UiState(
+    val profileAvatarUrls: Map<String, String> = emptyMap(),
+    val privateAttemptAlerts: List<PrivateAttemptAlert> = emptyList(),
     val privateRequests: List<PrivateRequest> = emptyList(),
     val privateRequestMessage: String? = null,
     val callerIdNetworks: Set<String> = emptySet(),
