@@ -221,7 +221,9 @@ class PersonalPhase3PrivateFlowTest {
                 vm.handleEvent(id, IrcEvent.Joined("#demo", "DemoNick03", "demo@192.0.2.1"))
                 vm.handleEvent(id, IrcEvent.Quit("DemoNick03", "demo@192.0.2.1", "Salida de prueba"))
                 val text = vm.state.value.buffers.getValue(room).messages.map { stripIrcFormatting(it.text) }
-                assertTrue(text.contains("→ JOIN DemoNick01 (demo@2001:db8::1234) #demo"))
+                assertTrue(text.contains("→ JOIN DemoNick01 (demo@2001:db8::1234)"))
+                assertTrue(text.contains("→ JOIN DemoNick03 (demo@192.0.2.1)"))
+                assertTrue(text.filter { it.startsWith("→ JOIN ") }.none { "#demo" in it })
                 assertTrue(text.contains("← PART DemoNick02 (newident@cloak.example.invalid) #demo [Hasta luego]"))
                 assertTrue(text.contains("← QUIT DemoNick03 (demo@192.0.2.1) [Salida de prueba]"))
                 assertTrue(text.any { "DemoNick01" in it && "DemoNick02" in it })
