@@ -7,7 +7,7 @@ No se fusionan ni modifican las ramas anteriores.
 
 - Corregir la barra del topic cuando los códigos IRC traen letras oscuras sobre fondo oscuro: conservar su color y añadir contraste local al fondo de los fragmentos ilegibles.
 - Mantener el propio campo del topic como única vista formateada, quitando la vista previa inferior duplicada.
-- Usar botones compactos de formato con descripciones accesibles y añadir tachado IRC real (U+001E).
+- Usar botones compactos de formato con descripciones accesibles y añadir tachado IRC real (U+001E). Proteger los códigos de cierre al final del topic del recorte de espacios existente mediante un reset IRC neutro, contando ese byte al validar límites.
 - Igualar el botón de mensajes anteriores al Tab, orientado hacia atrás y en su posición actual. El teclado conserva el borrado normal.
 - Ocultar los avisos de cambio de nombre real, conservando cambios de nick, WHOIS y el procesamiento del protocolo. Ident y cuenta ya se procesan sin avisos visibles.
 - Conservar la foto únicamente por URL, su edición en el perfil y su inclusión en el respaldo.
@@ -17,8 +17,9 @@ No se cambian el identificador, datos, historial permanente, scripts importados,
 ## Validación
 
 - Compilación local `:app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest`: **BUILD SUCCESSFUL**.
-- **112 pruebas JVM ejecutadas y aprobadas**, cero fallos, errores u omisiones. Los dos casos nuevos mal configurados de la primera ejecución se corrigieron antes de repetir la validación.
+- Validación final local: **113 pruebas JVM ejecutadas y aprobadas**, cero fallos, errores u omisiones. Los dos casos nuevos mal configurados de la primera ejecución se corrigieron antes de repetir la validación.
 - APK debug local verificada con `apksigner` y `aapt2`: versión 1.0.8 (47), paquete personalizado y nombre HexDroid Dreams. Sin claves privadas dentro de la APK.
+- La prueba de envío real incluye cursiva/subrayado/tachado al final de todo el topic, sus códigos de cierre completos y el límite de longitud del servidor; repetición local aprobada.
 - La APK de pruebas Android se compiló localmente. Las pruebas de interfaz/persistencia reales y publicación del artifact quedan pendientes de comprobar en GitHub Actions; el entorno local no dispone de emulador.
 - El workflow exige también las suites anteriores de WHOIS, persistencia, historial/respaldo, foto, teclado y autocompletado. No publica la APK si una prueba obligatoria falla.
 

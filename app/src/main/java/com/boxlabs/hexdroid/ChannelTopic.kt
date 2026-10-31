@@ -10,7 +10,11 @@ internal fun canEditChannelTopic(
 internal fun topicEditCommand(channel: String, text: String, advertisedLimit: Int = 0): String {
     require(channel.isNotBlank() && channel.none { it.isWhitespace() || it in ":,\u0000" })
     require(text.none { it == '\r' || it == '\n' || it == '\u0000' }) { "Topic must be one IRC line" }
-    require(advertisedLimit <= 0 || text.length <= advertisedLimit) { "Topic exceeds the server limit" }
-    require("TOPIC $channel :$text".toByteArray(Charsets.UTF_8).size <= 510) { "Topic exceeds the IRC line limit" }
-    return "/topic $channel :$text"
+    // Kotlin treats IRC italic/strike/underline bytes as whitespace. The existing command
+    // pipeline trims its input; a neutral reset protects closing style bytes at the end.
+    // Keep that workaround local to the topic editor, without changing other commands.
+    val wireText = if (text.lastOrNull() in listOf('\u001d', '\u001e', '\u001f')) text + '\u000f' else text
+    require(advertisedLimit <= 0 || wireText.length <= advertisedLimit) { "Topic exceeds the server limit" }
+    require("TOPIC $channel :$wireText".toByteArray(Charsets.UTF_8).size <= 510) { "Topic exceeds the IRC line limit" }
+    return "/topic $channel :$wireText"
 }

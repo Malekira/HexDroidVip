@@ -78,6 +78,23 @@ class Dreams108FormatTest {
         } finally { harness.close() }
     }
 
+    @Test fun wholeTopicStyleClosingsSurviveTheExistingCommandTrimmingAndRespectTheWireLengthLimit() {
+        val harness = IrcTestHarness("echo-message")
+        try {
+            for (style in listOf('\u001d', '\u001e', '\u001f')) {
+                val raw = "$style" + "Texto ñ 🙂" + style
+                val command = topicEditCommand("#demo", raw)
+                assertTrue(command.endsWith("$style\u000f"))
+                assertEquals("/topic #demo :Texto ñ 🙂", stripIrcFormatting(command))
+                // Exercise the ViewModel's existing trimming before the real IRC command path.
+                harness.run { harness.client.handleSlashCommand(command.trim().drop(1).trim(), "#demo") }
+                harness.server.expect { it == "TOPIC #demo :$raw\u000f" }
+                try { topicEditCommand("#demo", raw, raw.length); fail("Guard must count toward the server limit") }
+                catch (_: IllegalArgumentException) { }
+            }
+        } finally { harness.close() }
+    }
+
     @Test fun realNameChangesStillReachTheProtocolEventLayer() {
         val harness = IrcTestHarness("echo-message setname")
         try {
