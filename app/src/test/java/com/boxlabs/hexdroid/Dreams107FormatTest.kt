@@ -21,6 +21,16 @@ class Dreams107FormatTest {
         assertEquals(plain, cleared.text)
     }
 
+    @Test fun changingAnAlreadyColoredTopicReplacesItsOldColorAndPreservesStyles() {
+        val raw = "\u000303\u0002Texto verde\u0002\u000f final"
+        val value = topicColourFormat(TextFieldValue(raw, TextRange(0, raw.length)), 4, 2)
+        assertEquals("Texto verde final", stripIrcFormatting(value.text))
+        assertFalse(value.text.contains("\u000303"))
+        val preview = MircInputTransformation().filter(androidx.compose.ui.text.AnnotatedString(value.text)).text
+        assertTrue(preview.spanStyles.filter { it.start < it.end }.all { it.item.color == mircColor(4) && it.item.background == mircColor(2) })
+        assertTrue(preview.spanStyles.any { it.item.fontWeight == androidx.compose.ui.text.font.FontWeight.Bold })
+    }
+
     @Test fun numericTextDoesNotExtendTheIrcColorSequence() {
         val plain = "123, texto"
         val value = colourFormat(TextFieldValue(plain, TextRange(0, plain.length)), 4, 2)

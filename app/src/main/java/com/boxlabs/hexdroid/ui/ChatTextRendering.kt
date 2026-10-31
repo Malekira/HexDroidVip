@@ -510,6 +510,10 @@ internal fun AnnotatedString.Builder.appendIrcStyledLinkified(
     }
 }
 
+/** Initial palette for the topic tools, using the actual first visible IRC run. */
+internal fun initialTopicPalette(text: String): Pair<Int?, Int?> =
+    parseMircRuns(text).firstOrNull()?.style?.let { it.fg to it.bg } ?: (null to null)
+
 @Composable
 internal fun AnnotatedClickableText(
     text: AnnotatedString,

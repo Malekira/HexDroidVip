@@ -56,7 +56,7 @@ Las pruebas, resultados y descarga de APK debug se registrarán al terminar.
 ## Verificación local
 
 `gradle :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest
---no-daemon --max-workers=4`: **BUILD SUCCESSFUL**. **105 pruebas JVM** ejecutadas,
+--no-daemon --max-workers=4`: **BUILD SUCCESSFUL**. **106 pruebas JVM** ejecutadas,
   cero fallos, errores u omisiones. La APK de pruebas Android se compiló; su ejecución
   requiere GitHub Actions porque este entorno no tiene emulador ni KVM.
 

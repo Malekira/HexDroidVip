@@ -3973,6 +3973,10 @@ fun ChatScreen(
                 if (canTopic) {
                     Text(stringResource(R.string.chat_topic_panel), fontWeight = FontWeight.Bold)
                     TopicTextEditor(opsTopic, { opsTopic = it }, stringResource(R.string.chat_new_topic))
+                    if (runCatching { topicEditCommand(selBufName, opsTopic.text, topicLimit) }.isFailure) {
+                        Text(stringResource(R.string.dreams_topic_edit_help, topicLimit.takeIf { it > 0 }?.toString() ?: "IRC"),
+                            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {

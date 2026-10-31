@@ -17,7 +17,7 @@ Rama `feat/dreams-1.0.7`, versión 1.0.7 (46), basada en 1.0.6.
 - Recuperación de diez entradas únicamente desde ↤; el teclado borra normalmente.
 - Desactivar autocorrección del campo y verificar composición sin duplicados,
   conservando Tab y sugerencias por elección explícita.
-- Compilación local correcta; 105 pruebas JVM aprobadas. Android y publicación
+- Compilación local correcta; 106 pruebas JVM aprobadas. Android y publicación
   pendientes de la ejecución de GitHub Actions.
 - Detalle: [DREAMS_1_0_7.md](DREAMS_1_0_7.md). Sin fusiones automáticas.
 

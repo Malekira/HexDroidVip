@@ -22,6 +22,7 @@ import org.junit.Test
 class Dreams106InputTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val sent = mutableListOf<String>()
+    private var connection: InputConnection? = null
 
     @Composable private fun RealChat() {
         val key = "demo-network::#demo"
@@ -55,7 +56,7 @@ class Dreams106InputTest {
         compose.runOnIdle {
             val owner = editor(compose.activity.window.decorView)
             assertNotNull("The real chat must expose an Android text editor", owner)
-            val connection = owner!!.onCreateInputConnection(EditorInfo())
+            if (connection == null) connection = owner!!.onCreateInputConnection(EditorInfo())
             assertNotNull("Android IME connection must be available", connection)
             action(connection!!)
         }
@@ -66,11 +67,12 @@ class Dreams106InputTest {
         startWithMessages()
         val input = compose.onNodeWithTag("chat-input")
         ime { assertTrue(it.deleteSurroundingText(1, 0)) }
-        input.assertTextEquals("")
+        input.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         input.performKeyInput { pressKey(Key.Backspace) }
-        input.assertTextEquals("")
+        input.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         compose.onNodeWithTag("input-history-backspace").assertTextContains("↤").performClick()
         input.assertTextEquals("Texto de prueba 3")
+        connection = null // The button changed the value externally: emulate the IME restart.
         ime { it.deleteSurroundingText(1, 0) }
         input.assertTextEquals("Texto de prueba ")
         ime { it.deleteSurroundingTextInCodePoints(1, 0) }
@@ -83,14 +85,19 @@ class Dreams106InputTest {
     @Test fun dreams107ComposingWordsAreNotAutoCompletedOrDuplicated() {
         startWithMessages()
         val input = compose.onNodeWithTag("chat-input")
-        ime { it.beginBatchEdit(); it.setComposingText("dem", 1); it.endBatchEdit() }
+        ime { it.beginBatchEdit(); assertTrue(it.setComposingText("dem", 1)); it.endBatchEdit() }
         input.assertTextEquals("dem")
-        ime { it.setComposingText("demora", 1) }
+        ime { assertTrue(it.setComposingText("demora", 1)) }
         input.assertTextEquals("demora")
-        ime { it.commitText("demora", 1) }
+        ime { assertTrue(it.commitText("demora", 1)) }
         input.assertTextEquals("demora")
-        ime { it.commitText(" ", 1); it.setComposingText("maña", 1) }
-        ime { it.setComposingText("mañana", 1); it.commitText("mañana", 1) }
+        ime { assertTrue(it.commitText(" ", 1)) }
+        input.assertTextEquals("demora ")
+        ime { it.beginBatchEdit(); assertTrue(it.setComposingText("maña", 1)); it.endBatchEdit() }
+        input.assertTextEquals("demora maña")
+        ime { assertTrue(it.setComposingText("mañana", 1)) }
+        input.assertTextEquals("demora mañana")
+        ime { assertTrue(it.commitText("mañana", 1)) }
         input.assertTextEquals("demora mañana")
         compose.runOnIdle {
             val owner = editor(compose.activity.window.decorView)!!

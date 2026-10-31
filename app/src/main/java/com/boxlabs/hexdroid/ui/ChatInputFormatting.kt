@@ -117,6 +117,28 @@ internal fun colourFormat(v: TextFieldValue, fg: Int?, bg: Int?): TextFieldValue
     )
 }
 
+/** Replace existing colours inside a topic selection; preserve its other IRC styles. */
+internal fun topicColourFormat(value: TextFieldValue, fg: Int?, bg: Int?): TextFieldValue {
+    if (value.selection.collapsed) return colourFormat(value, fg, bg)
+    val start = value.selection.min
+    val end = value.selection.max
+    val colorCodes = Regex("\u0003(?:\\d{1,2})?(?:,\\d{1,2})?|\u0004(?:[0-9a-fA-F]{6})?(?:,[0-9a-fA-F]{6})?")
+    val plainColors = colorCodes.replace(value.text.substring(start, end), "")
+    val header = colourFormat(TextFieldValue(""), fg, bg).text
+    val selected = buildString {
+        plainColors.forEachIndexed { index, char ->
+            append(char)
+            if (char == '\u000f') {
+                append(header)
+                if (plainColors.getOrNull(index + 1)?.let { it.isAsciiDigit() || it == ',' } == true) append("\u0002\u0002")
+            }
+        }
+    }
+    val prepared = TextFieldValue(value.text.substring(0, start) + selected + value.text.substring(end),
+        TextRange(start, start + selected.length))
+    return colourFormat(prepared, fg, bg)
+}
+
 private val FORMAT_CODES = Regex("\u0003(?:\\d{1,2}(?:,\\d{1,2})?)?|\u0004(?:[0-9a-fA-F]{6})?|[\u0002\u000F\u0011\u0016\u001D\u001E\u001F]")
 
 /** Remove formatting codes from the selection of [v], or from the whole input when nothing is selected. */

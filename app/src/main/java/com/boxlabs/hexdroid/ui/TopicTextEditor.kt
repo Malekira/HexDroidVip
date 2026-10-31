@@ -29,8 +29,9 @@ internal fun TopicTextEditor(value: TextFieldValue, onChange: (TextFieldValue) -
     var tools by remember { mutableStateOf(false) }
     var background by remember { mutableStateOf(false) }
     var extended by remember { mutableStateOf(false) }
-    var foreground by remember { mutableStateOf<Int?>(null) }
-    var shade by remember { mutableStateOf<Int?>(null) }
+    val initial = remember { initialTopicPalette(value.text) }
+    var foreground by remember { mutableStateOf(initial.first) }
+    var shade by remember { mutableStateOf(initial.second) }
     val transformation = remember { MircInputTransformation() }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(value, onChange, label = { Text(label) }, maxLines = 4,
@@ -64,7 +65,7 @@ internal fun TopicTextEditor(value: TextFieldValue, onChange: (TextFieldValue) -
                         .background(color, CircleShape).border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
                         .clickable {
                             if (background) shade = code else foreground = code
-                            onChange(colourFormat(value, foreground, shade))
+                            onChange(topicColourFormat(value, foreground, shade))
                         }, contentAlignment = Alignment.Center) { }
                 }
             }

@@ -22,7 +22,7 @@ class Dreams107UiTest {
         val key = "demo-network::#demo"
         val text = "Hola ñ 🙂"
         val sent = mutableListOf<String>()
-        val state = UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo", topic = text, modeString = "+nt")),
+        val state = UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo", topic = "\u000303$text\u000f", modeString = "+nt")),
             nicklists = mapOf(key to listOf("@OwnDemoNick")),
             connections = mapOf("demo-network" to NetConnState(connected = true, myNick = "OwnDemoNick")),
             showBufferList = false, showNickList = false)
