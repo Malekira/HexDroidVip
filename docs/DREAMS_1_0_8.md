@@ -21,6 +21,7 @@ No se cambian el identificador, datos, historial permanente, scripts importados,
 - APK debug local verificada con `apksigner` y `aapt2`: versión 1.0.8 (47), paquete personalizado y nombre HexDroid Dreams. Sin claves privadas dentro de la APK.
 - La prueba de envío real incluye cursiva/subrayado/tachado al final de todo el topic, sus códigos de cierre completos y el límite de longitud del servidor; repetición local aprobada.
 - La APK de pruebas Android se compiló localmente. Las pruebas de interfaz/persistencia reales y publicación del artifact quedan pendientes de comprobar en GitHub Actions; el entorno local no dispone de emulador.
+- Primera ejecución Android: se detectaron una comparación exacta de píxeles de iconos y duplicación al mantener dos conexiones IME simultáneas en el test. Se retiró la comparación visual frágil conservando pruebas de tamaño/posición/recuperación, y se usa el interceptor de Compose para probar la conexión Android real del campo como único IME. Se mantienen todas las aserciones de texto y borrado; pendiente de validar esta corrección en Actions.
 - El workflow exige también las suites anteriores de WHOIS, persistencia, historial/respaldo, foto, teclado y autocompletado. No publica la APK si una prueba obligatoria falla.
 
 ## Dónde usar los cambios

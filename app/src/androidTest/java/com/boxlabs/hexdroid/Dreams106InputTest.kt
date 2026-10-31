@@ -1,13 +1,13 @@
 /* HexDroidIRC — Copyright (C) 2026 boxlabs. GPL-3.0-or-later. */
 package com.boxlabs.hexdroid
 
-import android.view.View
-import android.view.ViewGroup
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.InterceptPlatformTextInput
+import kotlinx.coroutines.awaitCancellation
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -18,11 +18,12 @@ import org.junit.Rule
 import org.junit.Test
 
 /** Exercise the real composer's Android InputConnection, not just Compose's text semantics. */
-@OptIn(ExperimentalTestApi::class)
+@OptIn(ExperimentalTestApi::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 class Dreams106InputTest {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private val sent = mutableListOf<String>()
     private var connection: InputConnection? = null
+    private var currentEditorInfo: EditorInfo? = null
 
     @Composable private fun RealChat() {
         val key = "demo-network::#demo"
@@ -35,7 +36,18 @@ class Dreams106InputTest {
     }
 
     private fun startWithMessages() {
-        compose.setContent { HexDroidIRCTheme { RealChat() } }
+        compose.setContent { HexDroidIRCTheme {
+            // Drive the actual field's Android InputConnection as its sole IME. Calling
+            // View.onCreateInputConnection manually while the OS keyboard is active creates
+            // competing connections and can finish composition between test operations.
+            InterceptPlatformTextInput(interceptor = { request, _ ->
+                val info = EditorInfo()
+                val active = request.createInputConnection(info)
+                connection = active
+                currentEditorInfo = info
+                try { awaitCancellation() } finally { if (connection === active) connection = null }
+            }) { RealChat() }
+        } }
         val input = compose.onNodeWithTag("chat-input")
         val sendLabel = compose.activity.getString(R.string.chat_send_message)
         for (number in 1..3) {
@@ -45,21 +57,9 @@ class Dreams106InputTest {
         input.performClick()
     }
 
-    private fun editor(view: View): View? {
-        if (view.onCheckIsTextEditor()) return view
-        if (view is ViewGroup) for (i in 0 until view.childCount) editor(view.getChildAt(i))?.let { return it }
-        return null
-    }
-
     private fun ime(action: (InputConnection) -> Unit) {
-        compose.waitForIdle()
-        compose.runOnIdle {
-            val owner = editor(compose.activity.window.decorView)
-            assertNotNull("The real chat must expose an Android text editor", owner)
-            if (connection == null) connection = owner!!.onCreateInputConnection(EditorInfo())
-            assertNotNull("Android IME connection must be available", connection)
-            action(connection!!)
-        }
+        compose.waitUntil(timeoutMillis = 5_000) { connection != null }
+        compose.runOnIdle { action(connection!!) }
         compose.waitForIdle()
     }
 
@@ -72,7 +72,6 @@ class Dreams106InputTest {
         input.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         compose.onNodeWithTag("input-history-backspace").assertContentDescriptionEquals(compose.activity.getString(R.string.dreams_recall_ten)).performClick()
         input.assertTextEquals("Texto de prueba 3")
-        connection = null // The button changed the value externally: emulate the IME restart.
         ime { it.deleteSurroundingText(1, 0) }
         input.assertTextEquals("Texto de prueba ")
         ime { it.deleteSurroundingTextInCodePoints(1, 0) }
@@ -100,10 +99,8 @@ class Dreams106InputTest {
         ime { assertTrue(it.commitText("mañana", 1)) }
         input.assertTextEquals("demora mañana")
         compose.runOnIdle {
-            val owner = editor(compose.activity.window.decorView)!!
-            val info = EditorInfo()
-            assertNotNull(owner.onCreateInputConnection(info))
-            assertEquals(0, info.inputType and android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
+            assertNotNull(currentEditorInfo)
+            assertEquals(0, currentEditorInfo!!.inputType and android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
         }
         compose.runOnIdle { assertEquals(3, sent.size) }
     }
