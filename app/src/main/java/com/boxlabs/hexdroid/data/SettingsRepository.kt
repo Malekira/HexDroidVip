@@ -61,7 +61,11 @@ class SettingsRepository(private val ctx: Context) {
     }
 
     val networksFlow: Flow<List<NetworkProfile>> = ctx.dataStore.data.map { prefs ->
-        parseNetworks(prefs[Keys.NETWORKS_JSON])
+        val legacy = parseOwnMetadataJson(prefs[ownMetadataKey()])
+        parseNetworks(prefs[Keys.NETWORKS_JSON]).map { profile ->
+            val url = profile.avatarUrl ?: legacy[profile.id]?.get("avatar")?.takeIf { com.boxlabs.hexdroid.validAvatarUrl(it) }
+            profile.copy(avatarUrl = url)
+        }
     }
 
     /** Per-buffer settings, keyed by [ChannelPrefsCodec.keyFor]. */
@@ -205,6 +209,7 @@ class SettingsRepository(private val ctx: Context) {
     suspend fun saveNetworks(profiles: List<NetworkProfile>) {
         ctx.dataStore.edit { prefs ->
             prefs[Keys.NETWORKS_JSON] = toNetworksJson(profiles).toString()
+            prefs[ownMetadataKey()] = withProfileAvatars(prefs[ownMetadataKey()], profiles)
         }
     }
 
@@ -214,6 +219,7 @@ class SettingsRepository(private val ctx: Context) {
             val idx = list.indexOfFirst { it.id == profile.id }
             if (idx >= 0) list[idx] = profile else list.add(profile)
             prefs[Keys.NETWORKS_JSON] = toNetworksJson(list).toString()
+            prefs[ownMetadataKey()] = withProfileAvatars(prefs[ownMetadataKey()], listOf(profile))
         }
     }
 
@@ -604,6 +610,7 @@ class SettingsRepository(private val ctx: Context) {
                         altNick = o.optString("altNick", "").takeIf { it.isNotBlank() },
                         username = o.optString("username", "hexdroid"),
                         realname = o.optString("realname", "HexDroid IRC"),
+                        avatarUrl = if (o.has("avatarUrl")) o.optString("avatarUrl", "").takeIf { com.boxlabs.hexdroid.validAvatarUrl(it) } else null,
     
                         saslEnabled = o.optBoolean("saslEnabled", false),
                         saslMechanism = runCatching {
@@ -764,6 +771,7 @@ class SettingsRepository(private val ctx: Context) {
             o.put("altNick", n.altNick ?: "")
             o.put("username", n.username)
             o.put("realname", n.realname)
+            n.avatarUrl?.takeIf { com.boxlabs.hexdroid.validAvatarUrl(it) }?.let { o.put("avatarUrl", it) }
 
             o.put("saslEnabled", n.saslEnabled)
             o.put("saslMechanism", n.saslMechanism.name)
@@ -1044,7 +1052,7 @@ class SettingsRepository(private val ctx: Context) {
         val root = JSONObject()
         // version: bumped when the schema gains fields whose absence in a round-trip through
         //   an older build would silently change behaviour.
-        root.put("version", 6)
+        root.put("version", 7)
         root.put("minCompatVersion", 1)
         root.put("app", "HexDroid")
         root.put("exportedAt", java.time.Instant.now().toString())
@@ -1061,7 +1069,8 @@ class SettingsRepository(private val ctx: Context) {
             "v4: added proxyType, proxyHost, proxyPort, proxyUsername on NetworkProfile (SOCKS/Tor).",
             "v5: updated cap fields",
             "v6: added channelPrefs, ignoreLevels on NetworkProfile, and optional encryptedSecrets " +
-                "(Argon2id + AES-256-GCM over the network passwords)."
+                "(Argon2id + AES-256-GCM over the network passwords).",
+            "v7: optional avatarUrl in network identity profiles."
         )))
         root.put("settings", toSettingsJson(settings))
         root.put("networks", toNetworksJson(networks))
@@ -1155,7 +1164,7 @@ class SettingsRepository(private val ctx: Context) {
         // import this file.  If minCompatVersion is absent, assume it equals version (old
         // backups that predate this field are version 1 and this build supports version 1).
         val minCompat = root.optInt("minCompatVersion", version)
-        val appBackupVersion = 6  // this build's highest supported backup version
+        val appBackupVersion = 7  // this build's highest supported backup version
         if (minCompat > appBackupVersion) {
             throw IllegalArgumentException(
                 "This backup requires a newer version of HexDroid (backup minCompatVersion=$minCompat, app supports up to $appBackupVersion). Please update the app."
@@ -1225,6 +1234,11 @@ class SettingsRepository(private val ctx: Context) {
                 restoredNetworkIds = newIds
                 orphanedIds.addAll(oldIds - newIds)
                 prefs[Keys.NETWORKS_JSON] = toNetworksJson(restoredNetworks).toString()
+                val metadata = parseOwnMetadataJson(prefs[ownMetadataKey()]).mapValues { it.value.toMutableMap() }.toMutableMap()
+                restoredNetworks.forEach { profile ->
+                    profile.avatarUrl?.let { url -> metadata.getOrPut(profile.id) { mutableMapOf() }["avatar"] = url }
+                }
+                prefs[ownMetadataKey()] = toOwnMetadataJson(metadata)
             }
         }
 
@@ -1298,8 +1312,53 @@ class SettingsRepository(private val ctx: Context) {
         return ctx.dataStore.data.map { prefs -> parseOwnMetadataJson(prefs[ownMetadataKey()]) }.first()
     }
 
+    private fun withProfileAvatars(json: String?, profiles: List<NetworkProfile>): String {
+        val metadata = parseOwnMetadataJson(json).mapValues { it.value.toMutableMap() }.toMutableMap()
+        profiles.forEach { profile ->
+            profile.avatarUrl?.takeIf { com.boxlabs.hexdroid.validAvatarUrl(it) }?.let { url ->
+                metadata.getOrPut(profile.id) { mutableMapOf() }["avatar"] = url
+            }
+        }
+        return toOwnMetadataJson(metadata)
+    }
+
+    /** A single-key metadata edit must not overwrite a concurrent profile-photo save. */
+    suspend fun updateOwnMetadataEntry(networkId: String, key: String, value: String): Map<String, Map<String, String>> {
+        if (key == "avatar") require(com.boxlabs.hexdroid.validAvatarUrl(value))
+        var saved: Map<String, Map<String, String>> = emptyMap()
+        ctx.dataStore.edit { prefs ->
+            val all = parseOwnMetadataJson(prefs[ownMetadataKey()]).mapValues { it.value.toMutableMap() }.toMutableMap()
+            val values = all.getOrPut(networkId) { mutableMapOf() }
+            if (key != "avatar" && value.isEmpty()) values.remove(key) else values[key] = value
+            prefs[ownMetadataKey()] = toOwnMetadataJson(all)
+            if (key == "avatar") {
+                val profiles = prefs[Keys.NETWORKS_JSON]?.let { runCatching { JSONArray(it) }.getOrNull() }
+                if (profiles != null) {
+                    for (i in 0 until profiles.length()) {
+                        val profile = profiles.optJSONObject(i) ?: continue
+                        if (profile.optString("id") == networkId) profile.put("avatarUrl", value)
+                    }
+                    prefs[Keys.NETWORKS_JSON] = profiles.toString()
+                }
+            }
+            saved = all.mapValues { it.value.toMap() }
+        }
+        return saved
+    }
+
+    /** Keep the profile and its metadata photo atomic; preserve all unrelated/legacy JSON keys. */
     suspend fun writeOwnMetadata(map: Map<String, Map<String, String>>) {
-        ctx.dataStore.edit { prefs -> prefs[ownMetadataKey()] = toOwnMetadataJson(map) }
+        ctx.dataStore.edit { prefs ->
+            prefs[ownMetadataKey()] = toOwnMetadataJson(map)
+            val raw = prefs[Keys.NETWORKS_JSON] ?: return@edit
+            val profiles = runCatching { JSONArray(raw) }.getOrNull() ?: return@edit
+            for (i in 0 until profiles.length()) {
+                val profile = profiles.optJSONObject(i) ?: continue
+                map[profile.optString("id")]?.get("avatar")?.takeIf { com.boxlabs.hexdroid.validAvatarUrl(it) }
+                    ?.let { profile.put("avatarUrl", it) }
+            }
+            prefs[Keys.NETWORKS_JSON] = profiles.toString()
+        }
     }
 
     private fun parseOwnMetadataJson(json: String?): Map<String, Map<String, String>> {
@@ -1406,6 +1465,8 @@ data class NetworkProfile(
     val altNick: String?,
     val username: String,
     val realname: String,
+    /** Null permits migration from legacy own metadata; empty explicitly removes the photo. */
+    val avatarUrl: String? = null,
 
     val saslEnabled: Boolean,
     val saslMechanism: SaslMechanism,

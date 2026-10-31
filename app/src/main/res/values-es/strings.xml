@@ -1953,7 +1953,7 @@
     <!-- HexDroid Dreams 1.0.4 -->
     <string name="dreams_visible_sound">Sonar al mencionarme en la sala visible</string>
     <string name="dreams_visible_sound_hint">Usa la misma notificación Android que las demás menciones, una sola vez por mensaje. Activá las notificaciones y los avisos de menciones. Respeta volumen, canales de Android y No molestar.</string>
-    <string name="dreams_private_controls">Privados y perfil por red</string>
+    <string name="dreams_private_controls">Privados por red</string>
     <string name="dreams_mode_g">Restringir privados (+g)</string>
     <string name="dreams_mode_r">Privados solo de usuarios registrados (+R)</string>
     <string name="dreams_mode_offline">Conectá esta red para cambiar sus modos.</string>
@@ -1989,4 +1989,14 @@
     <string name="dreams_recall_ten">Recuperar mensaje anterior (hasta 10)</string>
     <string name="dreams_restore_input_draft">Recuperar el borrador (mantener pulsado)</string>
     <string name="dreams_topic_edit_help">Una sola línea IRC. Límite del servidor: %1$s. No se envía ni recorta texto demasiado largo. Vaciar el campo elimina el topic.</string>
+    <string name="dreams_topic_format_tools">Herramientas de texto</string>
+    <string name="dreams_topic_selection_hint">Seleccioná texto para darle formato. Sin selección, el formato se aplica a lo que escribas después.</string>
+    <string name="dreams_select_all">Seleccionar todo</string>
+    <string name="dreams_topic_text_color">Color del texto</string>
+    <string name="dreams_topic_background_color">Fondo / sombreado</string>
+    <string name="dreams_topic_color_code">Color IRC %1$d</string>
+    <string name="dreams_topic_more_colors">Más colores IRC</string>
+    <string name="dreams_topic_basic_colors">Colores básicos</string>
+    <string name="dreams_topic_preview">Vista previa</string>
+    <string name="dreams_avatar_profile_help">URL HTTPS opcional de tu imagen para este perfil de red. Se incluye en el respaldo de ajustes. Solo se comparte si la red admite metadatos de perfil.</string>
 </resources>

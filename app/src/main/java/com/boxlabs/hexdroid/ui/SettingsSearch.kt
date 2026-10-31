@@ -166,7 +166,7 @@ val SETTINGS_SEARCH_INDEX: List<SettingsSearchEntry> = listOf(
     // IRC
     SettingsSearchEntry(R.string.setting_ignore_list, SettingsCategory.IRC,
         descRes = R.string.setting_ignore_list_desc, keywords = "ignore block mute"),
-    SettingsSearchEntry(R.string.settings_scripts, SettingsCategory.IRC,
+    SettingsSearchEntry(R.string.settings_scripts, SettingsCategory.SCRIPTS,
         descRes = R.string.settings_scripts_desc, keywords = "script hex automation"),
     SettingsSearchEntry(R.string.settings_raw_log, SettingsCategory.IRC,
         descRes = R.string.settings_raw_log_desc, keywords = "raw log debug protocol"),

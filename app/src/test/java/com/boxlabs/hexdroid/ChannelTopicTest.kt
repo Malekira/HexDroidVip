@@ -51,6 +51,6 @@ class ChannelTopicTest {
         assertTrue(colored.startsWith("\u00033→\u000314"))
         assertFalse(colored.contains("#demo"))
         assertEquals("→ JOIN DemoNick01", membershipEventLine(MembershipEvent.JOIN, "DemoNick01", null, "#demo", colors = false))
-        assertTrue(membershipEventLine(MembershipEvent.PART, "DemoNick01", "ident@host.invalid", "#demo").contains("#demo"))
+        assertFalse(membershipEventLine(MembershipEvent.PART, "DemoNick01", "ident@host.invalid", "#demo").contains("#demo"))
     }
 }

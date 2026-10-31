@@ -1630,6 +1630,7 @@ fun startAddNetwork() {
             }
 
             repo.upsertNetwork(updated)
+            updated.avatarUrl?.let { setOwnMetadata(updated.id, "avatar", it.ifEmpty { null }) }
             repo.setLastNetworkId(updated.id)
             // Editing the profile gives the user a chance to fix bad credentials, so
             // clear the auth-failure block. Even if they didn't actually touch the
@@ -1847,6 +1848,16 @@ fun startAddNetwork() {
                     } finally {
                         pass?.fill('\u0000')
                     }
+                    ownMetadataLock.withLock {
+                        val restoredMetadata = repo.readOwnMetadata()
+                        ownMetadataStore.clear()
+                        restoredMetadata.forEach { (id, values) ->
+                            ownMetadataStore[id] = java.util.concurrent.ConcurrentHashMap(values)
+                        }
+                        ownMetadataLoaded = true
+                        _state.update { it.copy(profileAvatarUrls = restoredMetadata.mapNotNull { (id, values) -> values["avatar"]?.let { id to it } }.toMap()) }
+                    }
+                    repo.networksFlow.first().forEach { reapplyOwnMetadata(it.id) }
                     _state.update { it.copy(restorePassphraseUri = null, restorePassphraseWrong = false) }
                     // Clear stored secrets for profiles that existed before the restore but aren't in
                     // the backup.
@@ -3469,12 +3480,10 @@ fun startAddNetwork() {
             runCatching {
                 ensureOwnMetadataLoaded()
                 ownMetadataLock.withLock {
-                    val map = ownMetadataStore.getOrPut(netId) { java.util.concurrent.ConcurrentHashMap() }
-                    // Keep an avatar tombstone so clearing it offline is also applied on reconnect.
-                    if (key == "avatar") map[key] = cleaned
-                    else if (cleaned.isEmpty()) map.remove(key) else map[key] = cleaned
-                    repo.writeOwnMetadata(ownMetadataStore.mapValues { it.value.toMap() })
-                    if (key == "avatar") _state.update { it.copy(profileAvatarUrls = it.profileAvatarUrls + (netId to cleaned)) }
+                    val saved = repo.updateOwnMetadataEntry(netId, key, cleaned)
+                    ownMetadataStore.clear()
+                    saved.forEach { (id, values) -> ownMetadataStore[id] = java.util.concurrent.ConcurrentHashMap(values) }
+                    _state.update { it.copy(profileAvatarUrls = saved.mapNotNull { (id, values) -> values["avatar"]?.let { id to it } }.toMap()) }
                 }
             }.onFailure {
                 append(bufKey(netId, "*server*"), from = null, text = "No se pudo guardar la foto de perfil", doNotify = false)

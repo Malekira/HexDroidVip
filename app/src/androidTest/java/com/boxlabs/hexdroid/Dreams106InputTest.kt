@@ -25,7 +25,7 @@ class Dreams106InputTest {
 
     @Composable private fun RealChat() {
         val key = "demo-network::#demo"
-        ChatScreen(UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo")), showBufferList = false, showNickList = false),
+        ChatScreen(UiState(selectedBuffer = key, buffers = mapOf(key to UiBuffer("#demo")), nicklists = mapOf(key to listOf("@DemoNick01")), showBufferList = false, showNickList = false),
             onSelectBuffer = {}, onSend = { sent.add(it) }, onDisconnect = {}, onReconnect = {}, onExit = {},
             onToggleBufferList = {}, onToggleNickList = {}, onToggleChannelsOnly = {}, onWhois = {},
             onIgnoreNick = { _, _ -> }, onUnignoreNick = { _, _ -> }, onIgnoreNotifications = { _, _ -> },
@@ -62,47 +62,56 @@ class Dreams106InputTest {
         compose.waitForIdle()
     }
 
-    @Test fun dreams106ImeDeleteProtocolsRecallInOrderAndNeverSend() {
+    @Test fun dreams107ImeDeleteAndHardwareBackspaceNeverRecallMessages() {
         startWithMessages()
         val input = compose.onNodeWithTag("chat-input")
         ime { assertTrue(it.deleteSurroundingText(1, 0)) }
+        input.assertTextEquals("")
+        input.performKeyInput { pressKey(Key.Backspace) }
+        input.assertTextEquals("")
+        compose.onNodeWithTag("input-history-backspace").assertTextContains("↤").performClick()
         input.assertTextEquals("Texto de prueba 3")
-        ime { assertTrue(it.deleteSurroundingTextInCodePoints(1, 0)) }
-        input.assertTextEquals("Texto de prueba 2")
-        ime {
-            it.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
-            it.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL))
-        }
-        input.assertTextEquals("Texto de prueba 1")
+        ime { it.deleteSurroundingText(1, 0) }
+        input.assertTextEquals("Texto de prueba ")
+        ime { it.deleteSurroundingTextInCodePoints(1, 0) }
+        input.assertTextEquals("Texto de prueba")
+        input.performKeyInput { pressKey(Key.Backspace) }
+        input.assertTextEquals("Texto de prueb")
         compose.runOnIdle { assertEquals(3, sent.size) }
     }
 
-    @Test fun dreams106FieldTouchAndTypingReturnImeToOrdinaryUnicodeDeletion() {
+    @Test fun dreams107ComposingWordsAreNotAutoCompletedOrDuplicated() {
         startWithMessages()
         val input = compose.onNodeWithTag("chat-input")
-        ime { it.deleteSurroundingText(1, 0) }
-        input.assertTextEquals("Texto de prueba 3")
-        input.performClick()
+        ime { it.beginBatchEdit(); it.setComposingText("dem", 1); it.endBatchEdit() }
+        input.assertTextEquals("dem")
+        ime { it.setComposingText("demora", 1) }
+        input.assertTextEquals("demora")
+        ime { it.commitText("demora", 1) }
+        input.assertTextEquals("demora")
+        ime { it.commitText(" ", 1); it.setComposingText("maña", 1) }
+        ime { it.setComposingText("mañana", 1); it.commitText("mañana", 1) }
+        input.assertTextEquals("demora mañana")
+        compose.runOnIdle {
+            val owner = editor(compose.activity.window.decorView)!!
+            val info = EditorInfo()
+            assertNotNull(owner.onCreateInputConnection(info))
+            assertEquals(0, info.inputType and android.text.InputType.TYPE_TEXT_FLAG_AUTO_CORRECT)
+        }
+        compose.runOnIdle { assertEquals(3, sent.size) }
+    }
+
+    @Test fun dreams107UnicodeAndSelectedTextAreDeletedNormallyAfterButtonRecall() {
+        startWithMessages()
+        val input = compose.onNodeWithTag("chat-input")
+        compose.onNodeWithTag("input-history-backspace").performClick()
         input.performTextReplacement("Editado 🙂")
         ime { it.deleteSurroundingTextInCodePoints(1, 0) }
         input.assertTextEquals("Editado ")
         ime { it.commitText("x", 1) }
         input.assertTextEquals("Editado x")
-        ime { it.deleteSurroundingText(1, 0) }
+        ime { it.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL)); it.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL)) }
         input.assertTextEquals("Editado ")
-        compose.runOnIdle { assertEquals(3, sent.size) }
-    }
-
-    @Test fun dreams106HardwareBackspaceUsesSameHistoryAndNormalDeleteAfterEditing() {
-        startWithMessages()
-        val input = compose.onNodeWithTag("chat-input")
-        input.performKeyInput { pressKey(Key.Backspace) }
-        input.assertTextEquals("Texto de prueba 3")
-        input.performKeyInput { pressKey(Key.Backspace) }
-        input.assertTextEquals("Texto de prueba 2")
-        input.performTextReplacement("Borrar")
-        input.performKeyInput { pressKey(Key.Backspace) }
-        input.assertTextEquals("Borra")
         compose.runOnIdle { assertEquals(3, sent.size) }
     }
 }

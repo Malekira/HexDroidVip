@@ -1955,7 +1955,7 @@
     <!-- HexDroid Dreams 1.0.4 -->
     <string name="dreams_visible_sound">Sound for mentions while viewing the room</string>
     <string name="dreams_visible_sound_hint">Uses the same Android notification as other mentions, once per message. Enable notifications and mention alerts. Android volume, notification channels and Do Not Disturb still apply.</string>
-    <string name="dreams_private_controls">Private messages and profile per network</string>
+    <string name="dreams_private_controls">Private messages per network</string>
     <string name="dreams_mode_g">Restrict private messages (+g)</string>
     <string name="dreams_mode_r">Private messages from registered users only (+R)</string>
     <string name="dreams_mode_offline">Connect this network to change its modes.</string>
@@ -1991,4 +1991,14 @@
     <string name="dreams_recall_ten">Recall previous message (up to 10)</string>
     <string name="dreams_restore_input_draft">Restore the draft (hold)</string>
     <string name="dreams_topic_edit_help">One IRC line. Server limit: %1$s. Oversized text is not sent or silently truncated. An empty value clears the topic.</string>
+    <string name="dreams_topic_format_tools">Text formatting tools</string>
+    <string name="dreams_topic_selection_hint">Select text to format it. With no selection, formatting applies to what you type next.</string>
+    <string name="dreams_select_all">Select all</string>
+    <string name="dreams_topic_text_color">Text color</string>
+    <string name="dreams_topic_background_color">Background / shading</string>
+    <string name="dreams_topic_color_code">IRC color %1$d</string>
+    <string name="dreams_topic_more_colors">More IRC colors</string>
+    <string name="dreams_topic_basic_colors">Basic colors</string>
+    <string name="dreams_topic_preview">Preview</string>
+    <string name="dreams_avatar_profile_help">Optional HTTPS image URL for this network profile. Included in settings backups. Shared only when the network supports profile metadata.</string>
 </resources>

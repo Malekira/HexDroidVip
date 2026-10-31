@@ -18,7 +18,7 @@ internal fun membershipEventLine(
     val body = buildString {
         append(" ${event.name} $nick")
         if (!hideHostnames && !userHost.isNullOrBlank()) append(" ($userHost)")
-        if (event != MembershipEvent.JOIN && !channel.isNullOrBlank()) append(" $channel")
+        if (event != MembershipEvent.JOIN && event != MembershipEvent.PART && !channel.isNullOrBlank()) append(" $channel")
         if (!reason.isNullOrBlank()) append(" [$reason]")
     }
     // A formatted quit reason must not recolour the event. Missing hosts stay absent.

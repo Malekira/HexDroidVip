@@ -97,6 +97,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -344,6 +345,7 @@ enum class SettingsCategory(
 ) {
     APPEARANCE(R.string.section_appearance, R.string.settings_cat_appearance_desc, Icons.Filled.Palette),
     CHAT(R.string.settings_cat_chat, R.string.settings_cat_chat_desc, Icons.AutoMirrored.Filled.Chat),
+    SCRIPTS(R.string.settings_scripts, R.string.settings_scripts_desc, Icons.Filled.Terminal),
     MEDIA(R.string.section_media_previews, R.string.settings_cat_media_desc, Icons.Filled.Image),
     ALIASES(R.string.settings_custom_aliases, R.string.settings_cat_aliases_desc, Icons.Filled.Terminal),
     HIGHLIGHTS(R.string.section_highlights, R.string.settings_cat_highlights_desc, Icons.Filled.AlternateEmail),
@@ -1324,6 +1326,24 @@ fun SettingsScreen(
 
             }
 
+            if (onePage || current == SettingsCategory.SCRIPTS) {
+                if (onePage) item { OnePageHeader(SettingsCategory.SCRIPTS) }
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_scripts), style = MaterialTheme.typography.titleSmall)
+                            Text(stringResource(R.string.settings_scripts_desc), style = MaterialTheme.typography.bodySmall)
+                        }
+                        OutlinedButton(onClick = onOpenScripts, modifier = Modifier.testTag("scripts-manage").focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.manage)) }
+                    }
+                }
+            }
+            }
+
             if (onePage || current == SettingsCategory.IRC) {
             if (onePage) item(key = "hdr_IRC") { OnePageHeader(SettingsCategory.IRC) }
             item {
@@ -1369,20 +1389,6 @@ fun SettingsScreen(
                 }
             }
 
-            item {
-                Card(Modifier.fillMaxWidth()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.settings_scripts), style = MaterialTheme.typography.titleSmall)
-                            Text(stringResource(R.string.settings_scripts_desc), style = MaterialTheme.typography.bodySmall)
-                        }
-                        OutlinedButton(onClick = onOpenScripts, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.manage)) }
-                    }
-                }
-            }
 
             item {
                 Card(Modifier.fillMaxWidth()) {

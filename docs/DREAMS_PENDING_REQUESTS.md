@@ -1,8 +1,25 @@
 # Pedidos pendientes de HexDroid Dreams
 
-Estado: todos los pendientes anotados implementados y verificados en
-**HexDroid Dreams 1.0.6 (45)**.
+Estado: entregado hasta 1.0.6; los nuevos pedidos están implementados en 1.0.7
+y en verificación Android antes de publicar la APK.
 Rama de trabajo: `feat/dreams-1.0.6`, desde la entrega de historial y respaldo.
+
+## Pendientes posteriores a 1.0.6: autorización «Aplica todos los pendientes»
+
+Rama `feat/dreams-1.0.7`, versión 1.0.7 (46), basada en 1.0.6.
+
+- Herramientas reales de formato IRC en el editor de topic existente y retirada
+  del lápiz junto a la barra; colores de texto/fondo, estilos y vista previa.
+- Apartado Scripts independiente en Ajustes que abre el gestor real.
+- URL de foto en el perfil de identidad y en el respaldo JSON/ZIP, con migración
+  de las direcciones guardadas y actualización de foto al restaurar.
+- PART sin repetir la sala, conservando colores, máscara y motivo.
+- Recuperación de diez entradas únicamente desde ↤; el teclado borra normalmente.
+- Desactivar autocorrección del campo y verificar composición sin duplicados,
+  conservando Tab y sugerencias por elección explícita.
+- Compilación local correcta; 105 pruebas JVM aprobadas. Android y publicación
+  pendientes de la ejecución de GitHub Actions.
+- Detalle: [DREAMS_1_0_7.md](DREAMS_1_0_7.md). Sin fusiones automáticas.
 
 ## Todos los pendientes: autorización «Implementa todo lo pendiente»
 

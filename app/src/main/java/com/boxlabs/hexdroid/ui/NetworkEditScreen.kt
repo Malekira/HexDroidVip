@@ -65,6 +65,8 @@ import com.boxlabs.hexdroid.data.NetworkProfile
 import com.boxlabs.hexdroid.connection.ProxyType
 import com.boxlabs.hexdroid.connection.ProxyConfig
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
+import com.boxlabs.hexdroid.validAvatarUrl
 import com.boxlabs.hexdroid.R
 
 /**
@@ -217,6 +219,7 @@ fun NetworkEditScreen(
     var altNick by remember(n0.id) { mutableStateOf(n0.altNick ?: "") }
     var username by remember(n0.id) { mutableStateOf(n0.username) }
     var realname by remember(n0.id) { mutableStateOf(n0.realname) }
+    var avatarUrl by remember(n0.id) { mutableStateOf(n0.avatarUrl.orEmpty()) }
 
     // SASL
     var saslEnabled by remember(n0.id) { mutableStateOf(n0.saslEnabled) }
@@ -318,7 +321,7 @@ fun NetworkEditScreen(
                 },
                 actions = {
                     OnePageToggle(onePage = onePage, onToggle = onToggleOnePage)
-                    Button(modifier = Modifier.focusHighlight(RoundedCornerShape(50)), onClick = {
+                    Button(modifier = Modifier.testTag("network-save").focusHighlight(RoundedCornerShape(50)), enabled = validAvatarUrl(avatarUrl.trim()), onClick = {
                         val p = port.filter { it.isDigit() }.toIntOrNull() ?: 0
                         // validate port is in the legal TCP range before saving.
                         if (p !in 1..65535) {
@@ -425,6 +428,7 @@ fun NetworkEditScreen(
                             }
                         }
 
+                        if (!validAvatarUrl(avatarUrl.trim())) return@Button
                         onSave(
                             n0.copy(
                                 name = name.trim().ifBlank { ctx.getString(R.string.network_default_name) },
@@ -441,6 +445,7 @@ fun NetworkEditScreen(
                                 altNick = altNick.trim().takeIf { it.isNotBlank() },
                                 username = username.trim().ifBlank { "hexdroid" },
                                 realname = realname.trim().ifBlank { "HexDroid IRC" },
+                                avatarUrl = avatarUrl.trim(),
                                 saslEnabled = saslEnabled,
                                 saslMechanism = saslMechanism,
                                 saslAuthcid = saslAuthcid.trim().takeIf { it.isNotBlank() },
@@ -848,6 +853,7 @@ fun NetworkEditScreen(
                     label = { Text(stringResource(R.string.network_realname_label)) },
                     modifier = Modifier.fillMaxWidth()
                 )
+                ProfileAvatarField(avatarUrl, { avatarUrl = it })
             }
 
             CardSection(stringResource(R.string.network_section_autoconnect), visible = shown(NetEditSection.AUTOCONNECT)) {

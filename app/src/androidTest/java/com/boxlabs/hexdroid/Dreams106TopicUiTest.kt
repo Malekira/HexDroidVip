@@ -52,7 +52,7 @@ class Dreams106TopicUiTest {
         assertTrue(styled.layoutInput.text.spanStyles.any { it.item.color == mircColor(4) })
         val image = compose.onNodeWithTag("channel-topic-bar").captureToImage().toPixelMap()
         assertEquals(background, image[0, image.height / 2].toArgb())
-        compose.onNodeWithTag("channel-topic-edit").assertIsEnabled()
+        compose.onNodeWithTag("channel-topic-edit").assertDoesNotExist()
         compose.onNodeWithTag("channel-topic-expand").assertExists().performClick()
         assertTrue(layout("channel-topic-text").lineCount > 2)
     }
@@ -68,7 +68,8 @@ class Dreams106TopicUiTest {
         compose.onNodeWithTag("channel-topic-text", useUnmergedTree = true).assertTextEquals("Topic anterior")
         compose.runOnIdle { current = state("Nuevo  topic ñ 🙂") }
         compose.onNodeWithTag("channel-topic-text", useUnmergedTree = true).assertTextEquals("Nuevo  topic ñ 🙂")
-        compose.onNodeWithTag("channel-topic-edit").performClick()
+        compose.onNodeWithTag("general-menu-button").performClick()
+        compose.onNodeWithText(context.getString(R.string.topic_edit_title)).performClick()
         compose.onNodeWithTag("topic-editor-input").performTextReplacement("Inválido\nQUIT")
         compose.onNodeWithTag("topic-editor-save").assertIsNotEnabled()
         compose.onNodeWithTag("topic-editor-input").performTextReplacement("")
@@ -83,12 +84,14 @@ class Dreams106TopicUiTest {
     @Test fun dreams106TopicUiRespectsLivePermissionsAndDisconnection() {
         var current by mutableStateOf(state().copy(nicklists = mapOf(key to listOf("OwnDemoNick", "@DemoNick01"))))
         compose.setContent { HexDroidIRCTheme { Chat(current) } }
-        compose.onNodeWithTag("channel-topic-edit").assertIsNotEnabled()
+        compose.onNodeWithTag("channel-topic-edit").assertDoesNotExist()
+        compose.onNodeWithTag("general-menu-button").performClick()
+        compose.onNodeWithText(context.getString(R.string.topic_edit_title)).assertIsNotEnabled()
         compose.runOnIdle { current = current.copy(buffers = mapOf(key to UiBuffer("#demo", topic = "Topic", modeString = "+ns"))) }
-        compose.onNodeWithTag("channel-topic-edit").assertIsEnabled()
+        compose.onNodeWithText(context.getString(R.string.topic_edit_title)).assertIsEnabled()
         compose.runOnIdle { current = current.copy(connections = mapOf("demo-network" to NetConnState(connected = false, myNick = "OwnDemoNick"))) }
-        compose.onNodeWithTag("channel-topic-edit").assertIsNotEnabled()
+        compose.onNodeWithText(context.getString(R.string.topic_edit_title)).assertIsNotEnabled()
         compose.runOnIdle { current = state().copy(nicklists = mapOf(key to listOf("@DemoNick01"))) }
-        compose.onNodeWithTag("channel-topic-edit").assertIsNotEnabled()
+        compose.onNodeWithText(context.getString(R.string.topic_edit_title)).assertIsNotEnabled()
     }
 }

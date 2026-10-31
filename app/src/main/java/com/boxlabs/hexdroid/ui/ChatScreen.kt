@@ -22,6 +22,8 @@ import com.boxlabs.hexdroid.RecallDraft
 import com.boxlabs.hexdroid.COMPOSER_RECALL_LIMIT
 import com.boxlabs.hexdroid.canEditChannelTopic
 import com.boxlabs.hexdroid.topicEditCommand
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.boxlabs.hexdroid.nickToken
 import com.boxlabs.hexdroid.ui.theme.PersonalArea
 import com.boxlabs.hexdroid.ui.theme.LocalPersonalColors
@@ -116,7 +118,6 @@ import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.automirrored.filled.KeyboardTab
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Close
@@ -846,7 +847,7 @@ fun ChatScreen(
     var opsReason by remember { mutableStateOf("") }
     // Ban mask keyword passed to /ban and /kb: h host (default), n nick, a account, d domain.
     var opsBanType by remember { mutableStateOf("h") }
-    var opsTopic by remember(selected, topic) { mutableStateOf(topic ?: "") }
+    var opsTopic by remember(selected, topic) { mutableStateOf(TextFieldValue(topic.orEmpty(), TextRange(topic.orEmpty().length))) }
     var showTopicQuickEdit by remember(selected) { mutableStateOf(false) }
     /**
      * Whether the EncryptionDialog is currently open. Owned at this scope so the
@@ -893,11 +894,7 @@ fun ChatScreen(
         runCatching { inputFocus.requestFocus() }
     }
 
-    fun keyboardBackspace(repeat: Boolean): Boolean {
-        val result = composerRecall.keyboardDelete(inputHistory, currentRecallDraft(), android.os.SystemClock.uptimeMillis(), repeat)
-        applyRecall(result.draft)
-        return result.consumed
-    }
+
 
     fun sendNow() {
         val t = input.text.trim()
@@ -2420,18 +2417,7 @@ fun ChatScreen(
                                 contentPadding = PaddingValues(0.dp), modifier = Modifier.testTag("channel-topic-expand").focusHighlight(RoundedCornerShape(50))
                             ) { Text(stringResource(if (topicExpanded) R.string.chat_topic_less else R.string.chat_topic_more)) }
                         }
-                        IconButton(
-                            onClick = { showTopicQuickEdit = true },
-                            enabled = canTopic,
-                            modifier = Modifier.size(40.dp).testTag("channel-topic-edit"),
-                        ) {
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = stringResource(R.string.chat_cd_edit_topic),
-                                modifier = Modifier.size(20.dp),
-                                tint = topicFg.copy(alpha = if (canTopic) 1f else 0.6f),
-                            )
-                        }
+
                     }
                 }
                 HorizontalDivider()
@@ -3465,7 +3451,6 @@ fun ChatScreen(
 				)
 				// The input shows formatting as it will look; selecting text adds formatting items to
 				// the text menu (see formatMenu).
-                BackspaceRecallInput(onBackspace = ::keyboardBackspace) {
 				BasicTextField(
 					value = input,
 					onValueChange = { new ->
@@ -3512,12 +3497,11 @@ fun ChatScreen(
                                     completeNick(backwards = ev.isShiftPressed) ||
                                         completionNicks.isNotEmpty()
                                 }
-                                Key.Backspace -> keyboardBackspace(ev.nativeKeyEvent.repeatCount > 0)
                                 else -> false
                             }
                         },
 					textStyle = inputTextStyle,
-					keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+					keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default, autoCorrectEnabled = false),
 					keyboardActions = KeyboardActions(onSend = { sendNow() }),
 					singleLine = false,
 					// Grow with content up to 6 visible lines before scrolling internally.
@@ -3554,9 +3538,9 @@ fun ChatScreen(
 					}
 				)
 
-                } // BackspaceRecallInput: intercepts both IME deletion protocols.
                 run {
                     val restoreDraftLabel = stringResource(R.string.dreams_restore_input_draft)
+                    val recallLabel = stringResource(R.string.dreams_recall_ten)
                     Box(
                         Modifier.size(36.dp).testTag("input-history-backspace")
                             .focusHighlight(RoundedCornerShape(4.dp))
@@ -3567,8 +3551,8 @@ fun ChatScreen(
                                 onLongClick = { applyRecall(composerRecall.restoreDraft()); runCatching { inputFocus.requestFocus() } },
                             ), contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Backspace, stringResource(R.string.dreams_recall_ten),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = if (inputHistory.isEmpty()) 0.38f else 1f), modifier = Modifier.size(22.dp))
+                        Text("↤", modifier = Modifier.semantics { contentDescription = recallLabel },
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (inputHistory.isEmpty()) 0.38f else 1f), fontSize = 24.sp)
                     }
                     val sendInteraction = remember { MutableInteractionSource() }
                     val sendPressed by sendInteraction.collectIsPressedAsState()
@@ -3988,20 +3972,15 @@ fun ChatScreen(
                 // Topic
                 if (canTopic) {
                     Text(stringResource(R.string.chat_topic_panel), fontWeight = FontWeight.Bold)
-                    OutlinedTextField(
-                        value = opsTopic,
-                        onValueChange = { opsTopic = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = 4,
-                        label = { Text(stringResource(R.string.chat_new_topic)) }
-                    )
+                    TopicTextEditor(opsTopic, { opsTopic = it }, stringResource(R.string.chat_new_topic))
+
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
-                            onSend(topicEditCommand(selBufName, opsTopic, topicLimit))
+                            onSend(topicEditCommand(selBufName, opsTopic.text, topicLimit))
                             showChanOps = false
-                        }, enabled = runCatching { topicEditCommand(selBufName, opsTopic, topicLimit) }.isSuccess,
-                            modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.set)) }
-                        OutlinedButton(onClick = { opsTopic = topic ?: "" }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.reset)) }
+                        }, enabled = runCatching { topicEditCommand(selBufName, opsTopic.text, topicLimit) }.isSuccess,
+                            modifier = Modifier.testTag("topic-tools-apply").focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.set)) }
+                        OutlinedButton(onClick = { opsTopic = TextFieldValue(topic.orEmpty(), TextRange(topic.orEmpty().length)) }, modifier = Modifier.focusHighlight(RoundedCornerShape(50))) { Text(stringResource(R.string.reset)) }
                     }
                     HorizontalDivider()
                 }
@@ -4969,23 +4948,19 @@ fun ChatScreen(
 
     // Available through the visible edit button, general menu, or existing long press.
     if (showTopicQuickEdit && canTopic) {
-        var editTopicText by remember(selected) { mutableStateOf(topic ?: "") }
-        val editCommand = runCatching { topicEditCommand(selBufName, editTopicText, topicLimit) }.getOrNull()
+        var editTopicText by remember(selected) { mutableStateOf(TextFieldValue(topic.orEmpty(), TextRange(topic.orEmpty().length))) }
+        val editCommand = runCatching { topicEditCommand(selBufName, editTopicText.text, topicLimit) }.getOrNull()
         androidx.compose.material3.AlertDialog(
             modifier = Modifier.testTag("topic-editor"),
             onDismissRequest = { showTopicQuickEdit = false },
             title = { Text(stringResource(R.string.topic_edit_title)) },
             text = {
-                OutlinedTextField(
-                    value = editTopicText,
-                    onValueChange = { editTopicText = it },
-                    label = { Text(stringResource(R.string.topic_edit_label)) },
-                    modifier = Modifier.fillMaxWidth().testTag("topic-editor-input"),
-                    isError = editCommand == null,
-                    supportingText = { Text(stringResource(R.string.dreams_topic_edit_help, topicLimit.takeIf { it > 0 }?.toString() ?: "IRC")) },
-                    singleLine = false,
-                    maxLines = 4,
-                )
+                Column(Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
+                    TopicTextEditor(editTopicText, { editTopicText = it }, stringResource(R.string.topic_edit_label))
+                    Text(stringResource(R.string.dreams_topic_edit_help, topicLimit.takeIf { it > 0 }?.toString() ?: "IRC"),
+                        color = if (editCommand == null) MaterialTheme.colorScheme.error else LocalContentColor.current,
+                        style = MaterialTheme.typography.bodySmall)
+                }
             },
             confirmButton = {
                 TextButton(onClick = {

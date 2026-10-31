@@ -17,17 +17,6 @@ class ComposerRecallTest {
         repeat(3) { assertEquals(draft, recall.previous(history, draft)) }
     }
 
-    @Test fun keyboardUsesEmptyFieldThenCyclesAndEditingRestoresNormalDeletion() {
-        val recall = ComposerRecall()
-        val history = listOf("Anterior á 🙂", "Último mensaje")
-        var result = recall.keyboardDelete(history, RecallDraft(""), 1000)
-        assertTrue(result.consumed); assertEquals("Último mensaje", result.draft!!.text)
-        result = recall.keyboardDelete(history, result.draft!!, 1300)
-        assertEquals("Anterior á 🙂", result.draft!!.text)
-        recall.edited()
-        assertFalse(recall.keyboardDelete(history, result.draft!!, 1600).consumed)
-    }
-
     @Test fun draftsIncludingSelectionCanBeRestoredWithoutSendingOrChangingHistory() {
         val recall = ComposerRecall()
         val history = listOf("Primero", "Segundo")
@@ -41,24 +30,20 @@ class ComposerRecallTest {
         assertEquals("Segundo", recall.previous(history, original)!!.text)
     }
 
-    @Test fun holdingDeleteToEraseTypedTextNeverReintroducesHistory() {
+    @Test fun editingResetsTheButtonToTheLatestMessage() {
         val recall = ComposerRecall()
-        val history = listOf("Mensaje anterior")
-        assertFalse(recall.keyboardDelete(history, RecallDraft("abc"), 1000).consumed)
+        val entries = listOf("Primero", "Segundo")
+        recall.previous(entries, RecallDraft("borrador"))
+        recall.previous(entries, RecallDraft("Segundo"))
         recall.edited()
-        assertFalse(recall.keyboardDelete(history, RecallDraft(""), 1100).consumed)
-        assertFalse(recall.keyboardDelete(history, RecallDraft(""), 1400).consumed)
-        assertFalse(recall.keyboardDelete(history, RecallDraft(""), 1700, repeat = true).consumed)
-        val result = recall.keyboardDelete(history, RecallDraft(""), 2100)
-        assertTrue(result.consumed); assertEquals("Mensaje anterior", result.draft!!.text)
-        assertTrue(recall.keyboardDelete(history, result.draft!!, 2150, repeat = true).consumed)
+        assertEquals("Segundo", recall.previous(entries, RecallDraft("editado"))!!.text)
+        assertEquals("editado", recall.restoreDraft()!!.text)
     }
 
     @Test fun emptyHistoryIsSafeAndConversationsKeepTheirOwnRecallState() {
         val room = ComposerRecall()
         val privateChat = ComposerRecall()
         assertNull(room.previous(emptyList(), RecallDraft("")))
-        assertFalse(room.keyboardDelete(emptyList(), RecallDraft(""), 1000).consumed)
         assertEquals("Sala", room.previous(listOf("Sala"), RecallDraft("borrador sala"))!!.text)
         assertEquals("Privado", privateChat.previous(listOf("Privado"), RecallDraft("borrador PV"))!!.text)
         assertEquals("borrador sala", room.restoreDraft()!!.text)

@@ -60,19 +60,7 @@ fun DreamsChatSettings(state: UiState, onUpdate: (UiSettings.() -> UiSettings) -
             }
             Text(stringResource(R.string.dreams_mode_hint), style = MaterialTheme.typography.bodySmall)
             state.privateModeMessages[net.id]?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            HorizontalDivider()
-            Text(stringResource(R.string.dreams_own_avatar), style = MaterialTheme.typography.titleMedium)
-            val saved = state.profileAvatarUrls[net.id] ?: conn.ownMetadata["avatar"].orEmpty()
-            var url by rememberSaveable(net.id, saved) { mutableStateOf(saved) }
-            val valid = validAvatarUrl(url.trim())
-            OutlinedTextField(url, { url = it }, label = { Text(stringResource(R.string.dreams_avatar_url)) },
-                singleLine = true, isError = !valid, modifier = Modifier.fillMaxWidth().testTag("own-avatar-url"))
-            if (!valid) Text(stringResource(R.string.dreams_avatar_invalid), color = MaterialTheme.colorScheme.error)
-            Text(stringResource(if (conn.hasUserMetadata) R.string.dreams_avatar_shared else R.string.dreams_avatar_local),
-                style = MaterialTheme.typography.bodySmall)
-            Button(onClick = { onAvatar(net.id, url.trim().ifEmpty { null }) }, enabled = valid && url.trim() != saved,
-                modifier = Modifier.testTag("own-avatar-save")) { Text(stringResource(R.string.save)) }
-            Text(stringResource(R.string.dreams_avatar_privacy), style = MaterialTheme.typography.bodySmall)
+
         } else Text(stringResource(R.string.dreams_select_network))
         HorizontalDivider()
         Text(stringResource(R.string.dreams_private_alerts), style = MaterialTheme.typography.titleMedium)

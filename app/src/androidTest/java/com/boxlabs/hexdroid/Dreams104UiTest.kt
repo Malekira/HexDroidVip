@@ -73,11 +73,7 @@ class Dreams104UiTest {
         compose.onNodeWithTag("private-mode-g").performScrollTo().performClick()
         compose.runOnIdle { assertEquals(Triple(net.id, 'g', true), desired) }
         compose.onNodeWithTag("private-mode-g").assertIsOff() // no fake server confirmation
-        compose.onNodeWithTag("own-avatar-url").performScrollTo().performTextReplacement("http://images.example.invalid/photo.jpg")
-        compose.onNodeWithTag("own-avatar-save").assertIsNotEnabled()
-        compose.onNodeWithTag("own-avatar-url").performTextReplacement("https://images.example.invalid/photo.jpg")
-        compose.onNodeWithTag("own-avatar-save").performScrollTo().performClick()
-        compose.runOnIdle { assertEquals(net.id to "https://images.example.invalid/photo.jpg", saved) }
+        compose.onNodeWithTag("own-avatar-url").assertDoesNotExist()
         compose.onNodeWithTag("private-floating").performScrollTo().performClick()
         compose.onNodeWithTag("private-active-notice").performScrollTo().assertIsOn()
         compose.onNodeWithTag("visible-mention-sound").performScrollTo().performClick()
