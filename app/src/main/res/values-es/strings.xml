@@ -1999,4 +1999,9 @@
     <string name="dreams_topic_basic_colors">Colores básicos</string>
     <string name="dreams_topic_preview">Vista previa</string>
     <string name="dreams_avatar_profile_help">URL HTTPS opcional de tu imagen para este perfil de red. Se incluye en el respaldo de ajustes. Solo se comparte si la red admite metadatos de perfil.</string>
+    <string name="dreams_format_bold_short">N</string>
+    <string name="dreams_format_italic_short">C</string>
+    <string name="dreams_format_underline_short">S</string>
+    <string name="dreams_format_strike_short">T</string>
+    <string name="dreams_format_strike">Tachado</string>
 </resources>

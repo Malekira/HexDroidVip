@@ -1,8 +1,18 @@
 # Pedidos pendientes de HexDroid Dreams
 
-Estado: todos los pendientes anotados implementados y verificados en
-**HexDroid Dreams 1.0.7 (46)**.
-Rama de trabajo: `feat/dreams-1.0.7`, desde la entrega 1.0.6.
+Estado: pendientes posteriores a 1.0.7 en implementación autorizada mediante
+«Mejor como está con url. Implementa el resto de los cambios pendientes».
+Rama `feat/dreams-1.0.8`, basada en la entrega publicada 1.0.7.
+
+## Pendientes posteriores a 1.0.7
+
+- Contraste de fragmentos del topic con negro IRC explícito sobre fondo oscuro.
+- Eliminar vista previa inferior duplicada del editor del topic.
+- Botones de formato compactos N/C/S/T y tachado IRC real.
+- Botón de mensajes anteriores igual al Tab, orientado hacia atrás, sin moverlo.
+- No mostrar cambios de nombre real; conservar cambios de nick.
+- Foto por URL, sin añadir carga local.
+- Plan, pruebas y entrega: [DREAMS_1_0_8.md](DREAMS_1_0_8.md).
 
 ## Pendientes posteriores a 1.0.6: autorización «Aplica todos los pendientes»
 

@@ -2001,4 +2001,9 @@
     <string name="dreams_topic_basic_colors">Basic colors</string>
     <string name="dreams_topic_preview">Preview</string>
     <string name="dreams_avatar_profile_help">Optional HTTPS image URL for this network profile. Included in settings backups. Shared only when the network supports profile metadata.</string>
+    <string name="dreams_format_bold_short">B</string>
+    <string name="dreams_format_italic_short">I</string>
+    <string name="dreams_format_underline_short">U</string>
+    <string name="dreams_format_strike_short">S</string>
+    <string name="dreams_format_strike">Strikethrough</string>
 </resources>

@@ -70,7 +70,7 @@ class Dreams106InputTest {
         input.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
         input.performKeyInput { pressKey(Key.Backspace) }
         input.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText, androidx.compose.ui.text.AnnotatedString("")))
-        compose.onNodeWithTag("input-history-backspace").assertTextContains("↤").performClick()
+        compose.onNodeWithTag("input-history-backspace").assertContentDescriptionEquals(compose.activity.getString(R.string.dreams_recall_ten)).performClick()
         input.assertTextEquals("Texto de prueba 3")
         connection = null // The button changed the value externally: emulate the IME restart.
         ime { it.deleteSurroundingText(1, 0) }

@@ -118,7 +118,6 @@ import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.automirrored.filled.KeyboardTab
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -2407,6 +2406,8 @@ fun ChatScreen(
                             style = MaterialTheme.typography.bodySmall.copy(color = topicFg),
                             modifier = Modifier.weight(1f).testTag("channel-topic-text"),
                             onTextLayout = { topicHasOverflow = it.hasVisualOverflow },
+                            contrastBackground = topicBg,
+                            contrastForeground = topicFg,
                         )
                         val showToggle = topicExpanded || topicHasOverflow
                         if (showToggle) {
@@ -3334,14 +3335,12 @@ fun ChatScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (isChannel || isPrivateMessage) {
-                    OutlinedIconButton(
+                    ComposerNavigationButton(
                         onClick = { completeNick(backwards = false); onTypingChanged(input.text) },
                         enabled = completionNicks.isNotEmpty(),
-                        modifier = Modifier.size(36.dp).testTag("nick-tab-button").focusHighlight(RoundedCornerShape(4.dp)),
-                        shape = RoundedCornerShape(4.dp),
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardTab, contentDescription = stringResource(R.string.chat_complete_nick), modifier = Modifier.size(20.dp))
-                    }
+                        description = stringResource(R.string.chat_complete_nick),
+                        modifier = Modifier.testTag("nick-tab-button"),
+                    )
                 }
 
                 // E2E lock badge at the start of the input row when the buffer has a key; tapping
@@ -3541,19 +3540,15 @@ fun ChatScreen(
                 run {
                     val restoreDraftLabel = stringResource(R.string.dreams_restore_input_draft)
                     val recallLabel = stringResource(R.string.dreams_recall_ten)
-                    Box(
-                        Modifier.size(36.dp).testTag("input-history-backspace")
-                            .focusHighlight(RoundedCornerShape(4.dp))
-                            .combinedClickable(
-                                enabled = inputHistory.isNotEmpty(),
-                                onClick = ::recallPrevious,
-                                onLongClickLabel = restoreDraftLabel,
-                                onLongClick = { applyRecall(composerRecall.restoreDraft()); runCatching { inputFocus.requestFocus() } },
-                            ), contentAlignment = Alignment.Center,
-                    ) {
-                        Text("↤", modifier = Modifier.semantics { contentDescription = recallLabel },
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (inputHistory.isEmpty()) 0.38f else 1f), fontSize = 24.sp)
-                    }
+                    ComposerNavigationButton(
+                        enabled = inputHistory.isNotEmpty(),
+                        backwards = true,
+                        description = recallLabel,
+                        modifier = Modifier.testTag("input-history-backspace"),
+                        onClick = ::recallPrevious,
+                        onLongClickLabel = restoreDraftLabel,
+                        onLongClick = { applyRecall(composerRecall.restoreDraft()); runCatching { inputFocus.requestFocus() } },
+                    )
                     val sendInteraction = remember { MutableInteractionSource() }
                     val sendPressed by sendInteraction.collectIsPressedAsState()
                     val accents = LocalAccentColors.current

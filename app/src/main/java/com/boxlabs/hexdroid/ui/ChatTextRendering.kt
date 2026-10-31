@@ -35,6 +35,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import com.boxlabs.hexdroid.readableThemeText
+import com.boxlabs.hexdroid.themeContrast
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -172,6 +175,7 @@ internal data class MircStyleState(
     var italic: Boolean = false,
     var underline: Boolean = false,
     var reverse: Boolean = false,
+    var strikethrough: Boolean = false,
 ) {
     fun reset() {
         fg = null
@@ -182,6 +186,7 @@ internal data class MircStyleState(
         italic = false
         underline = false
         reverse = false
+        strikethrough = false
     }
 
     /** Set the palette foreground, dropping any 24-bit one it replaces. */
@@ -197,11 +202,11 @@ internal data class MircStyleState(
     fun applyBgHex(argb: Int?) { bgHex = argb; bg = null }
 
     fun snapshot(): MircStyleState =
-        MircStyleState(fg, bg, fgHex, bgHex, bold, italic, underline, reverse)
+        MircStyleState(fg, bg, fgHex, bgHex, bold, italic, underline, reverse, strikethrough)
 
     fun hasAnyStyle(): Boolean =
         fg != null || bg != null || fgHex != null || bgHex != null ||
-            bold || italic || underline || reverse
+            bold || italic || underline || reverse || strikethrough
 }
 
 private data class MircRun(val text: String, val style: MircStyleState)
@@ -327,6 +332,35 @@ internal fun mircColor(code: Int): Color? =
 /** How many mIRC colour codes are defined (0-based, inclusive of 0). */
 internal const val MIRC_COLOR_COUNT = 99
 
+internal fun ircTextDecoration(underline: Boolean, strikethrough: Boolean): TextDecoration? = when {
+    underline && strikethrough -> TextDecoration.combine(listOf(TextDecoration.Underline, TextDecoration.LineThrough))
+    underline -> TextDecoration.Underline
+    strikethrough -> TextDecoration.LineThrough
+    else -> null
+}
+
+/** Add a local backdrop only where the topic would be unreadable, preserving IRC foregrounds. */
+internal fun readableTopicSpans(text: AnnotatedString, foreground: Color, background: Color): AnnotatedString {
+    val boundaries = (listOf(0, text.length) + text.spanStyles.flatMap { listOf(it.start, it.end) }).distinct().sorted()
+    return buildAnnotatedString {
+        append(text)
+        for ((start, end) in boundaries.zipWithNext()) {
+            if (start == end) continue
+            var fg = foreground
+            var bg = background
+            for (span in text.spanStyles) {
+                if (span.start <= start && span.end >= end) {
+                    if (span.item.color != Color.Unspecified) fg = span.item.color
+                    if (span.item.background != Color.Unspecified) bg = span.item.background
+                }
+            }
+            if (themeContrast(fg.toArgb(), bg.toArgb()) < 4.5) {
+                addStyle(SpanStyle(background = Color(readableThemeText(bg.toArgb(), fg.toArgb()))), start, end)
+            }
+        }
+    }
+}
+
 internal fun MircStyleState.toSpanStyle(): SpanStyle {
     val fgCode = if (reverse) bg else fg
     val bgCode = if (reverse) fg else bg
@@ -340,7 +374,7 @@ internal fun MircStyleState.toSpanStyle(): SpanStyle {
         background = bgColor,
         fontWeight = if (bold) FontWeight.Bold else null,
         fontStyle = if (italic) FontStyle.Italic else null,
-        textDecoration = if (underline) TextDecoration.Underline else null,
+        textDecoration = ircTextDecoration(underline, strikethrough),
     )
 }
 
@@ -453,6 +487,10 @@ private fun parseMircRuns(input: String): List<MircRun> {
                 flush(); st.underline = !st.underline; i++
             }
 
+            '\u001E' -> { // strikethrough (IRC formatting specification)
+                flush(); st.strikethrough = !st.strikethrough; i++
+            }
+
             '\u0016' -> { // reverse
                 flush(); st.reverse = !st.reverse; i++
             }
@@ -481,7 +519,7 @@ internal fun AnnotatedString.Builder.appendIrcStyledLinkified(
     val hasAnsi = ansiColorsEnabled && text.contains('\u001b')
     val hasMirc = mircColorsEnabled && !hasAnsi &&
         (text.contains('\u0003') || text.contains('\u0004') || text.contains('\u0002') ||
-         text.contains('\u001D') || text.contains('\u001F') || text.contains('\u0016'))
+         text.contains('\u001D') || text.contains('\u001F') || text.contains('\u001E') || text.contains('\u0016'))
 
     when {
         hasAnsi -> {
@@ -588,10 +626,14 @@ internal fun IrcLinkifiedText(
     /** Leading characters of [text] holding the timestamp, tinted with [prefixColor]. */
     prefixLength: Int = 0,
     prefixColor: androidx.compose.ui.graphics.Color? = null,
+    contrastBackground: Color? = null,
+    contrastForeground: Color? = null,
 ) {
     val annotated = remember(text, linkStyle, mircColorsEnabled, ansiColorsEnabled, findHighlight, findHighlightBg,
-        prefixLength, prefixColor) {
-        val styled = buildAnnotatedString { appendIrcStyledLinkified(text, linkStyle, mircColorsEnabled, ansiColorsEnabled) }
+        prefixLength, prefixColor, contrastBackground, contrastForeground) {
+        val original = buildAnnotatedString { appendIrcStyledLinkified(text, linkStyle, mircColorsEnabled, ansiColorsEnabled) }
+        val styled = if (contrastBackground != null && contrastForeground != null)
+            readableTopicSpans(original, contrastForeground, contrastBackground) else original
         val base = if (prefixColor != null && prefixLength > 0 && prefixLength <= styled.length) {
             buildAnnotatedString {
                 append(styled)

@@ -40,20 +40,24 @@ class Dreams107UiTest {
         compose.onNodeWithTag("topic-bold").performScrollTo().performClick()
         compose.onNodeWithTag("topic-italic").performScrollTo().performClick()
         compose.onNodeWithTag("topic-underline").performScrollTo().performClick()
+        compose.onNodeWithTag("topic-strike").performScrollTo().performClick()
         compose.onNodeWithTag("topic-color-4").performScrollTo().performClick()
         compose.onNodeWithTag("topic-background").performScrollTo().performClick()
         compose.onNodeWithTag("topic-color-2").performScrollTo().performClick()
         val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
-        compose.onNodeWithTag("topic-preview", useUnmergedTree = true).performScrollTo()
+        compose.onNodeWithTag("topic-preview").assertDoesNotExist()
+        compose.onNodeWithTag("topic-editor-input").performScrollTo()
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-        assertEquals(text, layouts.single().layoutInput.text.text)
-        assertTrue(layouts.single().layoutInput.text.spanStyles.any { it.item.color == mircColor(4) && it.item.background == mircColor(2) })
+        val formatted = layouts.single { it.layoutInput.text.text == text }
+        assertEquals(text, formatted.layoutInput.text.text)
+        assertTrue(formatted.layoutInput.text.spanStyles.any { it.item.color == mircColor(4) && it.item.background == mircColor(2) })
         compose.onNodeWithTag("topic-tools-apply").performScrollTo().performClick()
         compose.runOnIdle {
             val command = sent.single()
             assertEquals("/topic #demo :$text", stripIrcFormatting(command))
             assertTrue(command.contains('\u0002')); assertTrue(command.contains('\u001d')); assertTrue(command.contains('\u001f'))
             assertTrue(command.contains("\u000304,02"))
+            assertTrue(command.contains('\u001e'))
         }
     }
 

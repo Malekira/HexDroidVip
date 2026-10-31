@@ -207,6 +207,9 @@ class PersonalPhase3PrivateFlowTest {
                 vm.openBuffer(room)
                 vm.handleEvent(id, IrcEvent.Joined("#demo", "DemoNick01", "demo@2001:db8::1234", account = "DemoAccount"))
                 val before = vm.state.value.buffers.mapValues { it.value.messages.size }
+                vm.handleEvent(id, IrcEvent.Setname("DemoNick01", "Nombre de prueba"))
+                vm.handleEvent(id, IrcEvent.Setname("OwnDemoNick", "Nombre propio de prueba"))
+                vm.handleEvent(id, IrcEvent.Setname("UnknownDemoNick", "Nombre sin sala"))
                 vm.handleEvent(id, IrcEvent.Chghost("DemoNick01", "newident", "cloak.example.invalid"))
                 vm.handleEvent(id, IrcEvent.AccountChanged("DemoNick01", "DemoAccount"))
                 vm.handleEvent(id, IrcEvent.AccountChanged("OwnDemoNick", "OwnDemoAccount"))

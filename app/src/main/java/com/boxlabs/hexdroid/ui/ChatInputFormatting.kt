@@ -165,6 +165,7 @@ internal class MircInputTransformation : VisualTransformation {
         var bold = false
         var italic = false
         var underline = false
+        var strikethrough = false
         var fg: Int? = null
         var bg: Int? = null
         var i = 0
@@ -193,14 +194,15 @@ internal class MircInputTransformation : VisualTransformation {
                 '\u0002' -> bold = !bold
                 '\u001D' -> italic = !italic
                 '\u001F' -> underline = !underline
-                '\u000F' -> { bold = false; italic = false; underline = false; fg = null; bg = null }
+                '\u001E' -> strikethrough = !strikethrough
+                '\u000F' -> { bold = false; italic = false; underline = false; strikethrough = false; fg = null; bg = null }
                 else -> if (c < ' ' && c != '\n' && c != '\t') Unit else {
                     toRaw.add(i)
                     out.withStyle(
                         SpanStyle(
                             fontWeight = if (bold) FontWeight.Bold else null,
                             fontStyle = if (italic) FontStyle.Italic else null,
-                            textDecoration = if (underline) TextDecoration.Underline else null,
+                            textDecoration = ircTextDecoration(underline, strikethrough),
                             color = fg?.let { mircColor(it) } ?: Color.Unspecified,
                             background = bg?.let { mircColor(it) } ?: Color.Unspecified,
                         )

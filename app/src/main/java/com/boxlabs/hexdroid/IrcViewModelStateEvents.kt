@@ -45,25 +45,8 @@ internal fun IrcViewModel.handleStateEvent(netId: String, ev: IrcEvent) {
             // Keep authentication state without announcing logins/logouts in chat.
         }
 
-        // IRCv3 SETNAME: user changed their realname.
-        is IrcEvent.Setname -> {
-            if (ev.isHistory) return
-            val myNick = _state.value.connections[netId]?.myNick ?: return
-            val isMe = casefoldText(netId, ev.nick) == casefoldText(netId, myNick)
-            val line = if (isMe) "* " + appContext.getString(R.string.vm_ev_your_realname_now, ev.newRealname)
-                       else "* " + appContext.getString(R.string.vm_ev_realname_changed, ev.nick, ev.newRealname)
-            val affected = _state.value.nicklists
-                .filterKeys { it.startsWith("$netId::") }
-                .filter { (_, list) ->
-                    list.any { parseNickWithPrefixes(netId, it).first.let { b ->
-                        casefoldText(netId, b) == casefoldText(netId, ev.nick) } }
-                }
-                .map { it.key }
-            val targets = if (affected.isNotEmpty()) affected else listOf(bufKey(netId, "*server*"))
-            for (k in targets) {
-                append(k, from = null, text = line, timeMs = ev.timeMs, doNotify = false, isLocal = true)
-            }
-        }
+        // The protocol layer still emits SETNAME; real-name changes stay silent in chat.
+        is IrcEvent.Setname -> Unit
 
         // Incoming channel invite.
         is IrcEvent.InviteReceived -> {
