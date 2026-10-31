@@ -3,7 +3,7 @@
 Orden expresa: «Implementa todo lo pendiente».
 Rama `feat/dreams-1.0.6`, desde la entrega 1.0.5 (`699e3cc`).
 
-## Cambios previstos y alcance
+## Cambios implementados y alcance
 
 - Un solo botón ⌫ junto al mensaje y Retroceso del teclado: recuperar sucesivamente
   hasta diez textos propios de la conversación, sin enviarlos ni borrar el borrador.
@@ -17,8 +17,8 @@ Rama `feat/dreams-1.0.6`, desde la entrega 1.0.5 (`699e3cc`).
 - Conservar el respaldo opcional con historial de 1.0.5, configuraciones y datos,
   WHOIS, NOTICE, notificaciones, scripts personales, GPLv3 y créditos originales.
 
-Las verificaciones y el enlace de la APK se registrarán al terminar. No hay merge
-automático ni nuevas claves publicadas; se mantiene la firma debug elegida.
+No hay merge automático ni nuevas claves publicadas; se mantiene la firma debug
+elegida. Verificación y descarga registradas al final de este documento.
 
 
 ## Uso en el teléfono
@@ -71,3 +71,32 @@ La firma sigue siendo debug. La actualización conservando datos requiere la mis
 clave que la instalación anterior. Si Android rechaza la firma, no desinstalar ni
 borrar los datos de la app anterior: exportar antes configuración, scripts e
 historial con las herramientas de esa versión.
+
+
+## Entrega verificada — 31 de octubre de 2026
+
+- Versión: **HexDroid Dreams 1.0.6 (45)**, código de la APK
+  `23e07f7069ad5105d01c35ec06348d5d14e6b249`.
+- [Ejecución completa correcta y descarga](https://github.com/Malekira/HexDroidVip/actions/runs/41130954531):
+  **SUCCESS**, 6 min 58 s. Ejecutada el 30 de octubre; publicación comprobada de
+  nuevo el 31 de octubre al retomar el pedido de reintentar.
+- Pruebas unitarias aprobadas, **102 ejecutadas localmente**, sin fallos ni
+  omisiones. También aprobaron en CI el comando `connectedDebugAndroidTest` y el
+  control obligatorio de todas las pruebas nuevas y anteriores: teclado táctil,
+  IME real (borrado normal y por puntos de código), teclado físico, topic,
+  permisos, contraste, JOIN, WHOIS y almacenamiento/respaldo.
+- Verificación de firma, identificador y nombre aprobada antes de la subida.
+- Artifact **HexDroid-Dreams-debug** publicado, **34,5 MB**. Contiene la APK
+  `HexDroid-Dreams-debug.apk` y `SHA256SUMS.txt`. Informes en **Phase3-test-reports**.
+- Desde Samsung: iniciar sesión en GitHub, abrir la ejecución, ir a **Artifacts →
+  HexDroid-Dreams-debug**, descargar el ZIP, extraerlo en Mis archivos y abrir la APK.
+- El primer intento [41129042105](https://github.com/Malekira/HexDroidVip/actions/runs/41129042105)
+  falló porque una prueba anterior todavía exigía `#sala` en JOIN. Se corrigió
+  para exigir el nuevo formato sin sala, conservar las máscaras IPv4/IPv6 y
+  mantener el resto de comprobaciones. No se omitieron pruebas: el reintento
+  completo enlazado arriba pasó.
+- Los archivos originales del historial, preferencias, identificador de paquete,
+  scripts personales y respaldo opcional de 1.0.5 se conservan. Las actualizaciones
+  siguen sujetas a la compatibilidad de firma explicada arriba; no desinstalar ni
+  borrar datos si Android rechaza la firma.
+- Rama de revisión `feat/dreams-1.0.6`; no se fusionaron ramas anteriores.

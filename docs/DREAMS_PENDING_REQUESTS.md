@@ -1,7 +1,7 @@
 # Pedidos pendientes de HexDroid Dreams
 
-Estado: entregado hasta HexDroid Dreams 1.0.5 (44); verificación Android de todos
-los pendientes en preparación para 1.0.6 (45).
+Estado: todos los pendientes anotados implementados y verificados en
+**HexDroid Dreams 1.0.6 (45)**.
 Rama de trabajo: `feat/dreams-1.0.6`, desde la entrega de historial y respaldo.
 
 ## Todos los pendientes: autorización «Implementa todo lo pendiente»
@@ -13,8 +13,11 @@ Rama de trabajo: `feat/dreams-1.0.6`, desde la entrega de historial y respaldo.
 - Contraste del topic y controles en modo oscuro y temas personalizados.
 - JOIN sin repetir la sala, conservando nick, ident@host disponible y formato.
 - Se conserva el respaldo opcional con historial de 1.0.5 y las funciones anteriores.
-- Compilación local correcta y 102 pruebas JVM aprobadas. Pruebas Android compiladas;
-  ejecución y descarga de la APK pendientes de GitHub Actions.
+- Compilación local correcta, 102 pruebas JVM aprobadas y pruebas Android
+  ejecutadas y aprobadas en GitHub Actions, sin omitir comprobaciones.
+- [APK debug 1.0.6 publicada](https://github.com/Malekira/HexDroidVip/actions/runs/41130954531):
+  artifact **HexDroid-Dreams-debug** (34,5 MB). Verificada el 31 de octubre al
+  retomar «Reintenta todo». Ejecución completa **SUCCESS**.
 - Detalles: [DREAMS_1_0_6.md](DREAMS_1_0_6.md). Sin fusiones automáticas.
 
 ## Cambio autorizado: historial y respaldo opcional
@@ -32,7 +35,8 @@ Rama de trabajo: `feat/dreams-1.0.6`, desde la entrega de historial y respaldo.
 - [APK debug publicada](https://github.com/Malekira/HexDroidVip/actions/runs/41124129174),
   artifact **HexDroid-Dreams-debug** (34,5 MB). Reintento tras un fallo de arranque
   del emulador, sin omitir pruebas ni modificar funcionalidades.
-- Los cambios pendientes de Retroceso, topics y avisos JOIN no se incluyen aquí.
+- Esta entrega 1.0.5 no incluyó Retroceso, topics y avisos JOIN; se completaron
+  después en 1.0.6, según el registro anterior.
 
 ## Registro de entrega — 30 de octubre de 2026
 
