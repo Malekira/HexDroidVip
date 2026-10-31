@@ -85,4 +85,32 @@ Se conserva la firma debug elegida. Para actualizar sin perder datos se necesita
 la misma clave que firmó la instalación anterior. Si Android rechaza la firma,
 no desinstalar ni borrar sus datos. Exportar antes configuración, scripts e historial;
 si la versión anterior no incluía la foto en el respaldo, copiar su URL por separado.
-Los resultados de CI y el enlace de descarga se registran al completar la ejecución.
+Los resultados de CI y la descarga están registrados a continuación.
+
+
+## Entrega verificada — 31 de octubre de 2026
+
+- **HexDroid Dreams 1.0.7 (46)**. Código de la APK:
+  `cc6e84f8c4c79f3f96f6bb575457f00a1c05ebc2`.
+- [Ejecución completa y descarga de la APK](https://github.com/Malekira/HexDroidVip/actions/runs/41183246423):
+  **SUCCESS**, 8 min 55 s. Compilación, pruebas unitarias, pruebas Android, control
+  obligatorio de suites, verificación de firma/identidad y subida aprobados.
+- **106 pruebas JVM ejecutadas localmente**, sin fallos, errores ni omisiones.
+  En CI aprobaron también `connectedDebugAndroidTest` y todas las comprobaciones
+  obligatorias, incluidas composición sin duplicados y sin pérdida de palabras,
+  borrado normal tras recuperar con ↤, colores sobre un topic ya coloreado,
+  perfil de foto, respaldo/restauración y funciones anteriores.
+- Artifact publicado **HexDroid-Dreams-debug**, **34,5 MB**; APK
+  `HexDroid-Dreams-debug.apk` y `SHA256SUMS.txt`. Informes en **Phase3-test-reports**.
+- Desde Samsung: iniciar sesión en GitHub, abrir la ejecución, ir a **Artifacts →
+  HexDroid-Dreams-debug**, descargar el ZIP, extraerlo en Mis archivos y abrir la APK.
+- El primer intento [41182324087](https://github.com/Malekira/HexDroidVip/actions/runs/41182324087)
+  falló en dos comprobaciones del teclado. Se separó el texto editable vacío del
+  texto de ayuda y se mantuvo una conexión IME continua para componer palabras,
+  como usa el teclado, en lugar de recrearla entre todas las operaciones. Se
+  conservaron las aserciones de palabras completas, Unicode, borrado y contador
+  de mensajes; el reintento completo pasó sin omitir ninguna suite.
+- Se reforzó el selector del topic para sustituir colores antiguos dentro de la
+  selección sin perder otros estilos, incluidas secuencias de restablecimiento.
+- Rama `feat/dreams-1.0.7`, sin fusiones automáticas ni cambios en ramas anteriores.
+  Historial, preferencias, scripts personales, GPLv3 y créditos conservados.

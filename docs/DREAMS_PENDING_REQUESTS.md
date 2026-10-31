@@ -1,8 +1,8 @@
 # Pedidos pendientes de HexDroid Dreams
 
-Estado: entregado hasta 1.0.6; los nuevos pedidos están implementados en 1.0.7
-y en verificación Android antes de publicar la APK.
-Rama de trabajo: `feat/dreams-1.0.6`, desde la entrega de historial y respaldo.
+Estado: todos los pendientes anotados implementados y verificados en
+**HexDroid Dreams 1.0.7 (46)**.
+Rama de trabajo: `feat/dreams-1.0.7`, desde la entrega 1.0.6.
 
 ## Pendientes posteriores a 1.0.6: autorización «Aplica todos los pendientes»
 
@@ -17,8 +17,10 @@ Rama `feat/dreams-1.0.7`, versión 1.0.7 (46), basada en 1.0.6.
 - Recuperación de diez entradas únicamente desde ↤; el teclado borra normalmente.
 - Desactivar autocorrección del campo y verificar composición sin duplicados,
   conservando Tab y sugerencias por elección explícita.
-- Compilación local correcta; 106 pruebas JVM aprobadas. Android y publicación
-  pendientes de la ejecución de GitHub Actions.
+- Compilación local correcta; 106 pruebas JVM aprobadas. Las pruebas Android y
+  todos los controles obligatorios aprobaron en GitHub Actions.
+- [APK debug 1.0.7 publicada](https://github.com/Malekira/HexDroidVip/actions/runs/41183246423),
+  artifact **HexDroid-Dreams-debug** (34,5 MB). Ejecución completa **SUCCESS**.
 - Detalle: [DREAMS_1_0_7.md](DREAMS_1_0_7.md). Sin fusiones automáticas.
 
 ## Todos los pendientes: autorización «Implementa todo lo pendiente»
