@@ -1,4 +1,4 @@
-# HexDroid Dreams 1.0.8 — pendientes autorizados
+# HexDroid Dreams 1.0.8 (47) — pendientes autorizados
 
 Rama `feat/dreams-1.0.8`, creada desde `feat/dreams-1.0.7` (6ddeb4b).
 No se fusionan ni modifican las ramas anteriores.
@@ -20,14 +20,23 @@ No se cambian el identificador, datos, historial permanente, scripts importados,
 - Validación final local: **113 pruebas JVM ejecutadas y aprobadas**, cero fallos, errores u omisiones. Los dos casos nuevos mal configurados de la primera ejecución se corrigieron antes de repetir la validación.
 - APK debug local verificada con `apksigner` y `aapt2`: versión 1.0.8 (47), paquete personalizado y nombre HexDroid Dreams. Sin claves privadas dentro de la APK.
 - La prueba de envío real incluye cursiva/subrayado/tachado al final de todo el topic, sus códigos de cierre completos y el límite de longitud del servidor; repetición local aprobada.
-- La APK de pruebas Android se compiló localmente. Las pruebas de interfaz/persistencia reales y publicación del artifact quedan pendientes de comprobar en GitHub Actions; el entorno local no dispone de emulador.
-- Primera ejecución Android: se detectaron una comparación exacta de píxeles de iconos y duplicación al mantener dos conexiones IME simultáneas en el test. Se retiró la comparación visual frágil conservando pruebas de tamaño/posición/recuperación, y se usa el interceptor de Compose para probar la conexión Android real del campo como único IME. Se mantienen todas las aserciones de texto y borrado; pendiente de validar esta corrección en Actions.
+- La APK de pruebas Android se compiló localmente. Las pruebas de interfaz/persistencia se ejecutaron y aprobaron en el emulador Android API 35 de GitHub Actions; el entorno local no dispone de emulador.
+- Primera ejecución Android: se detectaron una comparación exacta de píxeles de iconos y duplicación al mantener dos conexiones IME simultáneas en el test. Se retiró la comparación visual frágil conservando pruebas de tamaño/posición/recuperación, y se usa el interceptor de Compose para probar la conexión Android real del campo como único IME. Se mantuvieron todas las aserciones de texto y borrado, que aprobaron en la ejecución final de Actions.
 - El workflow exige también las suites anteriores de WHOIS, persistencia, historial/respaldo, foto, teclado y autocompletado. No publica la APK si una prueba obligatoria falla.
+
+## Entrega comprobada
+
+- Código compilado y probado: `cf68f697464504e85db1c3a731e5e63ad5ff3abe`.
+- [GitHub Actions — ejecución final correcta](https://github.com/Malekira/HexDroidVip/actions/runs/41200055043): **SUCCESS**, duración 5 min 57 s.
+- Artifact **HexDroid-Dreams-debug**, **34,5 MB**, ID `13041754897`; APK debug firmada e identidad verificadas, disponible durante 30 días.
+- [Descarga del artifact (requiere iniciar sesión)](https://github.com/Malekira/HexDroidVip/actions/runs/41200055043/artifacts/13041754897).
+- Informes **Phase3-test-reports**, 222 KB. Aprobadas las cinco etapas obligatorias: compilación/pruebas JVM, pruebas Android, comprobación de suites, firma/identidad y publicación de APK.
+- [Cambios completos para revisión](https://github.com/Malekira/HexDroidVip/compare/feat%2Fdreams-1.0.7...feat%2Fdreams-1.0.8). No se ha fusionado ninguna rama. La actualización posterior de esta documentación no cambia el código compilado.
 
 ## Dónde usar los cambios
 
 - **Sala → Herramientas de canal → Tema → Herramientas de texto** (también desde el menú de edición del topic): seleccionar texto y usar N (negrita), C (cursiva), S subrayada o T tachada. Seleccionar todo y quitar formato tienen iconos y descripciones accesibles. Los colores de texto/fondo continúan disponibles. Solo se muestra el propio campo formateado; no hay vista previa inferior.
-- **Barra del topic**: los fragmentos con contraste inferior a 4,5 reciben un fondo local blanco/negro legible. Se conservan sus letras, colores de texto, estilos y enlaces; no se cambia el TOPIC enviado al servidor ni los mensajes de la conversación.
+- **Barra del topic**: los fragmentos con contraste inferior a 4,5 reciben un fondo local blanco/negro legible. Se conservan sus letras, colores de texto, estilos y enlaces; el contraste es solo visual y no reenvía ni reescribe el topic recibido ni los mensajes de la conversación.
 - **Entrada de mensajes**: Tab a la izquierda; recuperación de mensajes a la derecha del campo, con el mismo marco cuadrado y el símbolo de Tab invertido. Cada pulsación recupera una entrada anterior (hasta diez). Pulsación larga restaura el borrador. Retroceso del teclado solo borra.
 - **Eventos**: se dejan de presentar cambios de nombre real, incluso si no hay una sala compartida. Continúan los cambios de nick, máscaras JOIN/PART/QUIT, WHOIS y eventos de protocolo.
 - **Red → Identidad → Foto del perfil**: sigue siendo una URL HTTPS, guardada y respaldada como en 1.0.7. No se incorpora selección de foto local.

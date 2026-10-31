@@ -1,6 +1,7 @@
 # Pedidos pendientes de HexDroid Dreams
 
-Estado: pendientes posteriores a 1.0.7 en implementación autorizada mediante
+Estado: pendientes posteriores a 1.0.7 implementados y verificados en
+**HexDroid Dreams 1.0.8 (47)**, con autorización
 «Mejor como está con url. Implementa el resto de los cambios pendientes».
 Rama `feat/dreams-1.0.8`, basada en la entrega publicada 1.0.7.
 
@@ -12,7 +13,10 @@ Rama `feat/dreams-1.0.8`, basada en la entrega publicada 1.0.7.
 - Botón de mensajes anteriores igual al Tab, orientado hacia atrás, sin moverlo.
 - No mostrar cambios de nombre real; conservar cambios de nick.
 - Foto por URL, sin añadir carga local.
-- Plan, pruebas y entrega: [DREAMS_1_0_8.md](DREAMS_1_0_8.md).
+- **113 pruebas JVM aprobadas** y pruebas Android/suites obligatorias aprobadas en Actions.
+- [APK debug 1.0.8 publicada](https://github.com/Malekira/HexDroidVip/actions/runs/41200055043): artifact **HexDroid-Dreams-debug**, 34,5 MB; ejecución **SUCCESS**.
+- Plan, pruebas y entrega: [DREAMS_1_0_8.md](DREAMS_1_0_8.md). Sin fusiones automáticas.
+- No se iniciarán nuevas modificaciones sin otra orden expresa del usuario.
 
 ## Pendientes posteriores a 1.0.6: autorización «Aplica todos los pendientes»
 
