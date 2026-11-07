@@ -210,7 +210,7 @@ data class UiSettings(
     val networkTabs: Boolean = false,
     // Pin a network quick-switcher bar at the bottom of the chat, just above the message input,
     // independent of the drawer's tree/tabs mode. Tapping a network jumps to it.
-    val networkTabsAtBottom: Boolean = false,
+    val networkTabsAtBottom: Boolean = true,
     val showTimestamps: Boolean = true,
     val timestampFormat: String = "HH:mm:ss",
     /** Brackets drawn around the timestamp. */
@@ -324,7 +324,7 @@ data class UiSettings(
     val vibrateIntensity: VibrateIntensity = VibrateIntensity.MEDIUM,
 
     val loggingEnabled: Boolean = true,
-    val logServerBuffer: Boolean = false,
+    val logServerBuffer: Boolean = true,
     val retentionDays: Int = 0,
     val logFolderUri: String? = null,
     val chatZonaAvatarsEnabled: Boolean = true,

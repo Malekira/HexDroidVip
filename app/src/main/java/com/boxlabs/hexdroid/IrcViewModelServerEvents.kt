@@ -1157,6 +1157,13 @@ internal fun IrcViewModel.flushWhoisBlock(netId: String, id: Long) {
     if (block.floating) _state.update { st ->
         st.copy(whoisWindows = mergeWhoisWindow(st.whoisWindows, WhoisWindow(id, netId, block.nick, block.fields.toMap(), block.lines.toList())))
     }
+    // A floating-only WHOIS has no buffer destination. Archive it independently
+    // of presentation, without creating or selecting an extra chat window.
+    val historyKey = bufKey(netId, WHOIS_BUFFER)
+    if (historyKey !in block.destinations) {
+        val time = System.currentTimeMillis()
+        for (line in block.lines) writeLogLine(historyKey, time, null, line, false)
+    }
     for (destination in block.destinations) {
         ensureBuffer(destination)
         // Keep individual log lines, but append the entire query contiguously on the UI thread.

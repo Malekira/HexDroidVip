@@ -36,6 +36,7 @@ import com.boxlabs.hexdroid.NickToken
 
 import android.content.res.Configuration
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -57,6 +58,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.horizontalScroll
@@ -566,6 +568,24 @@ fun ChatScreen(
         )
     }
     var input by inputState
+    // Consume navigation Back while a draft exists, including whitespace-only drafts.
+    // With an empty composer, Android retains its normal Back behaviour.
+    BackHandler(enabled = !tourActive && input.text.isNotEmpty()) { }
+
+    // Use exactly the same ordering for tabs and horizontal navigation.
+    val conversationTabKeys = state.networks
+        .sortedWith(compareBy({ !it.isFavourite }, { it.sortOrder }, { it.name }))
+        .filter { it.showInSidebar || it.id == splitKey(selected).first }
+        .flatMap { net ->
+            val group = buffersByNet[net.id]
+            listOf(group?.serverKey ?: "${net.id}::*server*") + group?.others.orEmpty()
+        }
+    val conversationSwipeThreshold = with(LocalDensity.current) { 56.dp.toPx() }
+    fun selectConversation(key: String) {
+        // Save before the old composer's collection is cancelled.
+        onDraftChanged(selected, input.text, input.selection.start)
+        onSelectBuffer(key)
+    }
     /** The buffer and composer on screen now, for async results that outlive the ones they started from. */
     val liveSelected by rememberUpdatedState(selected)
     val liveInputState by rememberUpdatedState(inputState)
@@ -2470,6 +2490,25 @@ fun ChatScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .testTag("chat-messages")
+                    // Only the message area switches conversations: cursor gestures in
+                    // the composer and scrolling the tab strip keep their own behaviour.
+                    .pointerInput(selected, conversationTabKeys, conversationSwipeThreshold) {
+                        var distance = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { distance = 0f },
+                            onDragCancel = { distance = 0f },
+                            onDragEnd = {
+                                adjacentConversation(
+                                    conversationTabKeys, selected, distance, conversationSwipeThreshold,
+                                )?.let(::selectConversation)
+                                distance = 0f
+                            },
+                        ) { change, amount ->
+                            change.consume()
+                            distance += amount
+                        }
+                    }
                     // Tap anywhere in the chat to close the soft keyboard.
                     .pointerInput(Unit) {
                         awaitEachGesture {
@@ -3126,17 +3165,7 @@ fun ChatScreen(
             // network's server tab (network name + connection dot) followed by that network's channels
             // and PMs. It replaces the drawer, which is disabled while this mode is on.
             if (state.settings.networkTabsAtBottom) {
-                // Same network ordering/visibility the drawer uses (favourites first, then sort order,
-                // then name; only networks kept in the switcher, plus whichever one you're viewing),
-                // recomputed here from state because visibleNets is scoped to the drawer.
-                val barOpenNet = splitKey(selected).first
-                val barNets = state.networks
-                    .sortedWith(compareBy({ !it.isFavourite }, { it.sortOrder }, { it.name }))
-                    .filter { it.showInSidebar || it.id == barOpenNet }
-                val allTabKeys = barNets.flatMap { net ->
-                    val g = buffersByNet[net.id]
-                    listOf(g?.serverKey ?: "${net.id}::*server*") + (g?.others ?: emptyList())
-                }
+                val allTabKeys = conversationTabKeys
                 if (allTabKeys.isNotEmpty()) {
                     val barSelIdx = allTabKeys.indexOf(selected).coerceIn(0, allTabKeys.lastIndex)
                     // key() on the tab set. ScrollableTabRow caches its subcomposition and reads
@@ -3169,8 +3198,8 @@ fun ChatScreen(
                             val hi = b?.highlights ?: 0
                             Tab(
                                 selected = i == barSelIdx,
-                                onClick = { onSelectBuffer(key) },
-                                modifier = Modifier.focusHighlight(),
+                                onClick = { selectConversation(key) },
+                                modifier = Modifier.focusHighlight().testTag("conversation-tab:$key"),
                                 text = {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -3915,15 +3944,9 @@ fun ChatScreen(
     if (!isWide) {
         ModalNavigationDrawer(
             drawerState = drawerState,
-            // The bottom bar lists every network and buffer, so the drawer is redundant then: block the
-            // swipe-to-open gesture (the drawer button is hidden to match).
-            // Also block the open-swipe while the message input has focus: the drawer's
-            // drag zone covers the whole screen, so a rightward drag inside the input
-            // (moving the cursor, extending a selection) was opening the buffer list
-            // instead. Gestures stay enabled while the drawer is OPEN so it can always
-            // be swiped closed regardless of focus.
-            gesturesEnabled = !state.settings.networkTabsAtBottom &&
-                (drawerState.isOpen || !inputHasFocus),
+            // Closed-drawer drags would steal rightward conversation swipes.
+            // The menu button opens it; an open drawer can still be swiped closed.
+            gesturesEnabled = drawerState.isOpen,
             drawerContent = {
                 // Match the landscape pane: surface colour at 1 dp tonal elevation, so both drawers
                 // are the same shade.

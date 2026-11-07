@@ -1391,7 +1391,7 @@ internal fun IrcViewModel.writeLogLine(
     if (bufferName == "*server*" && !st.settings.logServerBuffer) return
     val netName = st.networks.firstOrNull { it.id == netId }?.name ?: "network"
     val safe = safeHistoryText(bufferName, text) ?: return
-    if (isPseudoBuffer(bufferName)) return
+    if (isPseudoBuffer(bufferName) && bufferName != "*server*" && bufferName != WHOIS_BUFFER) return
     val logLine = formatLogLine(ts, from, safe, isAction)
     scope.launch(logLane) {
         val err = runCatching {

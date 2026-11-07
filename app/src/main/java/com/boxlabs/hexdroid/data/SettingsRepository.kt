@@ -287,6 +287,9 @@ class SettingsRepository(private val ctx: Context) {
         if (json.isNullOrBlank()) return UiSettings()
         return try {
             val o = JSONObject(json)
+            // Apply the requested tab/history defaults once to existing installations.
+            // The version is written on the next settings save, so later user choices stick.
+            val enableChatDefaults = o.optInt("chatDefaultsVersion", 0) < 1
             UiSettings(
                 personal = com.boxlabs.hexdroid.PersonalSettings(
                 personalThemes = com.boxlabs.hexdroid.Phase3Codec.themes(o),
@@ -308,7 +311,7 @@ class SettingsRepository(private val ctx: Context) {
                 }.getOrDefault(ThemeMode.DARK),
                 compactMode = o.optBoolean("compactMode", false),
                 networkTabs = o.optBoolean("networkTabs", false),
-                networkTabsAtBottom = o.optBoolean("networkTabsAtBottom", false),
+                networkTabsAtBottom = enableChatDefaults || o.optBoolean("networkTabsAtBottom", true),
 
                 showTimestamps = o.optBoolean("showTimestamps", true),
                 timestampFormat = o.optString("timestampFormat", "HH:mm:ss"),
@@ -403,7 +406,7 @@ class SettingsRepository(private val ctx: Context) {
                 }.getOrDefault(com.boxlabs.hexdroid.VibrateIntensity.MEDIUM),
 
                 loggingEnabled = o.optBoolean("loggingEnabled", true),
-                logServerBuffer = o.optBoolean("logServerBuffer", false),
+                logServerBuffer = enableChatDefaults || o.optBoolean("logServerBuffer", true),
                 retentionDays = 0,
                 maxScrollbackLines = o.optInt("maxScrollbackLines", 800),
                 logFolderUri = o.optString("logFolderUri", "").takeIf { it.isNotBlank() },
@@ -465,6 +468,7 @@ class SettingsRepository(private val ctx: Context) {
 
     private fun toSettingsJson(s: UiSettings): JSONObject {
         val o = JSONObject()
+        o.put("chatDefaultsVersion", 1)
         com.boxlabs.hexdroid.Phase3Codec.write(o, s)
         o.put("themeMode", s.themeMode.name)
         o.put("compactMode", s.compactMode)

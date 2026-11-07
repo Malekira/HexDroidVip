@@ -29,7 +29,7 @@ class Dreams110SidebarTest {
         val base = SettingsRepository(context).defaultNetworks().first().copy(host = "irc.example.invalid", autoConnect = false)
         state = UiState(networks = listOf(base.copy(id = first, name = "Red de prueba A"), base.copy(id = second, name = "Red de prueba B")),
             activeNetworkId = first, selectedBuffer = "$first::#demo", showBufferList = true, showNickList = false,
-            settings = UiSettings(networkTabs = tabs),
+            settings = UiSettings(networkTabs = tabs, networkTabsAtBottom = false),
             connections = mapOf(first to NetConnState(connected = true, chanTypes = "#&"), second to NetConnState(connected = true, chanTypes = "#&")),
             buffers = linkedMapOf("$first::*server*" to UiBuffer("*server*"),
                 "$first::#demo" to UiBuffer("#demo", unread = 2), "$first::DemoNick01" to UiBuffer("DemoNick01", unread = 3, highlights = 1),

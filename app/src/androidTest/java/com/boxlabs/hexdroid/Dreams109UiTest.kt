@@ -52,6 +52,7 @@ class Dreams109UiTest {
         val room = "$id::#demo"; val pv = "$id::DemoNick01"
         val configuration = Configuration(context.resources.configuration).apply { screenWidthDp = 900 }
         val state = UiState(networks = listOf(profile), activeNetworkId = id, selectedBuffer = room,
+            settings = UiSettings(networkTabsAtBottom = false),
             buffers = mapOf("$id::*server*" to UiBuffer("*server*"), room to UiBuffer("#demo"), pv to UiBuffer("DemoNick01"), "$id::$WHOIS_BUFFER" to UiBuffer(WHOIS_BUFFER)),
             showBufferList = true, showNickList = false)
         compose.setContent { CompositionLocalProvider(LocalConfiguration provides configuration) { HexDroidIRCTheme { Chat(state) } } }
